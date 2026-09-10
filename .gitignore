@@ -1,0 +1,15 @@
+# Build output (generated only)
+build/
+
+# Compiler artifacts
+*.o
+*.d
+*.elf
+*.iso
+*.img
+*.bin.o
+
+# Editor / OS noise
+*.swp
+*~
+.DS_Store

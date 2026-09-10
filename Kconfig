@@ -1,0 +1,115 @@
+# NEWOS Kernel Configuration
+# ============================================================================
+# This file is the master kernel configuration. Each entry controls whether
+# a subsystem is compiled in. Values are booleans (y/n) or tristate where a
+# subsystem can also be built as a loadable module (m).
+#
+# The build system reads this file and generates include/generated/autoconf.h
+# and a Kconfig-derived config summary.
+
+# ---------------------------------------------------------------------------
+# General
+# ---------------------------------------------------------------------------
+CONFIG_NEWOS                 y
+CONFIG_NAME                  "NEWOS"
+CONFIG_VERSION               "0.1.0-pre-alpha"
+
+# ---------------------------------------------------------------------------
+# Architecture
+# ---------------------------------------------------------------------------
+CONFIG_ARCH_X86_64           y
+CONFIG_SMP                   n
+CONFIG_ACPI                  n
+CONFIG_APIC                  n
+CONFIG_IOAPIC                n
+CONFIG_HIGH_RES_TIMERS       y
+
+# ---------------------------------------------------------------------------
+# Boot
+# ---------------------------------------------------------------------------
+CONFIG_MULTIBOOT2            y
+CONFIG_SERIAL_EARLY          y
+CONFIG_SERIAL_CONSOLE        y
+CONFIG_FRAMEBUFFER           n
+
+# ---------------------------------------------------------------------------
+# Memory management
+# ---------------------------------------------------------------------------
+CONFIG_PMM_BUDDY             y
+CONFIG_PMM_BITMAP            y
+CONFIG_VMM                   y
+CONFIG_PAGING                y
+CONFIG_KMALLOC               y
+CONFIG_SLAB                  n
+CONFIG_VMALLOC               y
+CONFIG_COW                   n
+CONFIG_SWAP                  n
+CONFIG_HUGEPAGES             n
+CONFIG_NUMA                  n
+CONFIG_MEMORY_DEBUG          y
+
+# ---------------------------------------------------------------------------
+# Process / scheduler
+# ---------------------------------------------------------------------------
+CONFIG_SCHEDULER             n
+CONFIG_EARLY_SCHEDULER       y
+CONFIG_THREADS               n
+CONFIG_SIGNALS               n
+CONFIG_POSIX                n
+
+# ---------------------------------------------------------------------------
+# Syscalls
+# ---------------------------------------------------------------------------
+CONFIG_SYSCALLS              n
+
+# ---------------------------------------------------------------------------
+# File systems
+# ---------------------------------------------------------------------------
+CONFIG_VFS                   y
+CONFIG_INITRAMFS             y
+CONFIG_TMPFS                 y
+CONFIG_DEVFS                 y
+CONFIG_PROCFS                n
+CONFIG_SYSFS                 n
+CONFIG_NATIVEFS              n
+CONFIG_EXT2                  n
+CONFIG_FAT                   n
+CONFIG_ISO9660               n
+
+# ---------------------------------------------------------------------------
+# Block layer
+# ---------------------------------------------------------------------------
+CONFIG_BLOCK_LAYER           n
+
+# ---------------------------------------------------------------------------
+# Drivers
+# ---------------------------------------------------------------------------
+CONFIG_DRIVER_MODEL          y
+CONFIG_PCI                   n
+CONFIG_USB                   n
+CONFIG_PS2KEYBOARD           n
+CONFIG_VGA                   n
+CONFIG_CMOS_RTC              n
+
+# ---------------------------------------------------------------------------
+# Networking
+# ---------------------------------------------------------------------------
+CONFIG_NETWORK               n
+CONFIG_SOCKETS               n
+
+# ---------------------------------------------------------------------------
+# Security
+# ---------------------------------------------------------------------------
+CONFIG_SECURITY              n
+CONFIG_SECUREBOOT            n
+
+# ---------------------------------------------------------------------------
+# Observability
+# ---------------------------------------------------------------------------
+CONFIG_PRINTK                y
+CONFIG_KLOG_BUFFER_SIZE      65536
+CONFIG_OOPS                  y
+CONFIG_PANIC                 y
+CONFIG_SPINLOCK_DEBUG        y
+CONFIG_DEBUG                 y
+CONFIG_TEST_MODE             n

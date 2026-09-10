@@ -1,0 +1,34 @@
+name: build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x86_64]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            gcc make nasm binutils qemu-system-x86 grub-common xorriso
+      - name: Build kernel
+        run: |
+          make ARCH=${{ matrix.arch }} all
+      - name: Validate multiboot2 header
+        run: |
+          grub-file --is-x86-multiboot2 build/newos-${{ matrix.arch }}.elf \
+            && echo "multiboot2 header OK"
+      - name: Upload kernel artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: newos-${{ matrix.arch }}-kernel
+          path: build/newos-${{ matrix.arch }}.elf
+          if-no-files-found: error

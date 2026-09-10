@@ -1,0 +1,28 @@
+name: static-analysis
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  analysis:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            gcc make nasm binutils
+      - name: Build with warnings-as-errors (CFLAGS already -Werror)
+        run: |
+          make all
+      - name: Check whitespace/conflict markers in changed files
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            base="${{ github.event.pull_request.base.sha }}"
+          else
+            base="HEAD^"
+          fi
+          git diff --check "$base" || exit 1
