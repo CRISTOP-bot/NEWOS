@@ -9,7 +9,6 @@
 #include <kernel/vfs.h>
 #include <arch/x86_64/gdt/gdt.h>
 #include <arch/x86_64/iframe.h>
-#include <arch/x86_64/io.h>
 #include <libk/string.h>
 
 /* Process implementation: ELF loading into a private address space, fd
@@ -37,7 +36,6 @@ void process_current_set(struct process *p)
  * than the process's own (killing the stack mid-use corrupts memory). */
 void process_free(struct process *p)
 {
-    printk("PF p=%p\n", (void *)p);
     for (int i = 0; i < PROCESS_MAX_FDS; i++) {
         if (p->fds[i].file) {
             vfs_close(p->fds[i].file);
@@ -169,8 +167,6 @@ fail:
 
 void process_exit(struct process *p, int code)
 {
-    unsigned char dbg = (unsigned char)code + '0';
-    outb(0x3f8, dbg);
     p->exit_code = code;
     p->state = PROCESS_STATE_EXITED;
     process_current_set(NULL);

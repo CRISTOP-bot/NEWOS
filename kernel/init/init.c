@@ -13,7 +13,6 @@
 #include <kernel/thread.h>
 #include <arch/x86_64/cpu.h>
 #include <arch/x86_64/gdt/gdt.h>
-#include <arch/x86_64/io.h>
 #include <libk/string.h>
 #include <libk/bitmap.h>
 
@@ -172,41 +171,14 @@ static int cmdline_has_test_mode(void)
 static int s_user_done;
 static int s_phase2_failures;
 
-static void raw_putc(char c)
-{
-    while (!(inb(0x3f8 + 5) & 0x20))
-        cpu_pause();
-    outb(0x3f8, (u8)c);
-}
-
 static void userland_finished(struct process *p)
 {
-    raw_putc('F');
-    raw_putc('A');
-    printk("DBG1 p=%p exit=%d\n", (void *)p, p ? p->exit_code : -999);
-    printk("SPV=%p\n", (void *)thread_resume_sp_value());
-    printk("FRAME: %p %p %p %p %p %p %p\n",
-           (void *)thread_resume_word(0), (void *)thread_resume_word(1),
-           (void *)thread_resume_word(2), (void *)thread_resume_word(3),
-           (void *)thread_resume_word(4), (void *)thread_resume_word(5),
-           (void *)thread_resume_word(6));
-    printk("A\n");
-    raw_putc('B');
-    printk("B p=%p\n", (void *)p);
-    raw_putc('C');
-    if (p)
-        printk("C name=%s code=%d\n", p->name, p->exit_code);
-    raw_putc('D');
-    printk("D\n");
-
     int ok = (p->exit_code == 0);
-    raw_putc('1');
+
     if (ok && s_phase2_failures == 0)
         printk("=== PHASE 2: PASS ===\n");
-    else {
-        raw_putc('2');
+    else
         printk("=== PHASE 2: FAIL ===\n");
-    }
 
     if (cmdline_has_test_mode())
         qemu_debug_exit((!ok || s_phase2_failures) ? 1 : 0);
@@ -222,7 +194,6 @@ static void run_userland(u64 arg)
 
     thread_capture_resume();
 
-    raw_putc('&');
     if (s_user_done) {
         /* Process exited; we are back on the init stack. */
         s_user_done = 0;
@@ -235,12 +206,6 @@ static void run_userland(u64 arg)
         x64_tss_set_rsp0(p->thread.kernel_stack_top);
         printk("userland: entering %s (pid %u) at ring 3\n", p->name,
                (unsigned)p->pid);
-        raw_putc('E');
-        printk("CAP: sp=%p w0=%p w4=%p w6=%p\n",
-               (void *)thread_resume_sp_value(),
-               (void *)thread_resume_word(0),
-               (void *)thread_resume_word(4),
-               (void *)thread_resume_word(6));
         x64_enter_user(&p->thread);   /* never returns */
     }
 

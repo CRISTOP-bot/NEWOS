@@ -35,7 +35,5 @@ int thread_setup_user(struct thread *t, uintptr_t entry, uintptr_t user_rsp,
 u64  thread_init_stack(void);
 void thread_capture_resume(void);
 void thread_resume_to(u64 *from) __attribute__((noreturn));
-uintptr_t thread_resume_word(int idx);
-uintptr_t thread_resume_sp_value(void);
 
 #endif
