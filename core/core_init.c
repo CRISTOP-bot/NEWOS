@@ -8,9 +8,11 @@
 #include <mm/mm_debug.h>
 #include <core/core.h>
 #include <drivers/qemu_debug.h>
+#include <drivers/pcnet.h>
 #include <mm/mm_vmm.h>
 #include <process/proc_process.h>
 #include <process/proc_thread.h>
+#include <process/sched.h>
 #include <x86_cpu.h>
 #include <x86_gdt.h>
 #include <iru_string.h>
@@ -135,6 +137,7 @@ static const struct ktest ktests[] = {
     { "pmm-alloc", ktest_pmm_alloc_free },
     { "pipe",      ktest_pipe       },
     { "vfs-tmpfs", ktest_vfs_tmpfs  },
+    { "pcnet",     pcnet_selftest   },
 };
 
 static int run_kernel_tests(void)
@@ -215,9 +218,14 @@ static void run_userland(u64 arg)
 
 static void boot_userland(void)
 {
-    printk("userland: launching /bin/hello\n");
-    struct process *hello = process_create_from_vfs("/bin/hello", "hello");
-    if (!hello) {
+    /* In test mode the deterministic hello program doubles as the init
+     * process so the CI checksum the exact same terminal output; in a real
+     * boot /init is the interactive console shell. */
+    const char *image = cmdline_has_test_mode() ? "/bin/hello" : "/init";
+    const char *name = cmdline_has_test_mode() ? "hello" : "init";
+    printk("userland: launching %s\n", image);
+    struct process *p = process_create_from_vfs(image, name);
+    if (!p) {
         s_phase2_failures = 1;
         printk("=== PHASE 2: FAIL ===\n");
         if (cmdline_has_test_mode())
@@ -225,9 +233,10 @@ static void boot_userland(void)
         printk("NEWOS: boot complete (userland failed to start).\n");
         return;
     }
+    p->is_init = 1;
 
     u64 isp = thread_init_stack();
-    x64_goto_stack(isp, run_userland, (u64)hello);   /* no return */
+    x64_goto_stack(isp, run_userland, (u64)p);   /* no return */
 }
 
 /* Everything after the banner runs from the direct-map init stack. The early
@@ -237,6 +246,7 @@ static void boot_userland(void)
 static void kernel_boot_main(u64 arg)
 {
     (void)arg;
+    sched_init();
     int failures = run_kernel_tests();
     s_phase2_failures = run_phase2_tests();
 

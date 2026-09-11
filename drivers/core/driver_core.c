@@ -36,8 +36,14 @@ int device_register(struct device *dev)
     struct list_node *node, *tmp;
     LIST_FOR_EACH_SAFE(node, tmp, &g_driver_list) {
         struct driver *drv = LIST_NODE_ENTRY(node, struct driver, list);
-        if (dev->bus->name && drv->name &&
-            strstr(drv->name, dev->bus->name)) {
+        if (drv->id_table) {
+            /* ID-table drivers match any device with compatible IDs. */
+            if (driver_match_device(drv, dev)) {
+                device_bind(dev, drv);
+                break;
+            }
+        } else if (dev->bus->name && drv->name &&
+                   strstr(drv->name, dev->bus->name)) {
             if (driver_match_device(drv, dev)) {
                 device_bind(dev, drv);
                 break;
@@ -75,7 +81,23 @@ int driver_unregister(struct driver *drv)
 
 int driver_match_device(struct driver *drv, struct device *dev)
 {
-    if (!drv || !dev || !drv->name || !dev->name)
+    if (!drv || !dev)
+        return 0;
+
+    /* Hardware ID table match (PCI-style vendor/device/class). */
+    if (drv->id_table) {
+        for (const struct device_id *id = drv->id_table;
+             id->vendor || id->device || id->class; id++) {
+            if ((id->vendor == DEVICE_ID_ANY || id->vendor == dev->vendor) &&
+                (id->device == DEVICE_ID_ANY || id->device == dev->device) &&
+                (id->class   == 0u            || id->class   == dev->class))
+                return 1;
+        }
+        return 0;
+    }
+
+    /* Legacy name match. */
+    if (!drv->name || !dev->name)
         return 0;
     return strstr(drv->name, dev->name) != NULL ||
            strstr(dev->name, drv->name) != NULL;

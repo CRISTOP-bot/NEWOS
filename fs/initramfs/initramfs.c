@@ -14,10 +14,12 @@
 
 static const char *root_dirs[] = DEFAULT_ROOT_DIRS;
 
-/* Embedded userland binaries (linked by the build system from
- * userland/programs/hello). Symbols rename to _binary_hello_elf_*. */
+/* Embedded userland binaries (linked by the build system). Symbol renames
+ * to _binary_<name>_elf_*. */
 extern const u8 _binary_hello_elf_start[];
 extern const u8 _binary_hello_elf_end[];
+extern const u8 _binary_init_elf_start[];
+extern const u8 _binary_init_elf_end[];
 
 static void install_blob(const char *path, const u8 *data, size_t len,
                          struct vfs_inode *parent)
@@ -54,17 +56,24 @@ void initramfs_init(void)
         vfs_close(f);
     }
 
-    /* /bin/hello (the phase-2 user program) and /init -> hello copy. */
+    /* /bin/hello (phase-2 test program) and /init (the interactive shell). */
     size_t hello_len = (size_t)(_binary_hello_elf_end - _binary_hello_elf_start);
+    size_t init_len = (size_t)(_binary_init_elf_end - _binary_init_elf_start);
     if (hello_len) {
         struct vfs_inode *bin = vfs_lookup("/bin");
-        struct vfs_inode *root = vfs_root();
         if (bin)
             install_blob("/bin/hello", _binary_hello_elf_start, hello_len, bin);
+        pr_info("initramfs: installed /bin/hello (%zu bytes)\n", hello_len);
+    }
+    if (init_len) {
+        struct vfs_inode *root = vfs_root();
+        struct vfs_inode *bin = vfs_lookup("/bin");
         if (root)
-            install_blob("/init", _binary_hello_elf_start, hello_len, root);
-        pr_info("initramfs: installed /bin/hello + /init (%zu bytes)\n",
-                hello_len);
+            install_blob("/init", _binary_init_elf_start, init_len, root);
+        if (bin)
+            install_blob("/bin/sh", _binary_init_elf_start, init_len, bin);
+        pr_info("initramfs: installed /init + /bin/sh (%zu bytes)\n",
+                init_len);
     }
 
     pr_info("initramfs: built-in root populated\n");

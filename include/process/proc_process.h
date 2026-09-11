@@ -32,6 +32,7 @@ struct process {
     uintptr_t entry;
     int state;
     int exit_code;
+    int is_init;        /* the boot-launched process (kernel boots into it) */
 };
 
 /* Load an ELF64 file from the VFS into a new process. Returns NULL on any
@@ -42,17 +43,16 @@ struct process *process_create_from_vfs(const char *path, const char *name);
  * kernel stack). */
 void process_free(struct process *p);
 
-/* Terminate the current process with `code` and resume the kernel. Never
- * returns. */
-void process_exit(struct process *p, int code) __attribute__((noreturn));
+/* Terminate the current process with `code`. The init process (pid 1)
+ * resumes the kernel boot flow; any other process becomes a zombie and the
+ * next runnable process takes over. */
+void process_exit(struct process *p, int code);
 
 struct process *process_current(void);
 void process_current_set(struct process *p);
 
 /* User-mode fault/exception termination (called by the arch handler). */
-void process_page_fault(struct x64_iframe *f, uintptr_t addr, u64 err)
-    __attribute__((noreturn));
-void process_exception(struct x64_iframe *f, int vec, u64 err)
-    __attribute__((noreturn));
+void process_page_fault(struct x64_iframe *f, uintptr_t addr, u64 err);
+void process_exception(struct x64_iframe *f, int vec, u64 err);
 
 #endif

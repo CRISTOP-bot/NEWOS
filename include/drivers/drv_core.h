@@ -11,7 +11,21 @@
  *   belongs to a bus         owns a device class / subsystem
  *
  * Drivers register against buses; the bus layer matches drivers to
- * discovered devices and calls probe(). */
+ * discovered devices and calls probe().
+ *
+ * Matching is either name-based (strstr either direction) or, for bus
+ * implementations like PCI that publish hardware IDs, table-based:
+ * a driver may carry an optional `id_table` of vendor/device/class
+ * tuples that must all match the device's published IDs. A driver with
+ * an id_table is eligible regardless of name. */
+
+#define DEVICE_ID_ANY 0x0000u
+
+struct device_id {
+    u16 vendor;
+    u16 device;
+    u32 class;      /* (base << 16) | (sub << 8) | prog-if, or 0 for any */
+};
 
 struct device;
 struct bus;
@@ -25,10 +39,16 @@ struct device {
     struct list_node chain;   /* bus device list       */
     struct list_node list;    /* global device list    */
     void *private;
+
+    /* Hardware identifiers published by the bus (e.g. PCI). */
+    u16 vendor;
+    u16 device;
+    u32 class;
 };
 
 struct driver {
     const char *name;
+    const struct device_id *id_table;   /* optional hardware ID table */
     int (*probe)(struct device *dev);
     int (*remove)(struct device *dev);
     struct list_node list;    /* global driver list    */

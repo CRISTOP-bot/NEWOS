@@ -1,16 +1,28 @@
 # Build output (generated only)
 build/
 
-# Compiler artifacts
+# Compiler / linker artifacts
 *.o
 *.d
+*.a
+*.so
 *.elf
 *.iso
 *.img
+*.map
+*.lst
+*.sym
 *.bin.o
 
-# Editor / OS noise
+# Fetched tooling (Limine bootloader binaries land under build/)
+
+# Editor / IDE noise
+.vscode/
+.idea/
 *.swp
 *~
 .DS_Store
-.vscode/
+
+# Build system / tooling caches
+compile_commands.json
+*.log

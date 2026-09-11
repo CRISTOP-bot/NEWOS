@@ -24,7 +24,7 @@ static u64 *x64_table_at(uintptr_t table_phys)
 
 void vmm_init(void)
 {
-    g_kernel_space.cr3 = (uintptr_t)x64_pml4;   /* identity VA == phys */
+    g_kernel_space.cr3 = virt_to_phys((uintptr_t)x64_pml4);
     g_kernel_space.kernel_base = KERNEL_BASE_VA;
     g_kernel_space.user_base = 0;
     g_kernel_space.user_end = USER_SPACE_BASE;

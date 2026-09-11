@@ -7,6 +7,7 @@
 #include <core/core_printk.h>
 #include <core/core_panic.h>
 #include <process/proc_process.h>
+#include <process/sched.h>
 #include <syscall/syscall.h>
 #include <core/core_types.h>
 #include <iru_string.h>
@@ -135,8 +136,11 @@ void isr_handler(struct x64_iframe *f)
     }
 
     /* Device IRQs (8259 remapped onto 0x20..0x2F) go through the generic
-     * dispatch table; a line nobody claimed is EOI'd anyway. */
+     * dispatch table; a line nobody claimed is EOI'd anyway. The PIT tick
+     * also gives the scheduler its preemption point. */
     if (vec >= X86_IRQ_BASE && vec < X86_IRQ_BASE + 16) {
+        if (vec == X86_IRQ_BASE + X86_IRQ_PIT)
+            sched_on_tick(f);
         x86_irq_dispatch(vec);
         return;
     }

@@ -4,6 +4,7 @@
 #include <mm/mm_vmm.h>
 #include <core/core_printk.h>
 #include <iru_string.h>
+#include <x86_frame.h>
 
 /* Per-thread kernel stacks and the kernel-side resume context that a user
  * process returns to when it exits (via SYS_EXIT or a fault). */
@@ -60,8 +61,11 @@ void thread_resume_to(u64 *from)
     __builtin_unreachable();
 }
 
-/* Build the iretq frame used to enter user mode. The frame lives at the top
- * of a freshly allocated kernel stack (direct-map VA). */
+/* Build the user-entry frame used both for the initial drop to ring 3 and
+ * (via the scheduler) for every resumption: a struct x64_iframe in the
+ * interrupt-stub layout, so a preempted thread can be re-entered by the
+ * generic context switch. The frame lives at the top of a freshly
+ * allocated kernel stack (direct-map VA). */
 int thread_setup_user(struct thread *t, uintptr_t entry, uintptr_t user_rsp,
                       u64 cr3)
 {
@@ -73,16 +77,16 @@ int thread_setup_user(struct thread *t, uintptr_t entry, uintptr_t user_rsp,
     memset(base, 0, THREAD_KERNEL_STACK_SIZE);
     uintptr_t top = (uintptr_t)base + THREAD_KERNEL_STACK_SIZE;
 
-    /* Frames are pushed down: ss, rsp, rflags, cs, rip. */
-    u64 *fr = (u64 *)top;
-    *--fr = 0x23;               /* ss:  user data, RPL 3 */
-    *--fr = user_rsp;
-    *--fr = 0x202;              /* rflags: IF set */
-    *--fr = 0x1b;               /* cs:  user code, RPL 3 */
-    *--fr = entry;              /* rip */
+    struct x64_iframe *fr =
+        (struct x64_iframe *)(void *)(top - sizeof(*fr));
+    fr->rip = entry;
+    fr->cs = 0x1b;          /* user code, RPL 3 */
+    fr->rflags = 0x202;     /* IF set */
+    fr->rsp = user_rsp;
+    fr->ss = 0x23;          /* user data, RPL 3 */
 
     t->kernel_stack_top = top;
-    t->entry_sp = (uintptr_t)fr;
+    t->entry_sp = (uintptr_t)&fr->rip;   /* &rip == the iretq argument */
     t->cr3 = cr3;
     return 0;
 }

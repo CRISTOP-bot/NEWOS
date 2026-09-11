@@ -42,13 +42,17 @@ int pmm_allocator_init_ranges(const struct pmm_ram_range *runs, int count)
             pmm_release_region(runs[i].start, runs[i].end);
     }
 
-    /* Reserve all frames below the end of the kernel image. */
+    /* Reserve exactly the kernel image. The native boot path loads the
+     * image at PHYS_LOAD_BASE (== g_kernel_phys_base here), while the
+     * Limine path loads it at a bootloader-chosen high physical address,
+     * so the reservation must start at the runtime base, not mem_start. */
     extern u64 _kernel_end;
+    u64 kernel_base_phys = ALIGN_DOWN(g_kernel_phys_base, PAGE_SIZE);
     u64 kernel_end_phys = virt_to_phys((uintptr_t)&_kernel_end);
     kernel_end_phys = ALIGN_UP(kernel_end_phys, PAGE_SIZE);
 
-    if (kernel_end_phys > mem_start && kernel_end_phys <= mem_end)
-        pmm_reserve_region(mem_start, kernel_end_phys);
+    if (kernel_end_phys > kernel_base_phys && kernel_end_phys <= mem_end)
+        pmm_reserve_region(kernel_base_phys, kernel_end_phys);
     else
         pr_warn("PMM: kernel image outside tracked range, skipping reserve\n");
 

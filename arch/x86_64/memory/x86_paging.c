@@ -23,10 +23,11 @@ void x64_paging_init(void)
     wrmsr(EFER_MSR, (u32)efer, (u32)(efer >> 32));
 
     /* The direct physical map (phys_to_virt()) must be live before any C
-     * code dereferences a physical address. Verify the trampoline wiring.
-     * (x64_pml4 lives in the low identity window; its address has a 64-bit
-     * relocation, so use the direct-map alias to avoid RIP-relative fixes.) */
-    u64 *pml4 = (u64 *)phys_to_virt((uintptr_t)x64_pml4);
+     * code dereferences a physical address. Verify the trampoline wiring:
+     * translate the PML4's address to physical and back through the direct
+     * map (under Limine the tables are high-half linked, not identity). */
+    uintptr_t pml4_phys = virt_to_phys((uintptr_t)x64_pml4);
+    u64 *pml4 = (u64 *)phys_to_virt(pml4_phys);
     if (!(pml4[X64_PDIRECT_INDEX] & X64_PAGE_PRESENT))
         printk("MMU: WARNING direct map PML4 slot not present\n");
 

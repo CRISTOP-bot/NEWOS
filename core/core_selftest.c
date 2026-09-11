@@ -1,5 +1,6 @@
 #include <core/core_printk.h>
 #include <drivers/pit_timer.h>
+#include <process/sched.h>
 #include <mm/mm_pmm.h>
 #include <mm/mm_vmm.h>
 #include <process/proc_elf.h>
@@ -316,6 +317,36 @@ static int ktest2_timer(void)
     return 0;
 }
 
+/* Process lifetime without real CPU handoff (no timer context yet whose
+ * preemption could run the child): create -> schedule -> zombie -> reclaim. */
+static int ktest2_proc_life(void)
+{
+    struct process *c =
+        process_create_from_vfs("/bin/hello", "lifetest");
+    if (!c)
+        return -1;
+
+    pid_t pid = c->pid;
+    c->ppid = 999;
+    sched_add_process(c);
+
+    if (c->state != PROCESS_STATE_RUNNING)
+        return -1;
+
+    c->exit_code = 42;
+    c->state = PROCESS_STATE_EXITED;
+    sched_remove_runnable(c);
+    if (sched_zombify(c) != 0)
+        return -1;
+
+    struct process *z = sched_zombie_find(pid);
+    if (!z || z->exit_code != 42)
+        return -1;
+
+    sched_zombie_reclaim(z);
+    return 0;
+}
+
 struct ktest2 {
     const char *name;
     int (*fn)(void);
@@ -328,6 +359,7 @@ static const struct ktest2 ktests2[] = {
     { "elf-loader",  ktest2_elf         },
     { "syscalls",    ktest2_syscall     },
     { "timer-pit",   ktest2_timer       },
+    { "proc-life",   ktest2_proc_life   },
 };
 
 int run_phase2_tests(void)

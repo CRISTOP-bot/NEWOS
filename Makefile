@@ -21,6 +21,13 @@ KERNEL_BIN      := $(BUILD_DIR)/images/newos-$(ARCH).elf
 ISO_IMG         := $(BUILD_DIR)/images/newos-$(ARCH).iso
 DISK_IMG        := $(BUILD_DIR)/images/newos-$(ARCH).img
 
+# Limine boot flavour: the same kernel objects, linked high-half only
+# (scripts/limine.ld) so Limine maps it without a slide.
+LIMINE_BIN      := $(BUILD_DIR)/images/newos-$(ARCH)-limine.elf
+LIMINE_ISO      := $(BUILD_DIR)/images/newos-$(ARCH)-limine.iso
+LIMINE_ROOT     := $(BUILD_DIR)/limine-root
+LIMINE_BINS     := $(BUILD_DIR)/limine-bins
+
 CC              := gcc
 LD              := ld
 NASM            := nasm
@@ -46,11 +53,13 @@ LDFLAGS         := -n --gc-sections -T arch/$(ARCH)/linker.ld
 
 # arch/<plat>: machine-facing implementation
 ARCH_SRCS_C     := arch/$(ARCH)/boot/x86_boot.c arch/$(ARCH)/boot/x86_multiboot2.c \
-                   arch/$(ARCH)/boot/x86_pvh.c arch/$(ARCH)/cpu/x86_cpuid.c \
-                   arch/$(ARCH)/cpu/x86_gdt.c arch/$(ARCH)/interrupts/x86_idt.c \
-                   arch/$(ARCH)/interrupts/x86_irq.c arch/$(ARCH)/interrupts/x86_pic.c \
+                   arch/$(ARCH)/boot/x86_pvh.c arch/$(ARCH)/boot/limine.c \
+                   arch/$(ARCH)/cpu/x86_cpuid.c \
+                   arch/$(ARCH)/cpu/x86_vendor.c arch/$(ARCH)/cpu/x86_gdt.c \
+                   arch/$(ARCH)/interrupts/x86_idt.c \
+                   arch/$(ARCH)/interrupts/x86_pic.c arch/$(ARCH)/interrupts/x86_irq.c \
                    arch/$(ARCH)/memory/x86_paging.c
-ARCH_SRCS_ASM   := arch/$(ARCH)/boot/x86_entry.S \
+ARCH_SRCS_ASM   := arch/$(ARCH)/boot/x86_entry.S arch/$(ARCH)/boot/limine_entry.S \
                    arch/$(ARCH)/interrupts/x86_interrupt.S \
                    arch/$(ARCH)/threading/x86_context.S
 
@@ -58,8 +67,9 @@ ARCH_SRCS_ASM   := arch/$(ARCH)/boot/x86_entry.S \
 CORE_SRCS       := core/core_panic.c core/core_printk.c process/elf_loader.c \
                    core/core_cmdline.c core/core_init.c \
                    core/core_selftest.c core/core_oops.c \
+                   core/core_console.c core/core_time.c \
                    process/proc_process.c syscall/syscall_dispatch.c \
-                   process/proc_thread.c
+                   process/proc_thread.c process/sched.c
 
 # mm: memory-management domain
 MM_SRCS         := mm/mm_heap.c mm/mm_kmalloc.c mm/mm_debug.c \
@@ -73,9 +83,12 @@ FS_SRCS         := fs/devfs/devfs.c fs/initramfs/initramfs.c fs/tmpfs/tmpfs.c \
 
 # drivers: hardware-facing services
 DRV_SRCS        := drivers/console/tty_console.c drivers/console/vga_text_console.c \
-                   drivers/core/device_core.c drivers/core/driver_core.c \
-                   drivers/qemu/qemu_debug.c drivers/serial/serial_16550.c \
-                   drivers/timer/pit_timer.c
+                   drivers/core/device_core.c \
+                   drivers/core/driver_core.c drivers/qemu/qemu_debug.c \
+                   drivers/pci/pci_bus.c drivers/pci/pci_chipset.c \
+                   drivers/pci/pci_ids.c \
+                   drivers/net/pcnet.c \
+                   drivers/serial/serial_16550.c drivers/timer/pit_timer.c
 
 # ipc, lib/kernel: reusable kernel-side utilities
 IPC_SRCS        := ipc/ipc_pipe.c
@@ -94,9 +107,14 @@ HELLO_OBJ       := $(BUILD_DIR)/userland/hello.o
 HELLO_BIN       := $(BUILD_DIR)/userland/hello.elf
 HELLO_EMBED     := $(BUILD_DIR)/obj/userland/hello.bin.o
 
+INIT_DIR        := user/programs/init
+INIT_OBJ        := $(BUILD_DIR)/userland/init.o
+INIT_BIN        := $(BUILD_DIR)/userland/init.elf
+INIT_EMBED      := $(BUILD_DIR)/obj/userland/init.bin.o
+
 OBJS_C          := $(patsubst %.c,$(BUILD_DIR)/obj/%.o,$(KERNEL_SRCS_C) $(ARCH_SRCS_C))
 OBJS_ASM        := $(patsubst %.S,$(BUILD_DIR)/obj/%.o,$(ARCH_SRCS_ASM))
-OBJS            := $(OBJS_C) $(OBJS_ASM) $(HELLO_EMBED)
+OBJS            := $(OBJS_C) $(OBJS_ASM) $(HELLO_EMBED) $(INIT_EMBED)
 
 INCLUDE         := -Iinclude -I. -Ilib/kernel -Iarch/$(ARCH)/include
 
@@ -129,11 +147,28 @@ $(HELLO_EMBED): $(HELLO_BIN)
 	@echo "  EMB $<"
 	@cd $(BUILD_DIR) && $(LD) -r -b binary -o obj/userland/hello.bin.o hello.elf
 
+$(INIT_OBJ): $(INIT_DIR)/shell_main.c
+	@mkdir -p $(dir $@)
+	@echo "  UCC $<"
+	@$(CC) $(USER_CFLAGS) -o $@ $<
+
+$(INIT_BIN): $(INIT_OBJ) $(INIT_DIR)/linker.ld
+	@mkdir -p $(dir $@)
+	@echo "  ULD $@"
+	@$(LD) -n -static -nostdlib -T $(INIT_DIR)/linker.ld -o $@ $(INIT_OBJ)
+
+# Roaming init shell, embedded as `init.elf` -> _binary_init_elf_{start,end,size}.
+$(INIT_EMBED): $(INIT_BIN)
+	@mkdir -p $(dir $@)
+	@cp $(INIT_BIN) $(BUILD_DIR)/init.elf
+	@echo "  EMB $<"
+	@cd $(BUILD_DIR) && $(LD) -r -b binary -o obj/userland/init.bin.o init.elf
+
 # ---------------------------------------------------------------------------
 # Rules
 # ---------------------------------------------------------------------------
 .PHONY: all clean qemu qemu-debug qemu-test qemu-network qemu-disk iso \
-        check-config dirs lint-layers
+        qemu-limine qemu-limine-test limine check-config dirs lint-layers FORCE
 
 .DEFAULT_GOAL := all
 
@@ -170,21 +205,74 @@ $(KERNEL_BIN): $(OBJS) lint-layers | check-config dirs
 iso: $(KERNEL_BIN)
 	@mkdir -p $(dir $(ISO_IMG)) $(BUILD_DIR)/iso/boot/grub
 	@cp $(KERNEL_BIN) $(BUILD_DIR)/iso/boot/newos.elf
-	@printf 'set timeout=0\nset default=0\nserial --unit=0 --speed=115200 --stop=1\nterminal_input console\nterminal_input serial\nterminal_output console\nterminal_output serial\nmenuentry "NEWOS" {\n  multiboot2 /boot/newos.elf\n  boot\n}\nmenuentry "NEWOS (test mode)" {\n  multiboot2 /boot/newos.elf test_mode=1\n  boot\n}\n' \
+	@printf 'set timeout=0\nset default=0\nserial --unit=0 --speed=115200 --stop=1\nterminal_input serial\nterminal_output serial\nmenuentry "NEWOS" {\n  multiboot2 /boot/newos.elf\n  boot\n}\nmenuentry "NEWOS (test mode)" {\n  multiboot2 /boot/newos.elf test_mode=1\n  boot\n}\n' \
 	  > $(BUILD_DIR)/iso/boot/grub/grub.cfg
-	@SOURCE_DATE_EPOCH=1700000000 grub-mkrescue \
-	    --set_all_file_dates 1700000000 \
-	    --modification-date=2023111422132000 \
-	    -o $(ISO_IMG) $(BUILD_DIR)/iso 2>/dev/null || \
-	  SOURCE_DATE_EPOCH=1700000000 xorriso -as mkisofs \
-	    -b boot/grub/i386-pc/eltorito.img --grub2-mbr /usr/lib/grub/i386-pc/boot.img \
-	    -no-emul-boot -boot-load-size 4 -boot-info-table \
-	    --grub2-boot-info -eltorito-alt-boot -e efi.img -no-emul-boot \
-	    --set_all_file_dates 1700000000 \
-	    --modification-date=2023111422132000 \
-	    -o $(ISO_IMG) $(BUILD_DIR)/iso
-	@python3 scripts/iso/fixup_iso.py $(ISO_IMG)
+	@grub-mkrescue -o $(ISO_IMG) $(BUILD_DIR)/iso 2>/dev/null || \
+	  xorriso -as mkisofs -b boot/grub/eltorito.img -no-emul-boot \
+	  -boot-load-size 4 -boot-info-table --grub2-boot-info \
+	  --grub2-mbr /usr/lib/grub/i386-pc/boot.img \
+	  -o $(ISO_IMG) $(BUILD_DIR)/iso
 	@echo "ISO created: $(ISO_IMG)"
+
+# Limine bootloader binaries (bios + uefi CD boot images), cached under
+# $(BUILD_DIR)/limine-bins. The release tag can be overridden.
+LIMINE_RELEASE  ?= v12.9.0
+
+$(LIMINE_ROOT)/limine.conf: FORCE | dirs
+	@mkdir -p $(LIMINE_ROOT)
+	@printf 'timeout=0\nserial: yes\n\n/NEWOS\n    protocol: limine\n    path: boot():/boot/newos-limine.elf\n' > $@
+	@if [ -n "$(LIMINE_CMDLINE)" ]; then \
+	  printf '    cmdline: $(LIMINE_CMDLINE)\n' >> $@; fi
+
+$(LIMINE_ROOT)/boot/newos-limine.elf: $(LIMINE_BIN) | dirs
+	@mkdir -p $(dir $@)
+	@cp $(LIMINE_BIN) $@
+
+$(LIMINE_BINS)/limine-bios-cd.bin: $(LIMINE_BINS)/limine
+	@echo "  LIMINE binaries present in $(LIMINE_BINS)"
+
+$(LIMINE_BINS)/limine:
+	@bash scripts/fetch-limine.sh $(LIMINE_RELEASE) $(LIMINE_BINS)
+
+$(LIMINE_BIN): $(OBJS) lint-layers | check-config dirs
+	@mkdir -p $(dir $@)
+	@echo "  LD  $(LIMINE_BIN)"
+	@$(LD) -n --gc-sections -T scripts/limine.ld -o $@ $(OBJS)
+	@echo "  SIZE"
+	@size $@
+
+$(LIMINE_ISO): $(LIMINE_BIN) $(LIMINE_ROOT)/limine.conf \
+               $(LIMINE_ROOT)/boot/newos-limine.elf \
+               $(LIMINE_BINS)/limine-bios-cd.bin
+	@mkdir -p $(dir $(LIMINE_ISO)) $(LIMINE_ROOT)/boot $(LIMINE_ROOT)/EFI/BOOT
+	@cp $(LIMINE_BINS)/limine-bios-cd.bin $(LIMINE_ROOT)/boot/
+	@cp $(LIMINE_BINS)/limine-uefi-cd.bin $(LIMINE_ROOT)/boot/
+	@cp $(LIMINE_BINS)/limine-bios.sys $(LIMINE_ROOT)/
+	@cp $(LIMINE_BINS)/BOOTX64.EFI $(LIMINE_ROOT)/EFI/BOOT/
+	@rm -f $(LIMINE_ISO)
+	@xorriso -as mkisofs -R -r -J \
+	  -b boot/limine-bios-cd.bin -no-emul-boot -boot-load-size 4 \
+	  -boot-info-table -hfsplus -apm-block-size 2048 \
+	  --efi-boot boot/limine-uefi-cd.bin -efi-boot-part --efi-boot-image \
+	  --protective-msdos-label -volid NEWOS \
+	  -o $(LIMINE_ISO) $(LIMINE_ROOT)
+	@$(LIMINE_BINS)/limine bios-install $(LIMINE_ISO)
+	@echo "Limine ISO created: $(LIMINE_ISO)"
+
+limine: $(LIMINE_BIN)
+
+qemu-limine: $(LIMINE_ISO)
+	@echo "Booting NEWOS (Limine) in QEMU ..."
+	@$(QEMU) -cdrom $(LIMINE_ISO) -boot order=d -serial stdio -no-reboot -m 128M
+
+# Target-specific variable: LIMINE_CMDLINE reaches the ISO via the FORCE-prereq
+# limine.conf, adding a `cmdline:` option to the boot entry (test_mode).
+qemu-limine-test: LIMINE_CMDLINE := test_mode=1
+qemu-limine-test: $(LIMINE_ISO)
+	@echo "Running automated test suite through Limine in QEMU ..."
+	@$(QEMU) -cdrom $(LIMINE_ISO) -boot order=d -serial stdio -no-reboot -m 128M \
+	  -device isa-debug-exit,iobase=0xf4 -device pcnet; \
+	  echo "QEMU exit status: $$?"
 
 qemu: all
 	@echo "Booting NEWOS in QEMU (serial console) ..."
@@ -198,7 +286,7 @@ qemu-debug: all
 qemu-test: all
 	@echo "Running automated test suite in QEMU ..."
 	@$(QEMU) -kernel $(KERNEL_BIN) -serial stdio -no-reboot -m 128M \
-	  -device isa-debug-exit,iobase=0xf4 -append "test_mode=1"; \
+	  -device isa-debug-exit,iobase=0xf4 -device pcnet -append "test_mode=1"; \
 	  echo "QEMU exit status: $$?"
 
 qemu-network: all

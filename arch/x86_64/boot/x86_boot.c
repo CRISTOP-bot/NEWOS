@@ -15,6 +15,8 @@
 #include <fs/initramfs.h>
 #include <drivers/pit_timer.h>
 #include <drivers/serial_16550.h>
+#include <drivers/pci.h>
+#include <x86_vendor.h>
 #include "x86_multiboot2.h"
 
 void pvh_parse_mmap(u64 pvh_phys);
@@ -22,7 +24,39 @@ void mbi_parse_mmap(u64 mbi_phys);
 void kernel_start(void) __attribute__((noreturn));
 void kheap_init_early(void);
 
+/* Physical base of the kernel image; the Limine boot path overrides this
+ * with the bootloader-reported executable base. */
+uintptr_t g_kernel_phys_base = PHYS_LOAD_BASE;
+
 static u8 boot_stack[16384] __attribute__((aligned(16)));
+
+/* Shared tail of the boot sequence, identical for every boot protocol:
+ * memory/vfs/filesystem services, device model + PCI, timers and the final
+ * jump into the kernel framework. */
+void kernel_boot_tail(void)
+{
+    /* Virtual memory manager (direct map + kernel address space). */
+    vmm_init();
+
+    /* Early heap, VFS, filesystems. */
+    kheap_init_early();
+    vfs_init();
+    tmpfs_init();
+    devfs_init();
+    initramfs_init();
+
+    /* Device model. */
+    device_model_init();
+    pci_init();
+
+    /* System services: the PIT tick drives delays (and later the scheduler);
+     * COM1 RX becomes interrupt-driven so the console can read input. */
+    pit_init(PIT_DEFAULT_HZ);
+    serial_rx_irq_enable(SERIAL_COM1);
+
+    /* Enter the kernel framework. */
+    kernel_start();
+}
 
 void arch_main(u32 magic, u32 info_phys)
 {
@@ -51,7 +85,7 @@ void arch_main(u32 magic, u32 info_phys)
     x64_idt_init();
     cpu_sti();
 
-    cpu_print_info();
+    cpu_vendor_init();
     x64_paging_init();
 
     /* Physical memory from the boot memory map. */
@@ -64,24 +98,5 @@ void arch_main(u32 magic, u32 info_phys)
         pr_warn("boot: no info pointer, PMM left uninitialized\n");
     }
 
-    /* Virtual memory manager (direct map + kernel address space). */
-    vmm_init();
-
-    /* Early heap, VFS, filesystems. */
-    kheap_init_early();
-    vfs_init();
-    tmpfs_init();
-    devfs_init();
-    initramfs_init();
-
-    /* Device model. */
-    device_model_init();
-
-    /* System services: the PIT tick drives delays (and later the scheduler);
-     * COM1 RX becomes interrupt-driven so the console can read input. */
-    pit_init(PIT_DEFAULT_HZ);
-    serial_rx_irq_enable(SERIAL_COM1);
-
-    /* Enter the kernel framework. */
-    kernel_start();
+    kernel_boot_tail();
 }

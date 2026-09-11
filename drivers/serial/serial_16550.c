@@ -20,9 +20,18 @@ void serial_init(u16 port)
     outb(port + UART_REG_DLL, 0x01);              /* divisor low  = 1       */
     outb(port + UART_REG_DLM, 0x00);              /* divisor high = 0  -> 115200 baud */
     outb(port + UART_REG_LCR, 0x03);              /* 8N1                    */
-    outb(port + UART_REG_FCR, 0xC7);              /* enable + clear FIFOs   */
+    outb(port + UART_REG_FCR, 0x00);              /* stay non-FIFO for now  */
     outb(port + UART_REG_MCR, 0x0B);              /* DTR | RTS | OUT2       */
     serial_initialized = 1;
+}
+
+static void serial_rx_push(u8 c)
+{
+    u32 next = (g_rx_head + 1) & (SERIAL_RX_RING_SIZE - 1);
+    if (next != g_rx_tail) {
+        g_rx_ring[g_rx_head] = c;
+        g_rx_head = next;
+    }
 }
 
 static void serial_rx_irq_handler(void *arg)
@@ -33,11 +42,7 @@ static void serial_rx_irq_handler(void *arg)
         int c = serial_getc(port);
         if (c < 0)
             break;
-        u32 next = (g_rx_head + 1) & (SERIAL_RX_RING_SIZE - 1);
-        if (next != g_rx_tail) {
-            g_rx_ring[g_rx_head] = (u8)c;
-            g_rx_head = next;
-        }
+        serial_rx_push((u8)c);
     }
 }
 
@@ -46,6 +51,19 @@ void serial_rx_irq_enable(u16 port)
     g_rx_head = g_rx_tail = 0;
     x86_irq_register(X86_IRQ_SERIAL1, serial_rx_irq_handler,
                      (void *)(uintptr_t)port);
+
+    /* Drain the receiver while it is still in non-FIFO mode. Any byte that
+     * seated in the 1-byte holding register before FIFO enable is
+     * unreachable through FIFO-mode RBR reads and would silently vanish
+     * (the same on real 16550 silicon); pulling it now preserves it. */
+    while (serial_rx_ready(port)) {
+        int c = serial_getc(port);
+        if (c < 0)
+            break;
+        serial_rx_push((u8)c);
+    }
+
+    outb(port + UART_REG_FCR, 0x07);              /* FIFO on, trigger level 1 */
     outb(port + UART_REG_IER, 0x01);              /* enable RX data ready   */
     x64_pic_set_mask(X86_IRQ_SERIAL1, 0);
 }

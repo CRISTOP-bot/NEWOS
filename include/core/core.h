@@ -45,6 +45,11 @@
 #define DIRECT_PHYS_BASE    0xfffffe0000000000ull
 #define DIRECT_MAP_SIZE     GiB(4)          /* phys 0 .. 4 GiB direct-mapped */
 
+/* Physical base of the kernel image. The native boot path loads the image at
+ * PHYS_LOAD_BASE; the Limine boot path loads it at a bootloader-chosen base
+ * reported by the executable-address response. virt_to_phys() uses this. */
+extern uintptr_t g_kernel_phys_base;
+
 #define USER_SPACE_BASE     0x400000ull     /* first user loadable VA        */
 #define USER_SPACE_END      0x0000800000000000ull /* end of the low half     */
 #define USER_STACK_SIZE     MiB(1)
@@ -57,9 +62,10 @@ static inline uintptr_t phys_to_virt(uintptr_t phys)
 
 static inline uintptr_t virt_to_phys(uintptr_t virt)
 {
-    /* Kernel image window (linked at KERNEL_BASE_VA, loaded at PHYS_LOAD_BASE). */
+    /* Kernel image window (linked at KERNEL_BASE_VA, loaded at the base
+     * captured in g_kernel_phys_base). */
     if (virt >= KERNEL_BASE_VA && virt < KERNEL_BASE_VA + KERNEL_IMAGE_SIZE)
-        return (virt - KERNEL_BASE_VA) + PHYS_LOAD_BASE;
+        return (virt - KERNEL_BASE_VA) + g_kernel_phys_base;
     /* Direct physical map. */
     if (virt >= DIRECT_PHYS_BASE && virt < DIRECT_PHYS_BASE + DIRECT_MAP_SIZE)
         return virt - DIRECT_PHYS_BASE;

@@ -1,12 +1,14 @@
 #include <process/proc_process.h>
 #include <process/proc_thread.h>
 #include <process/proc_elf.h>
+#include <process/sched.h>
 #include <mm/mm_heap.h>
 #include <mm/mm_pmm.h>
 #include <core/core_printk.h>
 #include <core/core_panic.h>
 #include <mm/mm_vmm.h>
 #include <fs/vfs.h>
+#include <x86_cpu.h>
 #include <x86_gdt.h>
 #include <x86_frame.h>
 #include <iru_string.h>
@@ -171,14 +173,31 @@ void process_exit(struct process *p, int code)
     p->state = PROCESS_STATE_EXITED;
     process_current_set(NULL);
 
-    /* Leave the process address space before touching anything else. The
-     * kernel half is shared, so we keep executing despite the CR3 write. */
-    vmm_switch_to(vmm_kernel_space());
-    x64_tss_set_rsp0(thread_init_stack());
+    /* The init process ends the session: resume the kernel boot flow that
+     * teleported into it (the only user of the captured resume context). */
+    if (p->is_init) {
+        vmm_switch_to(vmm_kernel_space());
+        x64_tss_set_rsp0(thread_init_stack());
+        u64 *from = &p->thread.sp;
+        thread_resume_to(from);
+        __builtin_unreachable();
+    }
 
-    u64 *from = &p->thread.sp;
-    thread_resume_to(from);
-    __builtin_unreachable();
+    /* Any other process becomes a zombie; the CPU returns to the interrupt
+     * epilogue, which hands it to the next runnable process. */
+    sched_remove_runnable(p);
+    if (sched_zombify(p) != 0) {
+        printk("proc: zombie list full; leaking pid %u\n", (unsigned)p->pid);
+        process_free(p);
+    }
+
+    struct process *next = sched_pick_next_runnable();
+    if (!next) {
+        printk("proc: no runnable processes left; halting.\n");
+        for (;;)
+            cpu_hlt();
+    }
+    sched_handoff(next);
 }
 
 void process_page_fault(struct x64_iframe *f, uintptr_t addr, u64 err)

@@ -52,6 +52,32 @@ section .text
     pop rbx
     pop rax
 
+    ; Optional scheduler handoff. When g_sched_next_sp is non-zero the CPU
+    ; must resume ANOTHER thread (timer preemption, or a process exit):
+    ; relocate RSP onto that thread's saved interrupt frame and pop its
+    ; GPRs from its own frame -- the interrupted frame stays untouched and
+    ; valid for the next time the current thread is switched back to.
+    cmp   qword [g_sched_next_sp], 0
+    jz    .no_sched_switch
+    mov   rbx, [g_sched_next_sp]   ; rbx = &target_frame.rip
+    mov   qword [g_sched_next_sp], 0
+    lea   rsp, [rbx - 0x88]        ; point at the target GPR block (r15)
+    pop   r15
+    pop   r14
+    pop   r13
+    pop   r12
+    pop   r11
+    pop   r10
+    pop   r9
+    pop   r8
+    pop   rbp
+    pop   rdi
+    pop   rsi
+    pop   rdx
+    pop   rcx
+    pop   rbx
+    pop   rax
+.no_sched_switch:
     add rsp, 16                ; skip vec + err
     iretq
 %endmacro
@@ -123,3 +149,10 @@ isr_stubs_all:
     dq isr%+i
 %assign i i+1
 %endrep
+
+; Handoff slot consumed by isr_common's epilogue (defined here so the asm
+; path owns the storage; the scheduler just writes the next thread's
+; entry_sp value into it).
+[GLOBAL g_sched_next_sp]
+g_sched_next_sp:
+    dq 0

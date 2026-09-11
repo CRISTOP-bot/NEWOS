@@ -33,6 +33,8 @@ extern u64 x64_pdpt_high[512];
 extern u64 x64_pd[512];
 extern u64 x64_pd_kernel[512];
 extern u64 x64_pt_kernel[512];
+extern u64 x64_pt_kernel1[512];
+extern u64 x64_pt_kernel2[512];
 extern u64 x64_pdpt_direct[512];
 
 void x64_paging_init(void);

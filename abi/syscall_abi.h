@@ -15,9 +15,15 @@
 #define SYS_WRITE   1
 #define SYS_EXIT    2
 #define SYS_GETPID  3
+#define SYS_SLEEP   4
+#define SYS_SPAWN   5
+#define SYS_WAITPID 6
+#define SYS_READ    0
 
 /* Conventional file descriptors. */
+#define STDIN_FILENO  0
 #define STDOUT_FILENO 1
+#define STDERR_FILENO 2
 
 /* Negative return values are errors (simple -1 for now). */
 #define SYSCALL_RET_ERROR (-1)

@@ -50,6 +50,10 @@ align 4
 [GLOBAL x64_pdpt_low]
 [GLOBAL x64_pdpt_high]
 [GLOBAL x64_pd]
+[GLOBAL x64_pd_kernel]
+[GLOBAL x64_pt_kernel]
+[GLOBAL x64_pt_kernel1]
+[GLOBAL x64_pt_kernel2]
 [GLOBAL x64_pdpt_direct]
 [EXTERN arch_main]
 section .early_text
