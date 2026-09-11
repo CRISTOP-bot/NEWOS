@@ -11,7 +11,7 @@ set -euo pipefail
 
 cd "$(dirname "$0")/../.."
 
-KERNEL="build/newos-x86_64.elf"
+KERNEL="build/images/newos-x86_64.elf"
 TIMEOUT="${TIMEOUT:-120}"
 
 make all

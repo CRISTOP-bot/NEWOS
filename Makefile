@@ -17,9 +17,9 @@
 ARCH            ?= x86_64
 CONFIG          ?= configs/$(ARCH)/debug.config
 BUILD_DIR       := build
-KERNEL_BIN      := $(BUILD_DIR)/newos-$(ARCH).elf
-ISO_IMG         := $(BUILD_DIR)/newos-$(ARCH).iso
-DISK_IMG        := $(BUILD_DIR)/newos-$(ARCH).img
+KERNEL_BIN      := $(BUILD_DIR)/images/newos-$(ARCH).elf
+ISO_IMG         := $(BUILD_DIR)/images/newos-$(ARCH).iso
+DISK_IMG        := $(BUILD_DIR)/images/newos-$(ARCH).img
 
 CC              := gcc
 LD              := ld
@@ -166,7 +166,7 @@ $(KERNEL_BIN): $(OBJS) lint-layers | check-config dirs
 	@echo "=== Build complete: $(KERNEL_BIN) ==="
 
 iso: $(KERNEL_BIN)
-	@mkdir -p $(BUILD_DIR)/iso/boot/grub
+	@mkdir -p $(dir $(ISO_IMG)) $(BUILD_DIR)/iso/boot/grub
 	@cp $(KERNEL_BIN) $(BUILD_DIR)/iso/boot/newos.elf
 	@printf 'set timeout=0\nset default=0\nserial --unit=0 --speed=115200 --stop=1\nterminal_input serial\nterminal_output serial\nmenuentry "NEWOS" {\n  multiboot2 /boot/newos.elf\n  boot\n}\nmenuentry "NEWOS (test mode)" {\n  multiboot2 /boot/newos.elf test_mode=1\n  boot\n}\n' \
 	  > $(BUILD_DIR)/iso/boot/grub/grub.cfg
@@ -202,6 +202,7 @@ qemu-disk: $(DISK_IMG)
 	@$(QEMU) -drive file=$(DISK_IMG),format=raw,if=ide -serial stdio -no-reboot -m 128M
 
 $(DISK_IMG): all
+	@mkdir -p $(dir $@)
 	@echo "Creating disk image ..."
 	@dd if=/dev/zero of=$(DISK_IMG) bs=1M count=64 2>/dev/null
 

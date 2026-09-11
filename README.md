@@ -28,7 +28,7 @@ Requirements: `gcc`, `make`, `nasm`, `ld`, `qemu-system-x86_64`
 (plus `grub-mkrescue`/`xorriso` for the ISO).
 
 ```sh
-make all        # build build/newos-x86_64.elf  (BUILD=PASS)
+make all        # build build/images/newos-x86_64.elf  (BUILD=PASS)
 make qemu       # boot in QEMU (serial console)  (BOOT=PASS)
 make qemu-test  # boot, run self-tests, exit with a machine-checkable code
 make iso        # GRUB multiboot2 ISO
@@ -39,7 +39,7 @@ make clean
 Automated test mode:
 
 ```sh
-qemu-system-x86_64 -kernel build/newos-x86_64.elf \
+qemu-system-x86_64 -kernel build/images/newos-x86_64.elf \
   -serial stdio -no-reboot -m 128M \
   -device isa-debug-exit,iobase=0xf4 -append "test_mode=1"
 ```

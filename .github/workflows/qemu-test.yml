@@ -28,7 +28,7 @@ jobs:
           make iso
           timeout 120 qemu-system-x86_64 \
             -bios /usr/share/OVMF/OVMF.fd \
-            -cdrom build/newos-x86_64.iso \
+            -cdrom build/images/newos-x86_64.iso \
             -boot d -serial file:build/mb2-boot.log -no-reboot -m 128M \
             -display none
           grep -E "NEWOS .* booted" build/mb2-boot.log \
