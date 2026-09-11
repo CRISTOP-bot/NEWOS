@@ -13,6 +13,8 @@
 #include <fs/tmpfs.h>
 #include <fs/devfs.h>
 #include <fs/initramfs.h>
+#include <drivers/pit_timer.h>
+#include <drivers/serial_16550.h>
 #include "x86_multiboot2.h"
 
 void pvh_parse_mmap(u64 pvh_phys);
@@ -74,6 +76,11 @@ void arch_main(u32 magic, u32 info_phys)
 
     /* Device model. */
     device_model_init();
+
+    /* System services: the PIT tick drives delays (and later the scheduler);
+     * COM1 RX becomes interrupt-driven so the console can read input. */
+    pit_init(PIT_DEFAULT_HZ);
+    serial_rx_irq_enable(SERIAL_COM1);
 
     /* Enter the kernel framework. */
     kernel_start();

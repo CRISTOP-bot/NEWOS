@@ -29,6 +29,12 @@ int  serial_getc(u16 port);
 void serial_write(u16 port, const char *buf, size_t len);
 int  serial_rx_ready(u16 port);
 
+/* Interrupt-driven receive path (COM1). Only enabled once the IDT/IRQ
+ * machinery is up; bytes are buffered in an internal ring. */
+void serial_rx_irq_enable(u16 port);
+int  serial_rx_available(u16 port);
+int  serial_rx_pop(u16 port);
+
 /* Default console port used by printk. */
 void early_console_init(void);
 void early_console_putc(char c);

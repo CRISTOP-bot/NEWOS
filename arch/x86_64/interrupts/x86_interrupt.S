@@ -109,3 +109,17 @@ ISR_DEF i
 
 isr_common:
     ISR_COMMON
+
+; --- Per-vector stub address table (0 .. 255) -------------------------------
+; The C IDT installer gates every vector to its own stub, so a vector's
+; number in the pushed frame always matches the gate that delivered it.
+; Every IDT entry is routed to the callback whose stub encodes that vector.
+
+section .data
+[GLOBAL isr_stubs_all]
+isr_stubs_all:
+%assign i 0
+%rep 256
+    dq isr%+i
+%assign i i+1
+%endrep

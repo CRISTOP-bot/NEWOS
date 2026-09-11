@@ -48,7 +48,8 @@ LDFLAGS         := -n --gc-sections -T arch/$(ARCH)/linker.ld
 ARCH_SRCS_C     := arch/$(ARCH)/boot/x86_boot.c arch/$(ARCH)/boot/x86_multiboot2.c \
                    arch/$(ARCH)/boot/x86_pvh.c arch/$(ARCH)/cpu/x86_cpuid.c \
                    arch/$(ARCH)/cpu/x86_gdt.c arch/$(ARCH)/interrupts/x86_idt.c \
-                   arch/$(ARCH)/interrupts/x86_pic.c arch/$(ARCH)/memory/x86_paging.c
+                   arch/$(ARCH)/interrupts/x86_irq.c arch/$(ARCH)/interrupts/x86_pic.c \
+                   arch/$(ARCH)/memory/x86_paging.c
 ARCH_SRCS_ASM   := arch/$(ARCH)/boot/x86_entry.S \
                    arch/$(ARCH)/interrupts/x86_interrupt.S \
                    arch/$(ARCH)/threading/x86_context.S
@@ -73,7 +74,8 @@ FS_SRCS         := fs/devfs/devfs.c fs/initramfs/initramfs.c fs/tmpfs/tmpfs.c \
 # drivers: hardware-facing services
 DRV_SRCS        := drivers/console/tty_console.c drivers/console/vga_text_console.c \
                    drivers/core/device_core.c drivers/core/driver_core.c \
-                   drivers/qemu/qemu_debug.c drivers/serial/serial_16550.c
+                   drivers/qemu/qemu_debug.c drivers/serial/serial_16550.c \
+                   drivers/timer/pit_timer.c
 
 # ipc, lib/kernel: reusable kernel-side utilities
 IPC_SRCS        := ipc/ipc_pipe.c

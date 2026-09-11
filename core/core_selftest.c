@@ -1,4 +1,5 @@
 #include <core/core_printk.h>
+#include <drivers/pit_timer.h>
 #include <mm/mm_pmm.h>
 #include <mm/mm_vmm.h>
 #include <process/proc_elf.h>
@@ -304,6 +305,17 @@ fail:
 
 /* ---------------- driver ---------------- */
 
+static int ktest2_timer(void)
+{
+    u64 t0 = pit_ticks();
+    time_delay_us(10000);
+    u64 t1 = pit_ticks();
+
+    if (t1 - t0 < 10)
+        return -1;
+    return 0;
+}
+
 struct ktest2 {
     const char *name;
     int (*fn)(void);
@@ -315,6 +327,7 @@ static const struct ktest2 ktests2[] = {
     { "usercopy",    ktest2_usercopy    },
     { "elf-loader",  ktest2_elf         },
     { "syscalls",    ktest2_syscall     },
+    { "timer-pit",   ktest2_timer       },
 };
 
 int run_phase2_tests(void)

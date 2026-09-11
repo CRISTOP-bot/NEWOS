@@ -2,6 +2,7 @@
 #include <x86_cpu.h>
 #include <x86_gdt.h>
 #include <x86_pic.h>
+#include <x86_irq.h>
 #include <x86_frame.h>
 #include <core/core_printk.h>
 #include <core/core_panic.h>
@@ -32,47 +33,8 @@ struct idt_ptr {
 static struct idt_entry g_idt[IDT_ENTRIES];
 static struct idt_ptr g_idt_ptr;
 
-extern void isr0(void);
-extern void isr1(void);
-extern void isr2(void);
-extern void isr3(void);
-extern void isr4(void);
-extern void isr5(void);
-extern void isr6(void);
-extern void isr7(void);
-extern void isr8(void);
-extern void isr9(void);
-extern void isr10(void);
-extern void isr11(void);
-extern void isr12(void);
-extern void isr13(void);
-extern void isr14(void);
-extern void isr15(void);
-extern void isr16(void);
-extern void isr17(void);
-extern void isr18(void);
-extern void isr19(void);
-extern void isr20(void);
-extern void isr21(void);
-extern void isr22(void);
-extern void isr23(void);
-extern void isr24(void);
-extern void isr25(void);
-extern void isr26(void);
-extern void isr27(void);
-extern void isr28(void);
-extern void isr29(void);
-extern void isr30(void);
-extern void isr31(void);
-extern void isr32(void);
+extern void *isr_stubs_all[IDT_ENTRIES];
 extern void isr128(void);   /* int $0x80 syscall gate */
-
-void *isr_stubs[32] = {
-    isr0,  isr1,  isr2,  isr3,  isr4,  isr5,  isr6,  isr7,
-    isr8,  isr9,  isr10, isr11, isr12, isr13, isr14, isr15,
-    isr16, isr17, isr18, isr19, isr20, isr21, isr22, isr23,
-    isr24, isr25, isr26, isr27, isr28, isr29, isr30, isr31,
-};
 
 static void idt_set_gate_raw(int vec, void (*handler)(void), u8 dpl)
 {
@@ -101,11 +63,8 @@ void x64_idt_init(void)
 {
     memset(g_idt, 0, sizeof(g_idt));
 
-    for (int i = 0; i < 32; i++)
-        idt_set_gate_raw(i, isr_stubs[i], 0);
-
-    for (int i = 32; i < IDT_ENTRIES; i++)
-        idt_set_gate_raw(i, isr_stubs[0], 0);
+    for (int i = 0; i < IDT_ENTRIES; i++)
+        idt_set_gate_raw(i, isr_stubs_all[i], 0);
 
     /* int $0x80 syscall gate: DPL 3 so user mode can enter it. */
     idt_set_gate_raw(0x80, isr128, 3);
@@ -172,6 +131,13 @@ void isr_handler(struct x64_iframe *f)
     /* int $0x80 syscall from ring 3. */
     if (vec == 0x80 && from_user) {
         f->rax = (u64)syscall_dispatch(f);   /* SYS_EXIT never returns */
+        return;
+    }
+
+    /* Device IRQs (8259 remapped onto 0x20..0x2F) go through the generic
+     * dispatch table; a line nobody claimed is EOI'd anyway. */
+    if (vec >= X86_IRQ_BASE && vec < X86_IRQ_BASE + 16) {
+        x86_irq_dispatch(vec);
         return;
     }
 
