@@ -3,6 +3,41 @@
 All notable changes to NEWOS are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.2.0-pre-alpha] - 2026-09-10
+
+Source-layout rework: every subsystem moved under a canonical, layering-owned
+tree (`abi/`, `arch/*/`, `core/`, `drivers/`, `fs/`, `include/`, `ipc/`,
+`lib/kernel/`, `mm/`, `process/`, `syscall/`, `user/`), the build was
+replaced with a single explicit-source `Makefile`, and the output hierarchy
+was moved under `build/`.
+
+### Added
+- Layering contract lint (`scripts/ci/lint_layering.sh`, `make lint-layers`)
+  enforced on every build and in CI; no cross-domain `#include` shows up.
+- Documentation set: `docs/architecture.md`, `docs/build.md`, `docs/boot.md`,
+  `docs/abi.md`, `docs/development/layering.md`.
+- Explicit `PHDRS` in the x86_64 linker script so no PT_LOAD is RWE.
+
+### Changed
+- Tree restructured to the layered layout; files renamed to prefixed,
+  self-describing names (`restructure`).
+- Build unified on one `Makefile` with an explicit per-domain source ledger
+  (`cmake/kbuild` removed); artifacts consolidated under `build/images/`.
+- `include/core/core_types.h` uses the real `<stdint.h>` types; `size_t`
+  widened to 64-bit and `intptr_t`/`uintptr_t` fixed.
+- CI workflows (`build`, `qemu-test`, `static-analysis`) reconciled with the
+  new layout and lint rule.
+- `.early_bss` declared `nobits` in the entry assembly (NASM warning gone).
+
+### Fixed
+- `abi/multiboot2.h` is self-contained (no longer depends on kernel types).
+
+### Verified
+- `BUILD=PASS`  - two clean builds are byte-for-byte identical.
+- `BOOT=PASS`   - PVH boot reaches `NEWOS: boot complete.` plus userland.
+- `SELF-TEST`   - all kernel self-tests and the userland hello pass.
+- `QEMU=PASS`   - `scripts/ci/run_qemu_test.sh` exits 0 only on success.
+
 ## [0.1.0-pre-alpha] - 2026-09-06
 
 Phase 1 milestone: the x86_64 kernel builds clean under `-Werror`, boots in

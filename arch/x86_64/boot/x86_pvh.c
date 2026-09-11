@@ -29,36 +29,55 @@ void pvh_parse_mmap(u64 pvh_phys)
     pr_info("pvh: start_info flags=%x version=%u entries=%u\n",
             si->flags, si->version, si->memmap_entries);
 
-    /* QEMU does not set SIF_MEM_MAP in flags even though the table is
-     * present, so key off memmap_entries rather than the flag bit. */
+    /* RAM is the contiguous run that begins at or below the kernel image
+     * load address, extended while the next region abuts it. A plain
+     * min-start/max-end over every E820_RAM entry would bridge the MMIO
+     * holes (VGA window, PCI/APIC space) and hand out non-RAM frames. The
+     * end is also clamped to the direct physical map so every allocatable
+     * frame has a kernel mapping. */
     if (si->memmap_entries) {
-        struct hvm_memmap_table_entry *entry =
+        struct hvm_memmap_table_entry *base =
             (struct hvm_memmap_table_entry *)(uintptr_t)si->memmap_paddr;
 
-        for (u32 i = 0; i < si->memmap_entries; i++, entry++) {
-            if (entry->type == E820_RAM) {
-                u64 start = entry->addr;
-                u64 end = entry->addr + entry->size;
+        for (u32 i = 0; i < si->memmap_entries; i++) {
+            if (base[i].type != E820_RAM)
+                continue;
+            u64 start = base[i].addr;
+            u64 end = start + base[i].size;
+            if (end <= PHYS_LOAD_BASE)
+                continue;
+            if (start < PHYS_LOAD_BASE)
+                start = PHYS_LOAD_BASE;
+            if (!got_region || start < mem_start) {
+                mem_start = start;
+                mem_end = end;
+                got_region = 1;
+            } else if (start == mem_start && end > mem_end) {
+                mem_end = end;
+            }
+        }
 
-                /* Skip low memory below the kernel image; span all
-                 * available regions so fragmented maps cover all RAM. */
+        int progress;
+        do {
+            progress = 0;
+            for (u32 i = 0; i < si->memmap_entries; i++) {
+                if (base[i].type != E820_RAM)
+                    continue;
+                u64 start = base[i].addr;
+                u64 end = start + base[i].size;
                 if (end <= PHYS_LOAD_BASE)
                     continue;
                 if (start < PHYS_LOAD_BASE)
                     start = PHYS_LOAD_BASE;
-
-                if (!got_region) {
-                    mem_start = start;
+                if (start <= mem_end && end > mem_end) {
                     mem_end = end;
-                } else {
-                    if (start < mem_start)
-                        mem_start = start;
-                    if (end > mem_end)
-                        mem_end = end;
+                    progress = 1;
                 }
-                got_region = 1;
             }
-        }
+        } while (progress);
+
+        if (mem_end > DIRECT_MAP_SIZE)
+            mem_end = DIRECT_MAP_SIZE;
     }
 
     /* Same QEMU quirk as the memmap: SIF_CMDLINE is never set in flags

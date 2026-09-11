@@ -55,32 +55,59 @@ void mbi_parse_mmap(u64 mbi_phys)
             struct multiboot2_mmap *mmap_tag = (void *)(tag + 1);
             struct multiboot2_mmap_entry *entry = (void *)(mmap_tag + 1);
 
+            /* RAM is the contiguous run that begins at or below the kernel
+             * image load address, extended while the next region abuts it.
+             * A plain min-start/max-end over every RAM entry would bridge
+             * the MMIO holes (VGA window, PCI/APIC space) and hand out
+             * non-RAM frames. The end is also clamped to the direct physical
+             * map so every allocatable frame has a kernel mapping. */
             while ((u8 *)entry < (u8 *)tag + tag->size) {
                 if (entry->type == MULTIBOOT2_MMAP_RAM) {
                     u64 start = entry->base_addr;
                     u64 end = entry->base_addr + entry->length;
 
-                    /* Skip low memory below the kernel image; span all
-                     * available regions so fragmented multiboot maps
-                     * still cover the whole of RAM. */
                     if (end > PHYS_LOAD_BASE) {
                         if (start < PHYS_LOAD_BASE)
                             start = PHYS_LOAD_BASE;
 
-                        if (!got_region) {
+                        if (!got_region || start < mem_start) {
                             mem_start = start;
                             mem_end = end;
-                        } else {
-                            if (start < mem_start)
-                                mem_start = start;
-                            if (end > mem_end)
-                                mem_end = end;
+                            got_region = 1;
+                        } else if (start == mem_start && end > mem_end) {
+                            mem_end = end;
                         }
-                        got_region = 1;
                     }
                 }
                 entry = (struct multiboot2_mmap_entry *)
                     ((u8 *)entry + mmap_tag->entry_size);
+            }
+
+            if (got_region) {
+                int progress;
+                do {
+                    progress = 0;
+                    entry = (void *)(mmap_tag + 1);
+                    while ((u8 *)entry < (u8 *)tag + tag->size) {
+                        if (entry->type == MULTIBOOT2_MMAP_RAM) {
+                            u64 start = entry->base_addr;
+                            u64 end = entry->base_addr + entry->length;
+                            if (end > PHYS_LOAD_BASE) {
+                                if (start < PHYS_LOAD_BASE)
+                                    start = PHYS_LOAD_BASE;
+                                if (start <= mem_end && end > mem_end) {
+                                    mem_end = end;
+                                    progress = 1;
+                                }
+                            }
+                        }
+                        entry = (struct multiboot2_mmap_entry *)
+                            ((u8 *)entry + mmap_tag->entry_size);
+                    }
+                } while (progress);
+
+                if (mem_end > DIRECT_MAP_SIZE)
+                    mem_end = DIRECT_MAP_SIZE;
             }
             break;
         }
