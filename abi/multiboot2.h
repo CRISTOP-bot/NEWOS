@@ -1,19 +1,19 @@
 #ifndef KERNEL_MULTIBOOT2_H
 #define KERNEL_MULTIBOOT2_H
 
-#include <core/core_types.h>
+#include <stdint.h>
 
 #define MULTIBOOT2_MAGIC_CHECK  0x36d76289ul
 #define MULTIBOOT2_HEADER_MAGIC 0xE85250D6ul
 
 struct multiboot2_info {
-    u32 total_size;
-    u32 reserved;
+    uint32_t total_size;
+    uint32_t reserved;
 } __attribute__((packed));
 
 struct multiboot2_tag {
-    u32 type;
-    u32 size;
+    uint32_t type;
+    uint32_t size;
 } __attribute__((packed));
 
 /* Tag types */
@@ -41,15 +41,15 @@ struct multiboot2_tag {
 #define MULTIBOOT2_TAG_LOAD_BASE_ADDR 21
 
 struct multiboot2_mmap {
-    u32 entry_size;
-    u32 entry_version;
+    uint32_t entry_size;
+    uint32_t entry_version;
 } __attribute__((packed));
 
 struct multiboot2_mmap_entry {
-    u64 base_addr;
-    u64 length;
-    u32 type;
-    u32 zero;
+    uint64_t base_addr;
+    uint64_t length;
+    uint32_t type;
+    uint32_t zero;
 } __attribute__((packed));
 
 #define MULTIBOOT2_MMAP_RAM     1

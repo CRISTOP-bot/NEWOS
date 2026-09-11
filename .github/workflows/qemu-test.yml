@@ -15,9 +15,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             gcc make nasm binutils qemu-system-x86
-      - name: 1/3 Build (BUILD=PASS)
+      - name: 1/3 Build + layering lint (BUILD=PASS)
         run: |
-          make all && echo "BUILD=PASS"
+          make all && make lint-layers && echo "BUILD=PASS"
       - name: 2/3 Boot + self-tests (QEMU=PASS)
         run: |
           bash scripts/ci/run_qemu_test.sh

@@ -1,6 +1,12 @@
 #ifndef KERNEL_TYPES_H
 #define KERNEL_TYPES_H
 
+/* Kernel-internal type aliases. Integer widths and the pointer-width
+ * integer types (intptr_t/uintptr_t) come from the freestanding
+ * <stdint.h>; only the concise NEWOS aliases are defined here. */
+
+#include <stdint.h>
+
 typedef unsigned char      u8;
 typedef unsigned short     u16;
 typedef unsigned int       u32;
@@ -11,10 +17,8 @@ typedef signed short       s16;
 typedef signed int         s32;
 typedef signed long long   s64;
 
-typedef u64                uintptr_t;
-typedef u32                size_t;
+typedef u64                size_t;
 typedef s64                ssize_t;
-typedef u32                intptr_t;
 
 typedef u64                ulong;
 typedef u64                uword_t;

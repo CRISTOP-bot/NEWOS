@@ -131,7 +131,7 @@ $(HELLO_EMBED): $(HELLO_BIN)
 # Rules
 # ---------------------------------------------------------------------------
 .PHONY: all clean qemu qemu-debug qemu-test qemu-network qemu-disk iso \
-        check-config dirs
+        check-config dirs lint-layers
 
 .DEFAULT_GOAL := all
 
@@ -144,6 +144,9 @@ check-config:
 	@test -f $(CONFIG) && echo "Using config: $(CONFIG)" || { \
 	  echo "ERROR: config $(CONFIG) not found"; exit 1; }
 
+lint-layers:
+	@scripts/ci/lint_layering.sh
+
 $(BUILD_DIR)/obj/%.o: %.c | dirs
 	@mkdir -p $(dir $@)
 	@echo "  CC  $<"
@@ -154,7 +157,7 @@ $(BUILD_DIR)/obj/%.o: %.S | dirs
 	@echo "  AS  $<"
 	@$(NASM) $(ASFLAGS) -o $@ $<
 
-$(KERNEL_BIN): $(OBJS) | check-config dirs
+$(KERNEL_BIN): $(OBJS) lint-layers | check-config dirs
 	@mkdir -p $(dir $@)
 	@echo "  LD  $(KERNEL_BIN)"
 	@$(LD) $(LDFLAGS) -o $@ $(OBJS)
