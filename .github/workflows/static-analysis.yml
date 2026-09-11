@@ -18,6 +18,9 @@ jobs:
       - name: Build with warnings-as-errors (CFLAGS already -Werror)
         run: |
           make all
+      - name: Enforce source layering contract
+        run: |
+          make lint-layers
       - name: Check whitespace/conflict markers in changed files
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then

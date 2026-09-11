@@ -59,7 +59,7 @@ The kernel runs its self-tests and writes the result to QEMU's
 
 ## Repository layout
 
-See `docs/architecture/` for design details. Phase-1 working set:
+See `docs/architecture.md` for design details.
 
 | Area | Location |
 | --- | --- |

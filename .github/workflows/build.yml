@@ -24,11 +24,11 @@ jobs:
           make ARCH=${{ matrix.arch }} all
       - name: Validate multiboot2 header
         run: |
-          grub-file --is-x86-multiboot2 build/newos-${{ matrix.arch }}.elf \
+          grub-file --is-x86-multiboot2 build/images/newos-${{ matrix.arch }}.elf \
             && echo "multiboot2 header OK"
       - name: Upload kernel artifact
         uses: actions/upload-artifact@v4
         with:
           name: newos-${{ matrix.arch }}-kernel
-          path: build/newos-${{ matrix.arch }}.elf
+          path: build/images/newos-${{ matrix.arch }}.elf
           if-no-files-found: error
