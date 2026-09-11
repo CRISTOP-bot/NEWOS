@@ -1,5 +1,5 @@
-#include <kernel/qemu_debug.h>
-#include <arch/x86_64/io.h>
+#include <drivers/qemu_debug.h>
+#include <x86_io.h>
 
 /* QEMU's isa-debug-exit device: writing a byte to port 0xf4 makes QEMU
  * terminate with exit status (code << 1) | 1. The automated test harness

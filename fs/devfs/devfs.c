@@ -1,8 +1,8 @@
-#include <kernel/vfs.h>
-#include <kernel/kmalloc.h>
-#include <kernel/printk.h>
-#include <drivers/serial/serial.h>
-#include <libk/string.h>
+#include <fs/vfs.h>
+#include <mm/mm_heap.h>
+#include <core/core_printk.h>
+#include <drivers/serial_16550.h>
+#include <iru_string.h>
 
 /* devfs: device file system. Each entry is an inode whose read/write calls
  * callbacks bound to a kernel driver. */

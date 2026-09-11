@@ -45,39 +45,41 @@ LDFLAGS         := -n --gc-sections -T arch/$(ARCH)/linker.ld
 # ---------------------------------------------------------------------------
 
 # arch/<plat>: machine-facing implementation
-ARCH_SRCS_C     := arch/$(ARCH)/boot/init.c arch/$(ARCH)/boot/mbi.c \
-                   arch/$(ARCH)/boot/pvh.c arch/$(ARCH)/cpu/cpuid.c \
-                   arch/$(ARCH)/gdt/gdt.c arch/$(ARCH)/idt/idt.c \
-                   arch/$(ARCH)/mm/paging.c arch/$(ARCH)/pic/pic.c
-ARCH_SRCS_ASM   := arch/$(ARCH)/boot/entry.S arch/$(ARCH)/interrupts/interrupts.S \
-                   arch/$(ARCH)/thread/thread.S
+ARCH_SRCS_C     := arch/$(ARCH)/boot/x86_boot.c arch/$(ARCH)/boot/x86_multiboot2.c \
+                   arch/$(ARCH)/boot/x86_pvh.c arch/$(ARCH)/cpu/x86_cpuid.c \
+                   arch/$(ARCH)/cpu/x86_gdt.c arch/$(ARCH)/interrupts/x86_idt.c \
+                   arch/$(ARCH)/interrupts/x86_pic.c arch/$(ARCH)/memory/x86_paging.c
+ARCH_SRCS_ASM   := arch/$(ARCH)/boot/x86_entry.S \
+                   arch/$(ARCH)/interrupts/x86_interrupt.S \
+                   arch/$(ARCH)/threading/x86_context.S
 
 # core: kernel core (log, oops, init) and privileged subsystems
-CORE_SRCS       := kernel/core/panic.c kernel/core/printk.c kernel/elf/elf.c \
-                   kernel/init/cmdline.c kernel/init/init.c \
-                   kernel/init/phase2_tests.c kernel/oops/oops.c \
-                   kernel/process/process.c kernel/syscall/syscall.c \
-                   kernel/thread/thread.c
+CORE_SRCS       := core/core_panic.c core/core_printk.c process/elf_loader.c \
+                   core/core_cmdline.c core/core_init.c \
+                   core/core_selftest.c core/core_oops.c \
+                   process/proc_process.c syscall/syscall_dispatch.c \
+                   process/proc_thread.c
 
 # mm: memory-management domain
-MM_SRCS         := mm/heap/init.c mm/heap/kmalloc.c mm/memory_debug/debug.c \
-                   mm/pmm/allocator.c mm/pmm/bitmap.c mm/pmm/buddy.c \
-                   mm/pmm/frame.c mm/user/usercopy.c mm/vmm/address_space.c \
-                   mm/vmm/paging.c
+MM_SRCS         := mm/mm_heap.c mm/mm_kmalloc.c mm/mm_debug.c \
+                   mm/mm_pmm_alloc.c mm/mm_pmm_bitmap.c mm/mm_pmm_buddy.c \
+                   mm/mm_frame.c mm/mm_usercopy.c mm/mm_address_space.c \
+                   mm/mm_vmm.c
 
 # storage: VFS and backends
 FS_SRCS         := fs/devfs/devfs.c fs/initramfs/initramfs.c fs/tmpfs/tmpfs.c \
-                   fs/vfs/inode.c fs/vfs/vfs.c
+                   fs/vfs/vfs_inode.c fs/vfs/vfs_core.c
 
 # drivers: hardware-facing services
-DRV_SRCS        := drivers/console/console.c drivers/core/device.c \
-                   drivers/core/driver.c drivers/qemu/qemu_debug.c \
-                   drivers/serial/serial.c
+DRV_SRCS        := drivers/console/tty_console.c drivers/core/device_core.c \
+                   drivers/core/driver_core.c drivers/qemu/qemu_debug.c \
+                   drivers/serial/serial_16550.c
 
 # ipc, lib/kernel: reusable kernel-side utilities
-IPC_SRCS        := ipc/pipe.c
-LIB_SRCS        := lib/libk/bitmap.c lib/libk/format.c lib/libk/lock.c \
-                   lib/libk/memory.c lib/libk/ringbuf.c lib/libk/string.c
+IPC_SRCS        := ipc/ipc_pipe.c
+LIB_SRCS        := lib/kernel/iru_bitmap.c lib/kernel/iru_format.c \
+                   lib/kernel/iru_lock.c lib/kernel/iru_memory.c \
+                   lib/kernel/iru_ringbuf.c lib/kernel/iru_string.c
 
 KERNEL_SRCS_C   := $(CORE_SRCS) $(MM_SRCS) $(FS_SRCS) $(DRV_SRCS) \
                    $(IPC_SRCS) $(LIB_SRCS)
@@ -85,7 +87,7 @@ KERNEL_SRCS_C   := $(CORE_SRCS) $(MM_SRCS) $(FS_SRCS) $(DRV_SRCS) \
 # ---------------------------------------------------------------------------
 # Userland paths (definitions precede the object list, which uses them)
 # ---------------------------------------------------------------------------
-HELLO_DIR       := userland/programs/hello
+HELLO_DIR       := user/programs/hello
 HELLO_OBJ       := $(BUILD_DIR)/userland/hello.o
 HELLO_BIN       := $(BUILD_DIR)/userland/hello.elf
 HELLO_EMBED     := $(BUILD_DIR)/obj/userland/hello.bin.o
@@ -94,8 +96,7 @@ OBJS_C          := $(patsubst %.c,$(BUILD_DIR)/obj/%.o,$(KERNEL_SRCS_C) $(ARCH_S
 OBJS_ASM        := $(patsubst %.S,$(BUILD_DIR)/obj/%.o,$(ARCH_SRCS_ASM))
 OBJS            := $(OBJS_C) $(OBJS_ASM) $(HELLO_EMBED)
 
-INCLUDE         := -Iinclude -Iinclude/kernel -Ilib -Ilib/libk -I. -Ifs -Imm \
-                   -Idrivers -Ikernel -Iarch
+INCLUDE         := -Iinclude -I. -Ilib/kernel -Iarch/$(ARCH)/include
 
 # ---------------------------------------------------------------------------
 # Userland build + embed
@@ -107,7 +108,7 @@ USER_CFLAGS     := -c -O2 -ffreestanding -nostdlib -fno-pic -fno-pie \
                    -fno-stack-protector -fno-builtin -fno-asynchronous-unwind-tables \
                    -fno-exceptions -mgeneral-regs-only -Wall -Wextra -Werror
 
-$(HELLO_OBJ): $(HELLO_DIR)/hello.c
+$(HELLO_OBJ): $(HELLO_DIR)/hello_main.c
 	@mkdir -p $(dir $@)
 	@echo "  UCC $<"
 	@$(CC) $(USER_CFLAGS) -o $@ $<

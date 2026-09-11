@@ -20,7 +20,7 @@ jobs:
           make all && echo "BUILD=PASS"
       - name: 2/3 Boot + self-tests (QEMU=PASS)
         run: |
-          bash ci/qemu/run_test.sh
+          bash scripts/ci/run_qemu_test.sh
       - name: 3/3 Boot via multiboot2 ISO (BOOT=PASS)
         run: |
           sudo apt-get install -y --no-install-recommends grub-common xorriso \

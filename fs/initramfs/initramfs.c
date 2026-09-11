@@ -1,7 +1,7 @@
-#include <kernel/vfs.h>
-#include <kernel/printk.h>
-#include <fs/tmpfs/tmpfs.h>
-#include <libk/string.h>
+#include <fs/vfs.h>
+#include <core/core_printk.h>
+#include <fs/tmpfs.h>
+#include <iru_string.h>
 
 /* initramfs: the boot-time root filesystem. In this phase the kernel
  * populates a tmpfs-backed root from built-in definitions (including the

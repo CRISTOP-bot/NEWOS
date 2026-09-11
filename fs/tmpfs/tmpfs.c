@@ -1,9 +1,9 @@
-#include <kernel/vfs.h>
-#include <kernel/kmalloc.h>
-#include <kernel/kernel.h>
-#include <kernel/printk.h>
-#include <fs/tmpfs/tmpfs.h>
-#include <libk/string.h>
+#include <fs/vfs.h>
+#include <mm/mm_heap.h>
+#include <core/core.h>
+#include <core/core_printk.h>
+#include <fs/tmpfs.h>
+#include <iru_string.h>
 
 /* tmpfs: an in-memory file system backed by the kernel heap. */
 

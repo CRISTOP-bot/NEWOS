@@ -46,7 +46,7 @@ qemu-system-x86_64 -kernel build/newos-x86_64.elf \
 
 The kernel runs its self-tests and writes the result to QEMU's
 `isa-debug-exit` port: QEMU exits `1` when all tests pass, `>= 3` on failure.
-`ci/qemu/run_test.sh` wraps this for CI.
+`scripts/ci/run_qemu_test.sh` wraps this for CI.
 
 ## Boot protocol
 
@@ -63,11 +63,15 @@ See `docs/architecture/` for design details. Phase-1 working set:
 
 | Area | Location |
 | --- | --- |
-| Boot trampoline / page tables | `arch/x86_64/boot/`, `arch/x86_64/linker.ld` |
-| GDT/TSS, IDT, PIC | `arch/x86_64/{gdt,idt,pic}/` |
-| PMM / kheap | `mm/pmm/`, `mm/heap/` |
+| Boot trampoline / page tables | `arch/x86_64/boot/`, `arch/x86_64/memory/`, `arch/x86_64/include/` |
+| GDT/TSS, IDT, PIC, context switch | `arch/x86_64/cpu/`, `arch/x86_64/interrupts/`, `arch/x86_64/threading/` |
+| Kernel core (printk/panic/oops, cmdline, init, self-tests) | `core/` |
+| PMM / kheap / VMM | `mm/` |
 | VFS / tmpfs / devfs / initramfs | `fs/` |
-| Self-tests and boot init | `kernel/init/` |
+| Processes, threads, ELF | `process/` |
+| Syscall dispatcher | `syscall/` |
+| Drivers | `drivers/`, `lib/kernel/` (`iru_*`), `ipc/` |
+| User ABI + userland | `abi/`, `user/programs/hello/` |
 | Build system | `Makefile`, `configs/x86_64/debug.config` |
 
 ## Continuous integration
