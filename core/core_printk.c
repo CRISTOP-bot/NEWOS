@@ -3,6 +3,7 @@
 #include <iru_format.h>
 #include <drivers/tty_console.h>
 #include <drivers/serial_16550.h>
+#include <drivers/vga_console.h>
 
 #define KLOG_RING_SIZE 65536
 
@@ -17,6 +18,8 @@ void printk_init(void)
     early_console_init();
     console_init();
     console_register(&g_serial_console);
+    vga_console_init();
+    console_register(&g_vga_console);
 }
 
 static void printk_emit(char c, void *opaque)

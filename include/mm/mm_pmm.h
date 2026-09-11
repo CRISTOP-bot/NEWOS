@@ -9,10 +9,19 @@
  * map. Frame allocation is provided by a bitmap backend with a buddy
  * allocator for larger orders (backend selected at boot by the front-end). */
 
+/* One usable physical RAM run reported by the boot loader's memory map. */
+struct pmm_ram_range {
+    u64 start;
+    u64 end;
+};
+
 /* Front-end init: wires the backend(s) to the boot memory map (multiboot2 /
  * PVH). Called by the machine boot path once the loader's memory map is
- * known. */
+ * known. pmm_allocator_init_ranges() masks the whole interesting window
+ * and releases exactly the RAM runs, so MMIO holes stay reserved. */
 void     pmm_allocator_init(u64 mem_start, u64 mem_end);
+int      pmm_allocator_init_ranges(const struct pmm_ram_range *runs,
+                                   int count);
 
 void     pmm_init(u64 mem_start, u64 mem_end);
 int      pmm_is_initialized(void);

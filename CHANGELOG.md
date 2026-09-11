@@ -3,6 +3,36 @@
 All notable changes to NEWOS are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Added
+- Multi-run RAM registration (`pmm_allocator_init_ranges()`): boot parsers
+  now hand every RAM E820 region (clamped to the direct-map window) to the
+  PMM instead of one collapsed interval, so no MMIO hole is ever handed out
+  as free memory and all free frames stay within the identity map.
+- VGA text-mode console (`drivers/console/vga_text_console.c`): the kernel
+  mirrors every `printk` line to the 80x25 screen (`0xB8000`) in addition to
+  serial, so a VGA-only machine (e.g. VirtualBox default BIOS) displays the
+  boot log.
+- Robust GRUB config for the ISO: both the console (VGA) and the serial
+  terminal are enabled; a missing serial port falls back to the screen.
+- Reproducible ISO: `make iso` pins every time-derived byte (volume
+  timestamps, the xorriso `.uuid` marker, the `efi.img` FAT volume serial)
+  via `scripts/iso/fixup_iso.py`, so two clean ISO builds are byte-identical.
+- Usage documentation: `docs/virtualbox-and-hardware.md` (VirtualBox legacy
+  BIOS + real hardware + validation matrix).
+
+### Fixed
+- Memory-map parsers previously collapsed all RAM between the lowest and
+  highest map entries, feeding MMIO holes to the physical allocator. The
+  PMM now receives strictly the RAM runs and rejects nothing else.
+
+### Verified
+- `BOOT=PASS` - ISO boots to `NEWOS: boot complete.` under SeaBIOS (legacy
+  BIOS path) and under OVMF/UEFI; PVH still passes the automated suite.
+- `REPRO`     - `make clean && make iso` twice is byte-for-byte identical
+  (ISO `6c84433a...`; ELF `d60467ba...`).
+
 ## [0.2.0-pre-alpha] - 2026-09-10
 
 Source-layout rework: every subsystem moved under a canonical, layering-owned

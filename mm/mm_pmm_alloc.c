@@ -10,15 +10,47 @@
 
 void pmm_allocator_init(u64 mem_start, u64 mem_end)
 {
+    struct pmm_ram_range run = { mem_start, mem_end };
+    pmm_allocator_init_ranges(&run, 1);
+}
+
+int pmm_allocator_init_ranges(const struct pmm_ram_range *runs, int count)
+{
+    u64 mem_start = ~0ull, mem_end = 0;
+    int used = 0;
+
+    for (int i = 0; i < count; i++) {
+        if (runs[i].end <= runs[i].start)
+            continue;
+        if (runs[i].start < mem_start)
+            mem_start = runs[i].start;
+        if (runs[i].end > mem_end)
+            mem_end = runs[i].end;
+        used++;
+    }
+    if (!used)
+        return -1;
+
     pmm_init(mem_start, mem_end);
+
+    /* Mask the whole window, then release exactly the RAM runs. Every
+     * frame outside a usable run (MMIO holes, VGA window, PCI/APIC space)
+     * stays reserved and is never handed out. */
+    pmm_reserve_region(mem_start, mem_end);
+    for (int i = 0; i < count; i++) {
+        if (runs[i].end > runs[i].start)
+            pmm_release_region(runs[i].start, runs[i].end);
+    }
 
     /* Reserve all frames below the end of the kernel image. */
     extern u64 _kernel_end;
     u64 kernel_end_phys = virt_to_phys((uintptr_t)&_kernel_end);
     kernel_end_phys = ALIGN_UP(kernel_end_phys, PAGE_SIZE);
 
-    if (kernel_end_phys > mem_start && kernel_end_phys < mem_end)
+    if (kernel_end_phys > mem_start && kernel_end_phys <= mem_end)
         pmm_reserve_region(mem_start, kernel_end_phys);
     else
         pr_warn("PMM: kernel image outside tracked range, skipping reserve\n");
+
+    return 0;
 }

@@ -25,8 +25,8 @@ void mbi_parse_mmap(u64 mbi_phys)
         return;
     }
 
-    u64 mem_start = 0, mem_end = 0;
-    int got_region = 0;
+    struct pmm_ram_range runs[32];
+    int nruns = 0;
 
     struct multiboot2_tag *tag =
         (struct multiboot2_tag *)((u8 *)info + 8);
@@ -55,59 +55,33 @@ void mbi_parse_mmap(u64 mbi_phys)
             struct multiboot2_mmap *mmap_tag = (void *)(tag + 1);
             struct multiboot2_mmap_entry *entry = (void *)(mmap_tag + 1);
 
-            /* RAM is the contiguous run that begins at or below the kernel
-             * image load address, extended while the next region abuts it.
-             * A plain min-start/max-end over every RAM entry would bridge
-             * the MMIO holes (VGA window, PCI/APIC space) and hand out
-             * non-RAM frames. The end is also clamped to the direct physical
-             * map so every allocatable frame has a kernel mapping. */
+            /* Collect every usable RAM run, clamped to the direct physical
+             * map so every allocatable frame has a kernel mapping. Non-RAM
+             * gaps (VGA window, PCI/APIC space) stay holes in the run list
+             * and are reserved by the PMM front end. */
             while ((u8 *)entry < (u8 *)tag + tag->size) {
                 if (entry->type == MULTIBOOT2_MMAP_RAM) {
                     u64 start = entry->base_addr;
                     u64 end = entry->base_addr + entry->length;
 
-                    if (end > PHYS_LOAD_BASE) {
+                    if (end > PHYS_LOAD_BASE && start < DIRECT_MAP_SIZE) {
                         if (start < PHYS_LOAD_BASE)
                             start = PHYS_LOAD_BASE;
+                        if (end > DIRECT_MAP_SIZE)
+                            end = DIRECT_MAP_SIZE;
 
-                        if (!got_region || start < mem_start) {
-                            mem_start = start;
-                            mem_end = end;
-                            got_region = 1;
-                        } else if (start == mem_start && end > mem_end) {
-                            mem_end = end;
+                        if (nruns && start <= runs[nruns - 1].end) {
+                            if (end > runs[nruns - 1].end)
+                                runs[nruns - 1].end = end;
+                        } else if (nruns < 32) {
+                            runs[nruns].start = start;
+                            runs[nruns].end = end;
+                            nruns++;
                         }
                     }
                 }
                 entry = (struct multiboot2_mmap_entry *)
                     ((u8 *)entry + mmap_tag->entry_size);
-            }
-
-            if (got_region) {
-                int progress;
-                do {
-                    progress = 0;
-                    entry = (void *)(mmap_tag + 1);
-                    while ((u8 *)entry < (u8 *)tag + tag->size) {
-                        if (entry->type == MULTIBOOT2_MMAP_RAM) {
-                            u64 start = entry->base_addr;
-                            u64 end = entry->base_addr + entry->length;
-                            if (end > PHYS_LOAD_BASE) {
-                                if (start < PHYS_LOAD_BASE)
-                                    start = PHYS_LOAD_BASE;
-                                if (start <= mem_end && end > mem_end) {
-                                    mem_end = end;
-                                    progress = 1;
-                                }
-                            }
-                        }
-                        entry = (struct multiboot2_mmap_entry *)
-                            ((u8 *)entry + mmap_tag->entry_size);
-                    }
-                } while (progress);
-
-                if (mem_end > DIRECT_MAP_SIZE)
-                    mem_end = DIRECT_MAP_SIZE;
             }
             break;
         }
@@ -120,14 +94,14 @@ void mbi_parse_mmap(u64 mbi_phys)
         }
     }
 
-    if (!got_region) {
+    if (!nruns) {
         pr_warn("mbi: no usable RAM regions in memory map\n");
         return;
     }
 
     pr_info("mbi: usable RAM %llx - %llx (%llu KiB)\n",
-            (u64)mem_start, (u64)mem_end,
-            (u64)((mem_end - mem_start) >> 10));
+            (u64)runs[0].start, (u64)runs[nruns - 1].end,
+            (u64)((runs[nruns - 1].end - runs[0].start) >> 10));
 
-    pmm_allocator_init(mem_start, mem_end);
+    pmm_allocator_init_ranges(runs, nruns);
 }

@@ -71,9 +71,9 @@ FS_SRCS         := fs/devfs/devfs.c fs/initramfs/initramfs.c fs/tmpfs/tmpfs.c \
                    fs/vfs/vfs_inode.c fs/vfs/vfs_core.c
 
 # drivers: hardware-facing services
-DRV_SRCS        := drivers/console/tty_console.c drivers/core/device_core.c \
-                   drivers/core/driver_core.c drivers/qemu/qemu_debug.c \
-                   drivers/serial/serial_16550.c
+DRV_SRCS        := drivers/console/tty_console.c drivers/console/vga_text_console.c \
+                   drivers/core/device_core.c drivers/core/driver_core.c \
+                   drivers/qemu/qemu_debug.c drivers/serial/serial_16550.c
 
 # ipc, lib/kernel: reusable kernel-side utilities
 IPC_SRCS        := ipc/ipc_pipe.c
@@ -168,13 +168,20 @@ $(KERNEL_BIN): $(OBJS) lint-layers | check-config dirs
 iso: $(KERNEL_BIN)
 	@mkdir -p $(dir $(ISO_IMG)) $(BUILD_DIR)/iso/boot/grub
 	@cp $(KERNEL_BIN) $(BUILD_DIR)/iso/boot/newos.elf
-	@printf 'set timeout=0\nset default=0\nserial --unit=0 --speed=115200 --stop=1\nterminal_input serial\nterminal_output serial\nmenuentry "NEWOS" {\n  multiboot2 /boot/newos.elf\n  boot\n}\nmenuentry "NEWOS (test mode)" {\n  multiboot2 /boot/newos.elf test_mode=1\n  boot\n}\n' \
+	@printf 'set timeout=0\nset default=0\nserial --unit=0 --speed=115200 --stop=1\nterminal_input console\nterminal_input serial\nterminal_output console\nterminal_output serial\nmenuentry "NEWOS" {\n  multiboot2 /boot/newos.elf\n  boot\n}\nmenuentry "NEWOS (test mode)" {\n  multiboot2 /boot/newos.elf test_mode=1\n  boot\n}\n' \
 	  > $(BUILD_DIR)/iso/boot/grub/grub.cfg
-	@grub-mkrescue -o $(ISO_IMG) $(BUILD_DIR)/iso 2>/dev/null || \
-	  xorriso -as mkisofs -b boot/grub/eltorito.img -no-emul-boot \
-	  -boot-load-size 4 -boot-info-table --grub2-boot-info \
-	  --grub2-mbr /usr/lib/grub/i386-pc/boot.img \
-	  -o $(ISO_IMG) $(BUILD_DIR)/iso
+	@SOURCE_DATE_EPOCH=1700000000 grub-mkrescue \
+	    --set_all_file_dates 1700000000 \
+	    --modification-date=2023111422132000 \
+	    -o $(ISO_IMG) $(BUILD_DIR)/iso 2>/dev/null || \
+	  SOURCE_DATE_EPOCH=1700000000 xorriso -as mkisofs \
+	    -b boot/grub/i386-pc/eltorito.img --grub2-mbr /usr/lib/grub/i386-pc/boot.img \
+	    -no-emul-boot -boot-load-size 4 -boot-info-table \
+	    --grub2-boot-info -eltorito-alt-boot -e efi.img -no-emul-boot \
+	    --set_all_file_dates 1700000000 \
+	    --modification-date=2023111422132000 \
+	    -o $(ISO_IMG) $(BUILD_DIR)/iso
+	@python3 scripts/iso/fixup_iso.py $(ISO_IMG)
 	@echo "ISO created: $(ISO_IMG)"
 
 qemu: all

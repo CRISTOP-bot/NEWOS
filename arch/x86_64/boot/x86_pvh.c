@@ -23,61 +23,40 @@ void pvh_parse_mmap(u64 pvh_phys)
         return;
     }
 
-    u64 mem_start = 0, mem_end = 0;
-    int got_region = 0;
+    struct pmm_ram_range runs[32];
+    int nruns = 0;
 
     pr_info("pvh: start_info flags=%x version=%u entries=%u\n",
             si->flags, si->version, si->memmap_entries);
 
-    /* RAM is the contiguous run that begins at or below the kernel image
-     * load address, extended while the next region abuts it. A plain
-     * min-start/max-end over every E820_RAM entry would bridge the MMIO
-     * holes (VGA window, PCI/APIC space) and hand out non-RAM frames. The
-     * end is also clamped to the direct physical map so every allocatable
-     * frame has a kernel mapping. */
+    /* Collect every usable RAM run, clamped to the direct physical map so
+     * every allocatable frame has a kernel mapping. Non-RAM gaps stay holes
+     * in the run list and are reserved by the PMM front end. */
     if (si->memmap_entries) {
         struct hvm_memmap_table_entry *base =
             (struct hvm_memmap_table_entry *)(uintptr_t)si->memmap_paddr;
 
-        for (u32 i = 0; i < si->memmap_entries; i++) {
+        for (u32 i = 0; i < si->memmap_entries && nruns < 32; i++) {
             if (base[i].type != E820_RAM)
                 continue;
             u64 start = base[i].addr;
             u64 end = start + base[i].size;
-            if (end <= PHYS_LOAD_BASE)
+            if (end <= PHYS_LOAD_BASE || start >= DIRECT_MAP_SIZE)
                 continue;
             if (start < PHYS_LOAD_BASE)
                 start = PHYS_LOAD_BASE;
-            if (!got_region || start < mem_start) {
-                mem_start = start;
-                mem_end = end;
-                got_region = 1;
-            } else if (start == mem_start && end > mem_end) {
-                mem_end = end;
+            if (end > DIRECT_MAP_SIZE)
+                end = DIRECT_MAP_SIZE;
+
+            if (nruns && start <= runs[nruns - 1].end) {
+                if (end > runs[nruns - 1].end)
+                    runs[nruns - 1].end = end;
+            } else {
+                runs[nruns].start = start;
+                runs[nruns].end = end;
+                nruns++;
             }
         }
-
-        int progress;
-        do {
-            progress = 0;
-            for (u32 i = 0; i < si->memmap_entries; i++) {
-                if (base[i].type != E820_RAM)
-                    continue;
-                u64 start = base[i].addr;
-                u64 end = start + base[i].size;
-                if (end <= PHYS_LOAD_BASE)
-                    continue;
-                if (start < PHYS_LOAD_BASE)
-                    start = PHYS_LOAD_BASE;
-                if (start <= mem_end && end > mem_end) {
-                    mem_end = end;
-                    progress = 1;
-                }
-            }
-        } while (progress);
-
-        if (mem_end > DIRECT_MAP_SIZE)
-            mem_end = DIRECT_MAP_SIZE;
     }
 
     /* Same QEMU quirk as the memmap: SIF_CMDLINE is never set in flags
@@ -88,14 +67,14 @@ void pvh_parse_mmap(u64 pvh_phys)
         boot_capture_cmdline(cmd);
     }
 
-    if (!got_region) {
+    if (!nruns) {
         pr_warn("pvh: no usable RAM regions in memory map\n");
         return;
     }
 
     pr_info("pvh: usable RAM %llx - %llx (%llu KiB)\n",
-            (u64)mem_start, (u64)mem_end,
-            (u64)((mem_end - mem_start) >> 10));
+            (u64)runs[0].start, (u64)runs[nruns - 1].end,
+            (u64)((runs[nruns - 1].end - runs[0].start) >> 10));
 
-    pmm_allocator_init(mem_start, mem_end);
+    pmm_allocator_init_ranges(runs, nruns);
 }
