@@ -304,6 +304,17 @@ static int pcnet_loopback_test(void)
      * completion can raise card interrupts. */
     pcnet_csr_write(0, PCNET_CSR0_INEA);
 
+    {
+        u16 dbg0 = pcnet_csr_read(0);
+        u16 dbg15 = pcnet_csr_read(15);
+        pr_info("pcnet: dbg csr0=%04x csr15=%04x cxda=%04x%04x "
+                "xmtrc=%u xmtrl=%u tmd.s=%04x tmd.m=%08x rmd.s=%04x\n",
+                dbg0, dbg15,
+                pcnet_csr_read(35), pcnet_csr_read(34),
+                pcnet_csr_read(74), pcnet_csr_read(78),
+                tmd->status, tmd->misc, rmd->status);
+    }
+
     /* The loopback completes synchronously inside the TDMD write, but the
      * resulting IRQ is still in flight - poll, then give it a moment. */
     for (i = 0; i < PCNET_POLL_TIMEOUT && (rmd->status & PCNET_RMD_OWN);
