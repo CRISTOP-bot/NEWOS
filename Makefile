@@ -38,29 +38,49 @@ LDFLAGS         := -n --gc-sections -T arch/$(ARCH)/linker.ld
 
 # ---------------------------------------------------------------------------
 # Source discovery
+#
+# Explicit per-domain ledger. Every list here is verified against actual
+# files at runtime by the build; do not add wildcards that match nothing
+# (dead globs silently break the build).
 # ---------------------------------------------------------------------------
-KERNEL_SRCS_C   := $(wildcard kernel/*.c kernel/core/*.c kernel/init/*.c \
-                   kernel/oops/*.c kernel/process/*.c kernel/thread/*.c \
-                   kernel/syscall/*.c kernel/elf/*.c) \
-                   $(wildcard mm/pmm/*.c mm/vmm/*.c mm/heap/*.c mm/*.c \
-                   mm/kmap/*.c mm/user/*.c mm/memory_debug/*.c) \
-                   $(wildcard lib/*.c lib/libk/*.c lib/libstring/*.c \
-                   lib/libmath/*.c) \
-                   $(wildcard drivers/core/*.c drivers/serial/*.c \
-                   drivers/tty/*.c drivers/console/*.c \
-                   drivers/framebuffer/*.c drivers/pci/*.c \
-                   drivers/qemu/*.c) \
-                   $(wildcard fs/vfs/*.c fs/*.c fs/devfs/*.c fs/tmpfs/*.c \
-                   fs/initramfs/*.c) \
-                   $(wildcard ipc/*.c)
 
-ARCH_SRCS_C     := $(wildcard arch/$(ARCH)/*.c arch/$(ARCH)/cpu/*.c \
-                    arch/$(ARCH)/gdt/*.c arch/$(ARCH)/idt/*.c \
-                    arch/$(ARCH)/pic/*.c arch/$(ARCH)/mm/*.c \
-                    arch/$(ARCH)/thread/*.c arch/$(ARCH)/boot/*.c)
-ARCH_SRCS_ASM   := $(wildcard arch/$(ARCH)/*.S arch/$(ARCH)/boot/*.S \
-                   arch/$(ARCH)/cpu/*.S arch/$(ARCH)/interrupts/*.S \
-                   arch/$(ARCH)/thread/*.S)
+# arch/<plat>: machine-facing implementation
+ARCH_SRCS_C     := arch/$(ARCH)/boot/init.c arch/$(ARCH)/boot/mbi.c \
+                   arch/$(ARCH)/boot/pvh.c arch/$(ARCH)/cpu/cpuid.c \
+                   arch/$(ARCH)/gdt/gdt.c arch/$(ARCH)/idt/idt.c \
+                   arch/$(ARCH)/mm/paging.c arch/$(ARCH)/pic/pic.c
+ARCH_SRCS_ASM   := arch/$(ARCH)/boot/entry.S arch/$(ARCH)/interrupts/interrupts.S \
+                   arch/$(ARCH)/thread/thread.S
+
+# core: kernel core (log, oops, init) and privileged subsystems
+CORE_SRCS       := kernel/core/panic.c kernel/core/printk.c kernel/elf/elf.c \
+                   kernel/init/cmdline.c kernel/init/init.c \
+                   kernel/init/phase2_tests.c kernel/oops/oops.c \
+                   kernel/process/process.c kernel/syscall/syscall.c \
+                   kernel/thread/thread.c
+
+# mm: memory-management domain
+MM_SRCS         := mm/heap/init.c mm/heap/kmalloc.c mm/memory_debug/debug.c \
+                   mm/pmm/allocator.c mm/pmm/bitmap.c mm/pmm/buddy.c \
+                   mm/pmm/frame.c mm/user/usercopy.c mm/vmm/address_space.c \
+                   mm/vmm/paging.c
+
+# storage: VFS and backends
+FS_SRCS         := fs/devfs/devfs.c fs/initramfs/initramfs.c fs/tmpfs/tmpfs.c \
+                   fs/vfs/inode.c fs/vfs/vfs.c
+
+# drivers: hardware-facing services
+DRV_SRCS        := drivers/console/console.c drivers/core/device.c \
+                   drivers/core/driver.c drivers/qemu/qemu_debug.c \
+                   drivers/serial/serial.c
+
+# ipc, lib/kernel: reusable kernel-side utilities
+IPC_SRCS        := ipc/pipe.c
+LIB_SRCS        := lib/libk/bitmap.c lib/libk/format.c lib/libk/lock.c \
+                   lib/libk/memory.c lib/libk/ringbuf.c lib/libk/string.c
+
+KERNEL_SRCS_C   := $(CORE_SRCS) $(MM_SRCS) $(FS_SRCS) $(DRV_SRCS) \
+                   $(IPC_SRCS) $(LIB_SRCS)
 
 # ---------------------------------------------------------------------------
 # Userland paths (definitions precede the object list, which uses them)
