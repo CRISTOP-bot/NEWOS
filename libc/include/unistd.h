@@ -30,6 +30,9 @@ long read(int fd, void *buf, unsigned long len);
 long write(int fd, const void *buf, unsigned long len);
 int close(int fd);
 long lseek(int fd, long off, int whence);
+/* NEWOS exposes the Linux-compatible brk syscall; malloc uses this to grow
+ * the process heap beyond its initial image instead of a fixed arena. */
+void *sbrk(long increment);
 
 /* stdin is always the console here. */
 static inline int isatty(int fd)

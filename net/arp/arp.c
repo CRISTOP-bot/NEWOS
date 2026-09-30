@@ -26,16 +26,8 @@ int arp_resolve(struct net_iface *iface, const uint8_t *ip_addr, uint8_t *mac_ad
            ip_addr[0], ip_addr[1], ip_addr[2], ip_addr[3],
            iface ? iface->name : "unknown");
     
-    /* For now, just return a dummy MAC address */
-    memset(mac_addr, 0x00, 6);
-    mac_addr[0] = 0x52;  /* Random locally administered address */
-    mac_addr[1] = 0x54;
-    mac_addr[2] = 0x00;
-    mac_addr[3] = 0x12;
-    mac_addr[4] = 0x34;
-    mac_addr[5] = 0x56;
-    
-    return 0;
+    /* Without a neighbor cache and Ethernet RX path, resolution is unknown. */
+    return -1;
 }
 
 /* Process an ARP packet (stub) */
@@ -44,8 +36,7 @@ int arp_process(struct net_iface *iface, const void *buf, size_t len)
     if (!iface || !buf || len == 0)
         return -1;
     
-    printk("ARP: Processing %zu bytes on interface %s (stub)\n",
-           len, iface ? iface->name : "unknown");
-    
-    return len;
+    printk("ARP: receive path unavailable on interface %s (%zu bytes)\n",
+           iface->name, len);
+    return -1;
 }

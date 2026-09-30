@@ -12,9 +12,9 @@
  * (rcx and r11 are clobbered by the instruction, matching the SysV ABI).
  */
 
-/* Syscall numbers follow Linux x86_64 (asm/unistd_64.h) so an unmodified
- * Linux-format static binary (musl toolchain output) can run here. Calls
- * with no Linux counterpart live in the NEWOS vendor block 450+. */
+/* Linux x86_64 syscall numbers are retained for calls whose Linux-compatible
+ * subset is implemented here. This is not a promise of full Linux ABI
+ * compatibility. NEWOS-specific calls live in the vendor block 450+. */
 
 #define SYS_READ     0
 #define SYS_WRITE    1
@@ -120,8 +120,8 @@ typedef unsigned char      nsh_u8;
 typedef unsigned short     nsh_u16;
 typedef unsigned int       nsh_u32;
 typedef int                nsh_s32;
-typedef unsigned long      nsh_u64;
-typedef long               nsh_s64;
+typedef unsigned long long nsh_u64;
+typedef signed long long   nsh_s64;
 
 #define NSH_MAX_ARGS    16
 #define NSH_MAX_ARGLEN  128
@@ -298,7 +298,6 @@ struct nsh_stat {
     nsh_s64 st_mtime_nsec;
     nsh_s64 st_ctime;
     nsh_s64 st_ctime_nsec;
-    nsh_u64 __st_gen;
     nsh_u64 __st_spare[3];
 };
 
@@ -336,11 +335,28 @@ struct nsh_termios {
     nsh_u32 c_oflag;
     nsh_u32 c_cflag;
     nsh_u32 c_lflag;
+    nsh_u8  c_line;
     nsh_u8  c_cc[19];
-    nsh_u8  __c_pad;
     nsh_u32 c_ispeed;
     nsh_u32 c_ospeed;
 };
+
+/* Catch accidental kernel/user layout drift at compile time. These records
+ * cross the syscall boundary and must retain Linux x86_64 byte offsets. */
+typedef char nsh_abi_stat_size_must_be_144[
+    sizeof(struct nsh_stat) == 144 ? 1 : -1];
+typedef char nsh_abi_stat_size_offset_must_be_48[
+    __builtin_offsetof(struct nsh_stat, st_size) == 48 ? 1 : -1];
+typedef char nsh_abi_termios_size_must_be_44[
+    sizeof(struct nsh_termios) == 44 ? 1 : -1];
+typedef char nsh_abi_termios_cc_offset_must_be_17[
+    __builtin_offsetof(struct nsh_termios, c_cc) == 17 ? 1 : -1];
+typedef char nsh_abi_timespec_size_must_be_16[
+    sizeof(struct nsh_timespec) == 16 ? 1 : -1];
+typedef char nsh_abi_fbwrite_size_must_be_48[
+    sizeof(struct nsh_fbwrite) == 48 ? 1 : -1];
+typedef char nsh_abi_mouse_size_must_be_32[
+    sizeof(struct nsh_mouse) == 32 ? 1 : -1];
 
 /* SYS_IOCTL(TIOCGWINSZ) record: Linux struct winsize. */
 struct nsh_winsize {

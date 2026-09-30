@@ -787,7 +787,7 @@ long syscall_dispatch(struct x64_iframe *f)
         memset(&u, 0, sizeof(u));
         strcpy(u.sysname, "NEWOS");
         strcpy(u.nodename, "newos");
-        strcpy(u.release, "0.2.0-pre-alpha");
+        strcpy(u.release, "0.3.0");
         strcpy(u.version, "Limine " __DATE__);
         strcpy(u.machine, "x86_64");
         strcpy(u.domainname, "(none)");

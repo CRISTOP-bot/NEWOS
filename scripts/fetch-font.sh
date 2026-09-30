@@ -1,20 +1,25 @@
 #!/usr/bin/env bash
-# Fetch the public-domain 8x8 console font used by the framebuffer text
-# console (fbcon). Cached under build/ so later builds work offline.
+# Stage the vendored public-domain 8x8 console font used by fbcon.
 #
 # Usage: scripts/fetch-font.sh <dest-file>
 set -euo pipefail
 
 DEST="$1"
-URL="https://raw.githubusercontent.com/dhepper/font8x8/master/font8x8_basic.h"
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+SOURCE="$ROOT/bc/font8x8_basic.h"
 
 if [ -f "$DEST" ]; then
     echo "  FONT cached $DEST"
     exit 0
 fi
 
-echo "  FONT fetch $URL"
+if [ ! -f "$SOURCE" ]; then
+    echo "  FONT error: vendored source missing: $SOURCE" >&2
+    exit 1
+fi
+
+echo "  FONT stage $SOURCE"
 mkdir -p "$(dirname "$DEST")"
-curl -fsSL -o "$DEST.tmp" "$URL"
+cp "$SOURCE" "$DEST.tmp"
 mv "$DEST.tmp" "$DEST"
 echo "  FONT cached -> $DEST"

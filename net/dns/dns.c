@@ -22,16 +22,8 @@ int dns_resolve(const char *hostname, uint8_t *ip_addr, size_t ip_addr_len)
     if (!hostname || !ip_addr || ip_addr_len < 4)
         return -1;
     
-    printk("DNS: Resolving hostname '%s' (stub)\n", hostname);
-    
-    /* For now, just return a dummy IP address (8.8.8.8) */
-    memset(ip_addr, 0, ip_addr_len);
-    ip_addr[0] = 8;
-    ip_addr[1] = 8;
-    ip_addr[2] = 8;
-    ip_addr[3] = 8;
-    
-    return 0;
+    printk("DNS: resolver unavailable for '%s'\n", hostname);
+    return -1;
 }
 
 /* Process a DNS response (stub) */
@@ -40,14 +32,8 @@ int dns_process_response(const void *buf, size_t len, uint8_t *ip_addr, size_t i
     if (!buf || len == 0 || !ip_addr || ip_addr_len < 4)
         return -1;
     
-    printk("DNS: Processing response of %zu bytes (stub)\n", len);
-    
-    /* For now, just return a dummy IP address */
-    memset(ip_addr, 0, ip_addr_len);
-    ip_addr[0] = 8;
-    ip_addr[1] = 8;
-    ip_addr[2] = 8;
-    ip_addr[3] = 8;
-    
-    return len;
+    (void)ip_addr;
+    (void)ip_addr_len;
+    printk("DNS: response parser unavailable (%zu bytes)\n", len);
+    return -1;
 }

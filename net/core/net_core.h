@@ -1,8 +1,7 @@
 #ifndef NET_CORE_H
 #define NET_CORE_H
 
-#include <stdint.h>
-#include <stddef.h>
+#include <core/core_types.h>
 
 /* Network interface types */
 #define NET_IF_TYPE_ETHERNET 1
@@ -106,6 +105,15 @@ struct net_iface {
 #define AF_PACKET  17  /* Packet family */
 #define AF_MAX     17
 
+/* Address payloads precede sockaddr_in so these members are complete types. */
+struct in_addr {
+    uint32_t s_addr;
+};
+
+struct in6_addr {
+    uint8_t s6_addr[16];
+};
+
 /* Socket address structure (generic) */
 struct sockaddr {
     uint16_t sa_family;  /* Address family */
@@ -127,16 +135,6 @@ struct sockaddr_in6 {
     uint32_t sin6_flowinfo; /* IPv6 flow information */
     struct in6_addr sin6_addr; /* IPv6 address */
     uint32_t sin6_scope_id; /* Scope ID */
-};
-
-/* Inaddr structure */
-struct in_addr {
-    uint32_t s_addr; /* Address in network byte order */
-};
-
-/* In6addr structure */
-struct in6_addr {
-    uint8_t s6_addr[16]; /* IPv6 address */
 };
 
 /* Socket state */

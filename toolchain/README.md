@@ -37,6 +37,12 @@ make CROSS_PREFIX=x86_64-elf- qemu-test  # must end: QEMU exit status: 1
 the host assembler. `bash toolchain/test.sh` smoke-tests the install
 without building the whole tree.
 
+This is a **host-side cross toolchain** for building NEWOS. Its GCC and
+binutils executables run on Linux and emit bare-metal `x86_64-elf` code;
+they are not guest programs that can be copied into NEWOS `/bin`. NEWOS
+does not yet provide the process, virtual-memory, and host ABI support a
+native GCC driver and its assembler/linker subprocesses require.
+
 ## Target libc (newlib)
 
 GCC is still configured `--without-headers --with-newlib`, so newlib is

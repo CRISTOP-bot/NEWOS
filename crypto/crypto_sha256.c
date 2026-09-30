@@ -1,9 +1,7 @@
 #include <crypto/crypto.h>
 #include <iru_string.h>
 
-/* SHA-256, FIPS 180-4. Written from the specification's own pseudocode;
- * the message schedule is materialised per round instead of as a 64-word
- * array, which keeps the working set inside a single cache line. */
+/* SHA-256, FIPS 180-4. */
 
 static const u32 sha256_k[64] = {
     0x428a2f98u, 0x71374491u, 0xb5c0fbcfu, 0xe9b5dba5u,
@@ -15,7 +13,7 @@ static const u32 sha256_k[64] = {
     0x983e5152u, 0xa831c66du, 0xb00327c8u, 0xbf597fc7u,
     0xc6e00bf3u, 0xd5a79147u, 0x06ca6351u, 0x14292967u,
     0x27b70a85u, 0x2e1b2138u, 0x4d2c6dfcu, 0x53380d13u,
-    0x650a7354u, 0x766a0abbu, 0x81c197e6u, 0x92722c85u,
+    0x650a7354u, 0x766a0abbu, 0x81c2c92eu, 0x92722c85u,
     0xa2bfe8a1u, 0xa81a664bu, 0xc24b8b70u, 0xc76c51a3u,
     0xd192e819u, 0xd6990624u, 0xf40e3585u, 0x106aa070u,
     0x19a4c116u, 0x1e376c08u, 0x2748774cu, 0x34b0bcb5u,
@@ -38,7 +36,7 @@ static inline u32 ror32(u32 x, unsigned n)
 
 static void sha256_compress(u32 h[8], const u8 block[SHA256_BLOCK_SIZE])
 {
-    u32 w[16];
+    u32 w[64];
     u32 a, b, c, d, e, f, g, hh;
     unsigned i, t;
 
@@ -49,16 +47,14 @@ static void sha256_compress(u32 h[8], const u8 block[SHA256_BLOCK_SIZE])
     a = h[0]; b = h[1]; c = h[2]; d = h[3];
     e = h[4]; f = h[5]; g = h[6]; hh = h[7];
 
-    /* The schedule is a 16-word sliding window: w[t] only ever needs
-     * w[t-15], w[t-13], w[t-7] and w[t-2], so t % 16 is enough state. */
+    for (t = 16; t < 64; t++)
+        w[t] = SS1(w[t - 2]) + w[t - 7] + SS0(w[t - 15]) + w[t - 16];
+
     for (t = 0; t < 64; t++) {
-        u32 tmp;
-        if (t >= 16)
-            w[t % 16] += SS1(w[(t + 14) % 16]) + w[(t + 9) % 16] +
-                         SS0(w[(t + 1) % 16]);
-        tmp = hh + BS1(e) + CH(e, f, g) + sha256_k[t] + w[t % 16];
+        u32 tmp = hh + BS1(e) + CH(e, f, g) + sha256_k[t] + w[t];
+        u32 tmp2 = BS0(a) + MAJ(a, b, c);
         hh = g; g = f; f = e; e = d + tmp;
-        d = c; c = b; b = a; a = tmp + BS0(a) + MAJ(a, b, c);
+        d = c; c = b; b = a; a = tmp + tmp2;
     }
 
     h[0] += a; h[1] += b; h[2] += c; h[3] += d;
@@ -127,4 +123,18 @@ void sha256(const void *data, u64 len, u8 out[SHA256_DIGEST_SIZE])
     sha256_init(&ctx);
     sha256_update(&ctx, data, len);
     sha256_final(&ctx, out);
+}
+
+int crypto_selftest(void)
+{
+    static const u8 empty_sha256[SHA256_DIGEST_SIZE] = {
+        0xe3, 0xb0, 0xc4, 0x42, 0x98, 0xfc, 0x1c, 0x14,
+        0x9a, 0xfb, 0xf4, 0xc8, 0x99, 0x6f, 0xb9, 0x24,
+        0x27, 0xae, 0x41, 0xe4, 0x64, 0x9b, 0x93, 0x4c,
+        0xa4, 0x95, 0x99, 0x1b, 0x78, 0x52, 0xb8, 0x55,
+    };
+    u8 digest[SHA256_DIGEST_SIZE];
+
+    sha256(NULL, 0, digest);
+    return memcmp(digest, empty_sha256, sizeof(digest)) == 0 ? 0 : -1;
 }

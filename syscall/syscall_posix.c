@@ -377,25 +377,34 @@ static long posix_mmap(struct x64_iframe *f, struct process *p)
     size_t len = (size_t)f->rsi;
     u64 prot = f->rdx;
     u64 flags = f->r10;
-    uintptr_t stack_floor = p->user_stack_start;
+    uintptr_t stack_floor;
     uintptr_t va;
 
     if (!p)
         return SYSCALL_RET_ERROR;
+    stack_floor = p->user_stack_start;
     if (!(flags & NSH_MAP_ANONYMOUS))
         return SYSCALL_RET_ERROR;         /* file-backed maps unsupported */
-    len = ALIGN_UP(len, PAGE_SIZE);
-    if (len == 0 || len > (1ull << 34))
+    if (len == 0 || len > (1ull << 34) ||
+        len > (size_t)(~(uintptr_t)0) - (PAGE_SIZE - 1))
         return SYSCALL_RET_ERROR;
+    len = ALIGN_UP(len, PAGE_SIZE);
     if (flags & NSH_MAP_FIXED) {
         if (hint & (PAGE_SIZE - 1))
             return SYSCALL_RET_ERROR;
         va = hint;
-        if (va < USER_SPACE_BASE || va >= stack_floor || va + len < va)
+        if (va < USER_SPACE_BASE || va >= stack_floor || va + len < va ||
+            va + len > stack_floor)
             return SYSCALL_RET_ERROR;
+        /* Replacing existing mappings cannot be rolled back safely yet;
+         * reject occupied ranges before changing any page. */
+        for (uintptr_t a = va; a < va + len; a += PAGE_SIZE)
+            if (vmm_page_lookup(p->space, a, NULL, NULL))
+                return SYSCALL_RET_ERROR;
     } else {
         va = p->mmap_next;
         if (hint && !(hint & (PAGE_SIZE - 1)) && hint >= va &&
+            hint + len >= hint &&
             hint + len <= stack_floor)
             va = hint;
         if (va + len > stack_floor || va + len < va)
@@ -405,24 +414,20 @@ static long posix_mmap(struct x64_iframe *f, struct process *p)
     u32 vf = posix_prot_flags(prot);
     u64 done = 0;
     for (uintptr_t a = va; a < va + len; a += PAGE_SIZE) {
-        uintptr_t phys;
-        if (vmm_page_lookup(p->space, a, &phys, NULL)) {
-            if (!(flags & NSH_MAP_FIXED))
-                continue;                 /* bump region: cannot happen */
-            vmm_unmap_pages(p->space, a, 1);
-            pmm_frame_free(phys >> PAGE_SHIFT);
-        }
         if (vmm_alloc_page(p->space, a, vf) != 0) {
-            /* Roll back: unmapped+freed frames stay, mapped ones too;
-             * address space destroy is the actual reclaimer at exit. */
-            if (flags & NSH_MAP_FIXED)
-                return SYSCALL_RET_ERROR;
-            break;                        /* partial map still usable */
+            for (uintptr_t undo = va; undo < a; undo += PAGE_SIZE) {
+                uintptr_t phys;
+                if (vmm_page_lookup(p->space, undo, &phys, NULL)) {
+                    vmm_unmap_pages(p->space, undo, 1);
+                    pmm_frame_free(phys >> PAGE_SHIFT);
+                }
+            }
+            return SYSCALL_RET_ERROR;
         }
         done += PAGE_SIZE;
     }
     if (!(flags & NSH_MAP_FIXED)) {
-        if (done == 0)
+        if (done != len)
             return SYSCALL_RET_ERROR;
         p->mmap_next = ALIGN_UP(va + done, PAGE_SIZE);
     } else if (done != len) {
@@ -438,9 +443,12 @@ static long posix_munmap(struct x64_iframe *f, struct process *p)
 
     if (!p)
         return SYSCALL_RET_ERROR;
-    if (va & (PAGE_SIZE - 1))
+    if ((va & (PAGE_SIZE - 1)) || len == 0 ||
+        len > (size_t)(~(uintptr_t)0) - (PAGE_SIZE - 1))
         return SYSCALL_RET_ERROR;
     len = ALIGN_UP(len, PAGE_SIZE);
+    if (va + len < va)
+        return SYSCALL_RET_ERROR;
     for (uintptr_t a = va; a < va + len; a += PAGE_SIZE) {
         uintptr_t phys;
         if (!vmm_page_lookup(p->space, a, &phys, NULL))
@@ -459,9 +467,12 @@ static long posix_mprotect(struct x64_iframe *f, struct process *p)
 
     if (!p)
         return SYSCALL_RET_ERROR;
-    if (va & (PAGE_SIZE - 1))
+    if ((va & (PAGE_SIZE - 1)) || len == 0 ||
+        len > (size_t)(~(uintptr_t)0) - (PAGE_SIZE - 1))
         return SYSCALL_RET_ERROR;
     len = ALIGN_UP(len, PAGE_SIZE);
+    if (va + len < va)
+        return SYSCALL_RET_ERROR;
     u32 vf = posix_prot_flags(prot);
     for (uintptr_t a = va; a < va + len; a += PAGE_SIZE) {
         uintptr_t phys;
@@ -477,11 +488,12 @@ static long posix_mprotect(struct x64_iframe *f, struct process *p)
 static long posix_brk(struct x64_iframe *f, struct process *p)
 {
     uintptr_t want = (uintptr_t)f->rdi;
-    uintptr_t start = p->image_end;
-    uintptr_t limit = PROCESS_MMAP_BASE;
+    uintptr_t start, limit;
 
     if (!p)
         return SYSCALL_RET_ERROR;
+    start = p->image_end;
+    limit = PROCESS_MMAP_BASE;
     if (want == 0)
         return (long)p->brk_cur;
     if (want < start)
@@ -491,11 +503,32 @@ static long posix_brk(struct x64_iframe *f, struct process *p)
 
     uintptr_t old_top = ALIGN_UP(p->brk_cur, PAGE_SIZE);
     uintptr_t new_top = ALIGN_UP(want, PAGE_SIZE);
+    if (new_top < old_top) {
+        for (uintptr_t a = new_top; a < old_top; a += PAGE_SIZE) {
+            uintptr_t phys;
+            if (vmm_page_lookup(p->space, a, &phys, NULL)) {
+                vmm_unmap_pages(p->space, a, 1);
+                pmm_frame_free(phys >> PAGE_SHIFT);
+            }
+        }
+    }
     for (uintptr_t a = old_top; a < new_top; a += PAGE_SIZE) {
         if (!vmm_page_lookup(p->space, a, NULL, NULL) &&
             vmm_alloc_page(p->space, a,
-                           VMM_USER | VMM_WRITE | VMM_NX) != 0)
-            break;
+                           VMM_USER | VMM_WRITE | VMM_NX) != 0) {
+            /* Nothing beyond the old break belongs to the process heap.
+             * Release any pages allocated during this failed expansion and
+             * leave brk_cur unchanged so malloc never receives unmapped
+             * memory as a successful sbrk result. */
+            for (uintptr_t undo = old_top; undo < a; undo += PAGE_SIZE) {
+                uintptr_t phys;
+                if (vmm_page_lookup(p->space, undo, &phys, NULL)) {
+                    vmm_unmap_pages(p->space, undo, 1);
+                    pmm_frame_free(phys >> PAGE_SHIFT);
+                }
+            }
+            return (long)p->brk_cur;
+        }
     }
     p->brk_cur = want;
     return (long)p->brk_cur;

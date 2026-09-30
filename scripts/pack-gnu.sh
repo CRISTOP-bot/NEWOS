@@ -31,8 +31,8 @@ trap 'rm -f "$SPEC"' EXIT
   echo "depends = \"\""
   echo ""
   echo "files:"
-  find "$STAGE" -maxdepth 1 -type f | sort | while read -r f; do
-    echo "  $f /bin/$(basename "$f") 0755"
+  find "$STAGE" -maxdepth 1 -type f ! -name '.built' | sort | while read -r f; do
+    echo "  $f /usr/bin/$(basename "$f") 0755"
   done
 } > "$SPEC"
 

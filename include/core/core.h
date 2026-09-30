@@ -41,7 +41,7 @@
  * The low 47-bit half (< 2^47) belongs to user address spaces; the kernel's
  * half (PML4 indices 256..511) is shared by value in every address space.
  */
-#define KERNEL_IMAGE_SIZE   MiB(6)          /* high-half window for the image */
+#define KERNEL_IMAGE_SIZE   MiB(64)         /* matches the early 64 MiB mapping */
 #define DIRECT_PHYS_BASE    0xfffffe0000000000ull
 #define DIRECT_MAP_SIZE     GiB(4)          /* phys 0 .. 4 GiB direct-mapped */
 

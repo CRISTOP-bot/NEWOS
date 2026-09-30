@@ -6,6 +6,7 @@
 #include <x86_cpu.h>
 #include <x86_gdt.h>
 #include <x86_idt.h>
+#include <x86_fpu.h>
 #include <x86_mmu.h>
 #include <x86_vendor.h>
 #include <drivers/fb.h>
@@ -325,6 +326,10 @@ void limine_arch_main(void)
 
     cpu_vendor_init();
     x64_paging_init();
+
+    /* Match the PVH/multiboot path: GNU userland uses SSE2, and the
+     * scheduler saves/restores each process's x87/SSE state with FXSAVE. */
+    x64_fpu_enable();
 
     /* Paging is final: map the panel (if any) and light up fbcon. */
     if (fb_found)

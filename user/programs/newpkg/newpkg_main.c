@@ -957,24 +957,22 @@ static int str_contains(const char *hay, const char *needle)
 
 static int cmd_search(const char *query)
 {
-    /* Search packages by name/description. In a real implementation
-     * this would query a remote repository index. For now, check
-     * the local initramfs for available .new packages. */
+    /* Search staged local archives. The initramfs keeps installable
+     * packages in /tmp; /root is included for archives copied by users. */
     static struct nsh_dirent dents[64];
+    static const char *dirs[] = { "/tmp", "/root" };
     long n, i;
     int found = 0;
-    n = sys_readdir("/", dents, sizeof(dents));
-    if (n < 0) {
-        fputf(1, "newpkg: cannot search (no repo configured)\n");
-        return 1;
-    }
-    for (i = 0; i < n; i++) {
-        u64 L = nstrlen(dents[i].name);
-        if (L < 4 || nstrcmp(dents[i].name + L - 4, ".new") != 0)
+    for (u32 d = 0; d < sizeof(dirs) / sizeof(dirs[0]); d++) {
+        n = sys_readdir(dirs[d], dents, sizeof(dents));
+        if (n < 0)
             continue;
-        if (str_contains(dents[i].name, query) ||
-            nstrcmp(dents[i].name, "hello") == 0) {
-            putf("  %s\n", dents[i].name);
+        for (i = 0; i < n; i++) {
+            u64 L = nstrlen(dents[i].name);
+            if (L < 4 || nstrcmp(dents[i].name + L - 4, ".new") != 0 ||
+                !str_contains(dents[i].name, query))
+                continue;
+            putf("  %s/%s\n", dirs[d], dents[i].name);
             found++;
         }
     }

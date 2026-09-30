@@ -17,6 +17,7 @@
 #define CUR_W       12u
 #define CUR_H       12u
 #define DESK_MAX_W  2048u
+#define DESK_MAX_H  1200u
 
 #define CLR_PANEL   0x0f3460u
 #define CLR_TASKBAR 0x1a1a2eu
@@ -28,9 +29,13 @@
 #define CLR_TEXT    0xeaeaeau
 #define CLR_TEXT_DIM 0x8a8a9au
 
-static u32 rowbuf[DESK_MAX_W];
-static u32 fillrow_buf[DESK_MAX_W];
+/* Compose in userspace and submit one clipped frame. Per-pixel syscalls made
+ * dragging a window thousands of trap transitions per frame. */
+static u32 canvas[DESK_MAX_W * DESK_MAX_H];
+static u64 screen_w, screen_h;
 static u32 glyph_buf[20 * 20];
+static char bin_entries[4][NSH_NAME_LEN];
+static int bin_entry_count;
 
 static const char GCHARS[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
                              "abcdefghijklmnopqrstuvwxyz"
@@ -85,34 +90,24 @@ static int gidx(char c)
 static void blit_st(u64 x, u64 y, u64 w, u64 h, const u32 *px, u64 stride)
 {
     u64 yy, xx;
-    if (!w || !h || x >= DESK_MAX_W || y >= DESK_MAX_W) return;
-    if (x + w > DESK_MAX_W) w = DESK_MAX_W - x;
-    if (y + h > DESK_MAX_W) h = DESK_MAX_W - y;
-    if (w > 2048u) w = 2048u;
+    if (!w || !h || !px || x >= screen_w || y >= screen_h) return;
+    if (w > screen_w - x) w = screen_w - x;
+    if (h > screen_h - y) h = screen_h - y;
     for (yy = 0; yy < h; yy++) {
         for (xx = 0; xx < w; xx++)
-            rowbuf[xx] = px[yy * stride + xx];
-        struct nsh_fbwrite rq;
-        rq.x = x; rq.y = y + yy; rq.w = w; rq.h = 1;
-        rq.pixels = (u64)&rowbuf[0]; rq.pixlen = w * 4u;
-        if (sys_fbwrite(&rq) != 0) return;
+            canvas[(y + yy) * screen_w + x + xx] = px[yy * stride + xx];
     }
 }
 
 static void solid(u64 x, u64 y, u64 w, u64 h, u32 color)
 {
-    u64 yy, i;
-    if (!w || !h || x >= DESK_MAX_W || y >= DESK_MAX_W) return;
-    if (x + w > DESK_MAX_W) w = DESK_MAX_W - x;
-    if (y + h > DESK_MAX_W) h = DESK_MAX_W - y;
-    if (w > 2048u) w = 2048u;
-    for (i = 0; i < w; i++) fillrow_buf[i] = color;
-    for (yy = 0; yy < h; yy++) {
-        struct nsh_fbwrite rq;
-        rq.x = x; rq.y = y + yy; rq.w = w; rq.h = 1;
-        rq.pixels = (u64)&fillrow_buf[0]; rq.pixlen = w * 4u;
-        if (sys_fbwrite(&rq) != 0) return;
-    }
+    u64 yy, xx;
+    if (!w || !h || x >= screen_w || y >= screen_h) return;
+    if (w > screen_w - x) w = screen_w - x;
+    if (h > screen_h - y) h = screen_h - y;
+    for (yy = 0; yy < h; yy++)
+        for (xx = 0; xx < w; xx++)
+            canvas[(y + yy) * screen_w + x + xx] = color;
 }
 
 static void text_at(const char *s, u64 x, u64 y, u64 sc, u32 fg, u32 bg)
@@ -139,13 +134,10 @@ static void text_at(const char *s, u64 x, u64 y, u64 sc, u32 fg, u32 bg)
 
 static void hline(u64 x, u64 y, u64 w, u32 color)
 {
-    if (x + w > DESK_MAX_W) w = DESK_MAX_W - x;
     u64 i;
-    for (i = 0; i < w; i++) fillrow_buf[i] = color;
-    struct nsh_fbwrite rq;
-    rq.x = x; rq.y = y; rq.w = w; rq.h = 1;
-    rq.pixels = (u64)&fillrow_buf[0]; rq.pixlen = w * 4u;
-    sys_fbwrite(&rq);
+    if (x >= screen_w || y >= screen_h) return;
+    if (w > screen_w - x) w = screen_w - x;
+    for (i = 0; i < w; i++) canvas[y * screen_w + x + i] = color;
 }
 
 static const u16 CURSOR12[CUR_H] = {
@@ -179,13 +171,101 @@ static long WW[MAX_W] = {280, 320, 360, 300};
 static long WH[MAX_W] = {160, 190, 150, 170};
 static int WOPEN[MAX_W] = {1, 1, 1, 1};
 static int WMIN[MAX_W] = {0, 0, 0, 0};
+/* Window indices are z-order slots; identity must move with the window. */
+static int WID[MAX_W] = {NSYS, NMOUSE, NABOUT, NFILES};
+
+static void load_bin_entries(void)
+{
+    struct nsh_dirent entries[16];
+    long count = sys_readdir("/bin", entries, sizeof(entries));
+    int i;
+    bin_entry_count = 0;
+    if (count <= 0) return;
+    if (count > 16) count = 16;
+    for (i = 0; i < count && bin_entry_count < 4; i++) {
+        if (!entries[i].name[0]) continue;
+        nstrcpy(bin_entries[bin_entry_count], entries[i].name);
+        bin_entry_count++;
+    }
+}
+
+/* FILES is a small launcher: every row names an executable discovered from
+ * the live /bin directory, and clicking it runs that program. */
+static void launch_bin_entry(int entry)
+{
+    char path[NSH_MAX_PATH];
+    char *argv[3];
+    const char *arg = 0;
+    long pid;
+    if (entry < 0 || entry >= bin_entry_count) return;
+    nstrcpy(path, "/bin/");
+    nstrcat(path, bin_entries[entry]);
+    argv[0] = path;
+    if (nstrcmp(bin_entries[entry], "ls") == 0) arg = "/";
+    else if (nstrcmp(bin_entries[entry], "img") == 0) arg = "/etc/splash.bmp";
+    else if (nstrcmp(bin_entries[entry], "kilo") == 0 ||
+             nstrcmp(bin_entries[entry], "nano") == 0) arg = "/etc/motd";
+    if (arg) {
+        argv[1] = (char *)arg;
+        pid = sys_spawn2(path, argv, 2);
+    } else {
+        pid = sys_spawn2(path, argv, 1);
+    }
+    if (pid > 0) {
+        (void)sys_waitpid((pid_t)pid);
+    } else {
+        nputs("desktop: unable to launch /bin entry\n");
+        sys_sleep(700);
+    }
+}
 
 static int any_open(void)
 {
     unsigned int i;
     for (i = 0; (u64)i < MAX_W; i++)
-        if (WOPEN[i] && !WMIN[i]) return 1;
+        if (WOPEN[i]) return 1;
     return 0;
+}
+
+static int top_visible(void)
+{
+    unsigned int i;
+    for (i = 0; i < MAX_W; i++)
+        if (WOPEN[i] && !WMIN[i]) return (int)i;
+    return -1;
+}
+
+static void raise_window(int idx)
+{
+    long x, y, w, h;
+    u32 color;
+    const char *title;
+    int open, minimized, identity, i;
+    if (idx <= 0 || idx >= (int)MAX_W) return;
+    x = WX[idx]; y = WY[idx]; w = WW[idx]; h = WH[idx];
+    color = WTB[idx]; title = WTITLE[idx];
+    open = WOPEN[idx]; minimized = WMIN[idx];
+    identity = WID[idx];
+    for (i = idx; i > 0; i--) {
+        WX[i] = WX[i - 1]; WY[i] = WY[i - 1];
+        WW[i] = WW[i - 1]; WH[i] = WH[i - 1];
+        WTB[i] = WTB[i - 1]; WTITLE[i] = WTITLE[i - 1];
+        WOPEN[i] = WOPEN[i - 1]; WMIN[i] = WMIN[i - 1];
+        WID[i] = WID[i - 1];
+    }
+    WX[0] = x; WY[0] = y; WW[0] = w; WH[0] = h;
+    WTB[0] = color; WTITLE[0] = title;
+    WOPEN[0] = open; WMIN[0] = minimized;
+    WID[0] = identity;
+}
+
+static void present(u64 w, u64 h)
+{
+    struct nsh_fbwrite rq;
+    rq.x = 0; rq.y = 0; rq.w = w; rq.h = h;
+    rq.pixels = (u64)canvas;
+    rq.pixlen = w * h * sizeof(canvas[0]);
+    (void)sys_fbwrite(&rq);
 }
 
 static void draw_window(int i, u64 mem_used, u64 mem_total,
@@ -195,14 +275,15 @@ static void draw_window(int i, u64 mem_used, u64 mem_total,
     long x = WX[i], y = WY[i], w = WW[i], h = WH[i];
     char line[64];
     int p;
+    int identity = WID[i];
     u64 v;
     char num[22];
     int ni;
 
-    if (!WOPEN[i] || WMIN[i] || x >= (long)DESK_MAX_W || y >= (long)DESK_MAX_W)
+    if (!WOPEN[i] || WMIN[i] || x >= (long)DESK_MAX_W || y >= (long)DESK_MAX_H)
         return;
     if (x + w > DESK_MAX_W) w = DESK_MAX_W - x;
-    if (y + h > DESK_MAX_W) h = DESK_MAX_W - y;
+    if (y + h > DESK_MAX_H) h = DESK_MAX_H - y;
 
     solid((u64)x, (u64)y, (u64)w, (u64)h, 0x10101au);
     solid((u64)(x + 1), (u64)(y + 1), (u64)(w - 2), (u64)(h - 2),
@@ -212,13 +293,17 @@ static void draw_window(int i, u64 mem_used, u64 mem_total,
         hline((u64)(x + 1), (u64)(y + 1), (u64)(w - 2), CLR_ACTIVE);
         hline((u64)(x + 1), (u64)(y + 2), (u64)(w - 2), CLR_ACTIVE);
     }
-    solid((u64)(x + w - 4 - 14), (u64)(y + 2), 14, PANEL_H - 3,
+    solid((u64)(x + w - 37), (u64)(y + 2), 14, PANEL_H - 3,
+          mb == 1 && mx >= x + w - 37 && mx < x + w - 23 &&
+          my >= y + 2 && my < y + PANEL_H - 1 ? 0x555566u : 0x222233u);
+    text_at("-", (u64)(x + w - 34), (u64)(y + 7), 1u, 0xeeeeeeu, 0x222233u);
+    solid((u64)(x + w - 20), (u64)(y + 2), 14, PANEL_H - 3,
           mb == 1 && mx >= x + w - 18 && mx < x + w - 4 &&
           my >= y + 2 && my < y + PANEL_H - 1 ? 0xff3333u : 0x441111u);
     text_at("X", (u64)(x + w - 12), (u64)(y + 6), 2u, 0xeeeeeeu, 0x441111u);
     text_at(WTITLE[i], (u64)(x + 8), (u64)(y + 6), 2u, 0xffffffu, WTB[i]);
 
-    if (i == NSYS) {
+    if (identity == NSYS) {
         solid((u64)(x + 10), (u64)(y + 38), (u64)(w - 20), 14, 0x000000u);
         u64 bw = mem_total ? ((u64)(w - 20) * mem_used) / mem_total : 0;
         if (bw) solid((u64)(x + 10), (u64)(y + 38), bw, 14, CLR_ACCENT);
@@ -246,8 +331,8 @@ static void draw_window(int i, u64 mem_used, u64 mem_total,
         line[p++] = 'm';
         line[p] = '\0';
         text_at(line, (u64)(x + 10), (u64)(y + 70), 1u, 0xe0e0e0u, 0x10101au);
-        text_at("Drag title. X=close.", (u64)(x + 10), (u64)(y + 120), 1u, 0x555555u, 0x10101au);
-    } else if (i == NMOUSE) {
+        text_at("Drag title. -min X=close.", (u64)(x + 10), (u64)(y + 120), 1u, 0x888888u, 0x10101au);
+    } else if (identity == NMOUSE) {
         long vals[4] = {mx, my, mb, mw};
         text_at("POS:", (u64)(x + 10), (u64)(y + 32), 1u, CLR_TEXT_DIM, 0x10101au);
         p = 0; line[p++] = '(';
@@ -276,37 +361,24 @@ static void draw_window(int i, u64 mem_used, u64 mem_total,
         while (ni--) line[p++] = num[ni];
         line[p] = '\0';
         text_at(line, (u64)(x + 68), (u64)(y + 64), 1u, 0xe0e0e0u, 0x10101au);
-    } else if (i == NABOUT) {
-        text_at("NEWOS 0.3.0-gui", (u64)(x + 10), (u64)(y + 32), 2u, 0xe0e0e0u, WTB[i]);
-        text_at("X86-64 / GUI Desktop", (u64)(x + 10), (u64)(y + 56), 1u, 0x888888u, 0x10101au);
-        text_at("Kernel 64-bit", (u64)(x + 10), (u64)(y + 72), 1u, 0x888888u, 0x10101au);
-        text_at("Frame Buffer: Active", (u64)(x + 10), (u64)(y + 88), 1u, 0x888888u, 0x10101au);
-    } else if (i == NFILES) {
-        text_at("/bin/  /etc/  /dev/  /tmp/", (u64)(x + 10), (u64)(y + 32), 1u, 0xe0e0e0u, 0x10101au);
-        text_at("initramfs mounted", (u64)(x + 10), (u64)(y + 50), 1u, 0x888888u, 0x10101au);
-        text_at("32 tools available", (u64)(x + 10), (u64)(y + 66), 1u, 0x888888u, 0x10101au);
-        text_at("splash.bmp  test.ppm", (u64)(x + 10), (u64)(y + 82), 1u, 0x888888u, 0x10101au);
+    } else if (identity == NABOUT) {
+        struct nsh_uname u;
+        if (sys_uname(&u) == 0) {
+            text_at(u.sysname, (u64)(x + 10), (u64)(y + 36), 2u, 0xe0e0e0u, WTB[i]);
+            text_at(u.release, (u64)(x + 10), (u64)(y + 62), 1u, 0xaaaaaau, 0x10101au);
+            text_at(u.machine, (u64)(x + 10), (u64)(y + 78), 1u, 0xaaaaaau, 0x10101au);
+        } else {
+            text_at("uname unavailable", (u64)(x + 10), (u64)(y + 44), 1u, 0xcc8888u, 0x10101au);
+        }
+        text_at("Framebuffer desktop", (u64)(x + 10), (u64)(y + 98), 1u, 0x888888u, 0x10101au);
+    } else if (identity == NFILES) {
+        text_at("/bin directory", (u64)(x + 10), (u64)(y + 36), 1u, 0xe0e0e0u, 0x10101au);
+        if (!bin_entry_count)
+            text_at("Could not read /bin", (u64)(x + 10), (u64)(y + 56), 1u, 0xcc8888u, 0x10101au);
+        for (int e = 0; e < bin_entry_count; e++)
+            text_at(bin_entries[e], (u64)(x + 10), (u64)(y + 56 + e * 16),
+                    1u, 0xaaaaaau, 0x10101au);
     }
-}
-
-static void draw_panel(u64 pw, u64 uptime)
-{
-    solid(0, 0, pw, PANEL_H, CLR_PANEL);
-    hline(0, PANEL_H - 1, pw, 0x333355u);
-    text_at("NEWOS 0.3.0", 6, 6, 2u, 0xffffffu, CLR_PANEL);
-    {
-        char n2[4]; u64 v = uptime; u64 h = v / 3600; v %= 3600;
-        u64 m = v / 60; u64 s = v % 60;
-        n2[0] = (char)('0' + h / 10); n2[1] = (char)('0' + h % 10); n2[2] = '\0';
-        text_at(n2, pw - 58, 10, 1u, 0xaaaaaau, CLR_PANEL);
-        text_at(":", pw - 46, 10, 1u, 0xaaaaaau, CLR_PANEL);
-        n2[0] = (char)('0' + m / 10); n2[1] = (char)('0' + m % 10); n2[2] = '\0';
-        text_at(n2, pw - 38, 10, 1u, 0xaaaaaau, CLR_PANEL);
-        text_at(":", pw - 28, 10, 1u, 0xaaaaaau, CLR_PANEL);
-        n2[0] = (char)('0' + s / 10); n2[1] = (char)('0' + s % 10); n2[2] = '\0';
-        text_at(n2, pw - 20, 10, 1u, 0xaaaaaau, CLR_PANEL);
-    }
-    hline(pw / 2 - 30, PANEL_H / 2 - 1, 60, CLR_ACCENT);
 }
 
 static void redraw_all(u64 pw, u64 ph, u64 mem_used, u64 mem_total,
@@ -319,12 +391,8 @@ static void redraw_all(u64 pw, u64 ph, u64 mem_used, u64 mem_total,
         u64 px = (y * 16u) / ph;
         u32 b = (u32)(48u + (y * 96u) / ph);
         u32 color = (px << 16) | (16u << 8) | b;
-        for (i = 0; i < pw && i < DESK_MAX_W; i++)
-            rowbuf[i] = color;
-        struct nsh_fbwrite rq;
-        rq.x = 0; rq.y = y; rq.w = pw; rq.h = 1;
-        rq.pixels = (u64)&rowbuf[0]; rq.pixlen = pw * 4u;
-        sys_fbwrite(&rq);
+        for (i = 0; i < pw; i++)
+            canvas[y * screen_w + i] = color;
     }
     /* taskbar bg */
     solid(0, ph - TASKBAR_H, pw, TASKBAR_H, CLR_TASKBAR);
@@ -332,14 +400,16 @@ static void redraw_all(u64 pw, u64 ph, u64 mem_used, u64 mem_total,
     /* windows back to front */
     for (i = MAX_W; i > 0; i--)
         if (WOPEN[i - 1] && !WMIN[i - 1])
-            draw_window(i - 1, mem_used, mem_total, mx, my, mb, mw, focused, uptime);
+            draw_window(i - 1, mem_used, mem_total, mx, my, mb, mw,
+                        (int)(i - 1) == focused, uptime);
     /* taskbar buttons */
     {
         u64 bx = 4;
         for (i = 0; (u64)i < MAX_W; i++) {
-            if (!WOPEN[i] || WMIN[i]) continue;
+            if (!WOPEN[i]) continue;
             u64 bw = 60;
-            u32 bg = ((unsigned int)i == (unsigned int)focused) ? CLR_ACTIVE : 0x2a2a3eu;
+            u32 bg = WMIN[i] ? 0x20202au :
+                     ((int)i == focused ? CLR_ACTIVE : 0x2a2a3eu);
             solid(bx, ph - TASKBAR_H + 3, bw - 6, TASKBAR_H - 6, bg);
             text_at(WTITLE[i], bx + 3, ph - TASKBAR_H + 8, 1u,
                     0xccccccu, bg);
@@ -383,6 +453,7 @@ static void redraw_all(u64 pw, u64 ph, u64 mem_used, u64 mem_total,
     hline(pw / 2 - 30, PANEL_H / 2 - 1, 60, CLR_ACCENT);
     /* cursor */
     cursor_paint(mx, my);
+    present(pw, ph);
 }
 
 static int mouse_poll(long *x, long *y, int *b, int *w, u64 *seq)
@@ -420,21 +491,32 @@ int main(int argc, char **argv)
         nputs("desktop: no framebuffer - text mode\n");
         nputs("NEWOS 0.3.0-gui - Text Desktop\n");
         nputs("Type 'help' for commands. Desktop features require Limine boot.\n");
-        nputs("Available: ls cat echo hello newpkg vid desktop about\n");
-        nputs("Type 'exit' or wait 5s.\n");
-        sys_sleep(5000);
-        return 0;
+        nputs("Available: ls cat echo hello newpkg vid desktop nano about\n");
+        nputs("Framebuffer support is required; returning to shell.\n");
+        return 1;
+    }
+    if (!fi.width || !fi.height || fi.width < 300 || fi.height < 100) {
+        nputs("desktop: framebuffer geometry is too small\n");
+        return 1;
     }
     u64 pw = fi.width < DESK_MAX_W ? fi.width : DESK_MAX_W;
-    u64 ph = fi.height;
+    u64 ph = fi.height < DESK_MAX_H ? fi.height : DESK_MAX_H;
+    screen_w = pw; screen_h = ph;
+    load_bin_entries();
     nputs("desktop: improved GUI ready\n");
 
-    draw_panel(pw, 0);
+    if (sys_sysinfo(&si) == 0 && si.total_frames) {
+        mem_total = si.total_frames * 4096u / (1024u * 1024u);
+        u64 mem_free = si.free_frames * 4096u / (1024u * 1024u);
+        mem_used = mem_free < mem_total ? mem_total - mem_free : 0;
+        uptime = si.uptime_sec;
+    }
+
     redraw_all(pw, ph, mem_used, mem_total, mx, my, mb, mw, focused, uptime);
 
     for (;;) {
         long nx, ny, px, py;
-        int nb, nw, changed = 0, i;
+        int nb, nw, changed = 0, i, on_taskbar = 0;
 
         if (mouse_poll(&nx, &ny, &nb, &nw, &mseq) == 0) {
             if (nx != mx || ny != my || nb != mb || nw != mw)
@@ -446,38 +528,73 @@ int main(int argc, char **argv)
         py = my;
 
         if ((mb & 1) && !(pmb & 1)) {
-            for (i = 0; (u64)i < MAX_W; i++) {
-                if (!WOPEN[i] || WMIN[i]) continue;
-                if (px >= WX[i] + WW[i] - 18 && px < WX[i] + WW[i] - 4 &&
-                    py >= WY[i] + 2 && py < WY[i] + PANEL_H - 1) {
-                    WMIN[i] = 1;
-                    drag = -1;
-                    changed = 1;
-                    break;
+            if (px >= 4 && py >= (long)(ph - TASKBAR_H) && py < (long)ph) {
+                u64 bx = 4;
+                for (i = 0; (u64)i < MAX_W; i++) {
+                    if (!WOPEN[i]) continue;
+                    if ((u64)px >= bx && (u64)px < bx + 54) {
+                        if (i == 0 && !WMIN[i]) {
+                            WMIN[i] = 1;
+                            focused = -1;
+                        } else {
+                            WMIN[i] = 0;
+                            raise_window(i);
+                            focused = 0;
+                        }
+                        drag = -1;
+                        changed = 1;
+                        on_taskbar = 1;
+                        break;
+                    }
+                    bx += 60;
+                }
+                on_taskbar = 1;
+            }
+            if (!on_taskbar) {
+                for (i = 0; (u64)i < MAX_W; i++) {
+                    if (!WOPEN[i] || WMIN[i]) continue;
+                    if (px >= WX[i] + WW[i] - 20 && px < WX[i] + WW[i] - 6 &&
+                        py >= WY[i] + 2 && py < WY[i] + PANEL_H - 1) {
+                        WOPEN[i] = 0;
+                        if (focused == i) focused = top_visible();
+                        drag = -1;
+                        changed = 1;
+                        on_taskbar = 1;
+                        break;
+                    }
+                    if (px >= WX[i] + WW[i] - 37 && px < WX[i] + WW[i] - 23 &&
+                        py >= WY[i] + 2 && py < WY[i] + PANEL_H - 1) {
+                        WMIN[i] = 1;
+                        if (focused == i) focused = top_visible();
+                        drag = -1;
+                        changed = 1;
+                        on_taskbar = 1;
+                        break;
+                    }
                 }
             }
-            if (drag == -1) {
+            if (!on_taskbar) {
                 for (i = 0; (u64)i < MAX_W; i++) {
                     if (!WOPEN[i] || WMIN[i]) continue;
                     if (px >= WX[i] && px < WX[i] + WW[i] &&
                         py >= WY[i] && py < WY[i] + PANEL_H) {
-                        long tx = WX[i], ty = WY[i], tw = WW[i], th = WH[i];
-                        u32 tc = WTB[i];
-                        const char *tt = WTITLE[i];
-                        int j;
-                        for (j = i; j > 0; j--) {
-                            WX[j] = WX[j-1]; WY[j] = WY[j-1];
-                            WW[j] = WW[j-1]; WH[j] = WH[j-1];
-                            WOPEN[j] = WOPEN[j-1]; WTB[j] = WTB[j-1];
-                            WTITLE[j] = WTITLE[j-1]; WMIN[j] = WMIN[j-1];
-                        }
-                        WX[0] = tx; WY[0] = ty; WW[0] = tw;
-                        WH[0] = th; WOPEN[0] = 1; WTB[0] = tc;
-                        WTITLE[0] = tt; WMIN[0] = 0;
+                        raise_window(i);
                         focused = 0;
                         drag = 0;
                         grab_ox = px - WX[0]; grab_oy = py - WY[0];
                         changed = 1;
+                        break;
+                    }
+                    if (WID[i] == NFILES && px >= WX[i] + 6 &&
+                        px < WX[i] + WW[i] - 6 &&
+                        py >= WY[i] + 52 &&
+                        py < WY[i] + 56 + bin_entry_count * 16) {
+                        int entry = (int)(py - (WY[i] + 56)) / 16;
+                        if (entry >= 0 && entry < bin_entry_count) {
+                            launch_bin_entry(entry);
+                            changed = 1;
+                        }
+                        on_taskbar = 1;
                         break;
                     }
                 }
@@ -489,43 +606,20 @@ int main(int argc, char **argv)
             WY[0] = py - grab_oy;
             if (WX[0] < 0) WX[0] = 0;
             if (WY[0] < PANEL_H) WY[0] = PANEL_H;
+            if (WX[0] > (long)screen_w - 64)
+                WX[0] = (long)screen_w - 64;
+            if (WY[0] > (long)screen_h - (long)PANEL_H)
+                WY[0] = (long)screen_h - (long)PANEL_H;
             changed = 1;
         }
 
-        if ((mb & 1) && !(pmb & 1)) {
-u64 bx = 4;
-            for (i = 0; (u64)i < MAX_W; i++) {
-                if (!WOPEN[i] || WMIN[i]) continue;
-                u64 bw = 60;
-                if ((u64)mx >= bx && (u64)mx < bx + bw &&
-                    (u64)my >= ph - TASKBAR_H && (u64)my < ph) {
-                    if (WMIN[i]) { WMIN[i] = 0; changed = 1; }
-                    { long tx = WX[i], ty = WY[i], tw = WW[i], th = WH[i];
-                      u32 tc = WTB[i]; const char *tt = WTITLE[i];
-                      int j;
-                      for (j = i; j > 0; j--) {
-                          WX[j] = WX[j-1]; WY[j] = WY[j-1];
-                          WW[j] = WW[j-1]; WH[j] = WH[j-1];
-                          WOPEN[j] = WOPEN[j-1]; WTB[j] = WTB[j-1];
-                          WTITLE[j] = WTITLE[j-1]; WMIN[j] = WMIN[j-1];
-                      }
-                      WX[0] = tx; WY[0] = ty; WW[0] = tw;
-                      WH[0] = th; WOPEN[0] = 1; WTB[0] = tc;
-                      WTITLE[0] = tt; WMIN[0] = 0;
-                      focused = 0;
-                      changed = 1;
-                    }
-                    break;
-                }
-                bx += bw;
-            }
-        }
-        if (!(mb & 1)) drag = -1;
-
         if (sys_sysinfo(&si) == 0 && si.total_frames) {
+            u64 old_uptime = uptime;
             mem_total = si.total_frames * 4096u / (1024u * 1024u);
-            mem_used = mem_total - si.free_frames * 4096u / (1024u * 1024u);
+            u64 mem_free = si.free_frames * 4096u / (1024u * 1024u);
+            mem_used = mem_free < mem_total ? mem_total - mem_free : 0;
             uptime = si.uptime_sec;
+            if (uptime != old_uptime) changed = 1;
         }
 
         if (changed || mx != pmx || my != pmy) {
@@ -536,6 +630,7 @@ u64 bx = 4;
         sys_sleep(33);
     }
     solid(0, 0, pw, ph, 0x000000u);
+    present(pw, ph);
     nputs("desktop: done\n");
     return 0;
 }

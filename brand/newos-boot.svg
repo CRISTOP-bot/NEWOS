@@ -1,7 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" width="1000" height="1000" role="img" aria-label="NEWOS (boot)">
-<title>NEWOS (boot)</title>
-<defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0" stop-color="#D7D9E5"/><stop offset="1" stop-color="#A1A5BB"/></linearGradient></defs>
-<path d="M150 150H850V680L680 850H150Z" fill="url(#g)"/>
-<path d="M330 370l170 130-170 130" fill="none" stroke="#0B0B0B" stroke-width="95" stroke-linecap="square" stroke-linejoin="miter"/>
-<path d="M540 595h150v95H540Z" fill="#DC8621"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">NEWOS boot mark</title>
+  <desc id="desc">A bright terminal prompt and amber cursor on a dark background.</desc>
+  <rect x="36" y="36" width="440" height="440" rx="104" fill="#171923"/>
+  <path d="M140 187 218 256l-78 69" fill="none" stroke="#F4F5FA" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M255 329h112" fill="none" stroke="#F0A23A" stroke-width="34" stroke-linecap="round"/>
+  <path d="M90 134a44 44 0 0 1 44-44h244" fill="none" stroke="#6868F5" stroke-width="12" stroke-linecap="round" opacity=".9"/>
 </svg>

@@ -65,10 +65,12 @@ DECL_BIN(grep)
 DECL_BIN(sort)
 DECL_BIN(newpkg)
 
+/* nano is a command-name alias of the Kilo editor binary. */
+extern const u8 _binary_nano_elf_start[];
+extern const u8 _binary_nano_elf_end[];
+
 /* Host-built GNU tools, packed by scripts/pack-gnu.sh into one `.new`
- * archive (gnumake gnu && make gnu-pkg). Staged at /tmp for
- * `newpkg install`; a zero-length blob means nothing was staged and the
- * file is skipped, so a plain checkout still boots. */
+ * archive and staged at /tmp for the shell's startup install. */
 extern const u8 _binary_gnu_coreutils_new_start[];
 extern const u8 _binary_gnu_coreutils_new_end[];
 
@@ -120,6 +122,7 @@ static const struct {
     BIN(grep)
     BIN(sort)
     BIN(newpkg)
+    { "nano", _binary_nano_elf_start, _binary_nano_elf_end },
 };
 
 static void install_blob(const char *path, const u8 *data, size_t len,
@@ -145,6 +148,7 @@ void initramfs_init(void)
         vfs_mkdir(path);
     }
     vfs_mkdir("/home/user");
+    vfs_mkdir("/usr/bin");
     /* Package database home (userspace newpkg registers installs here). */
     vfs_mkdir("/var/lib");
     vfs_mkdir("/var/lib/newpkg");

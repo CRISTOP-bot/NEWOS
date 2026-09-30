@@ -5,10 +5,8 @@
 
 /* Kernel cryptographic layer.
  *
- * Two families, each with an in-tree consumer:
- *   - SHA-256 (FIPS 180-4) backs package/image integrity and SYS_HASH.
- *   - ChaCha20 (RFC 8439) is the stream core of the kernel CSPRNG and
- *     therefore backs getrandom(2), /dev/random and the AT_RANDOM slot.
+ * SHA-256 and ChaCha20 primitives. These are kernel-internal algorithms;
+ * they are not yet wired to package verification, getrandom(2), or sockets.
  *
  * Everything here is plain C over the kernel integer aliases: the kernel is
  * built with -mno-sse -mno-mmx -mgeneral-regs-only, so no SIMD intrinsics
@@ -47,18 +45,6 @@ void chacha20_xor(u8 *dst, const u8 *src, u64 len,
 void chacha20_keystream(u8 *dst, u64 len,
                         const u8 key[CHACHA20_KEY_SIZE],
                         const u8 nonce[CHACHA20_NONCE_SIZE], u32 counter);
-
-/* Deterministic random-bit generator: a ChaCha20 keystream whose state is
- * rekeyed from every request and from the hardware source at boot. Not
- * fork-safe across CPUs beyond that, and has no accounting of an entropy
- * estimate -- /dev/random blocks the same way /dev/urandom does. */
-void crypto_init(void);
-
-/* Kernel-internal fill. Never fails; `len` bytes are always produced. */
-void crypto_getrandom(void *buf, u64 len);
-
-/* A 64-bit word from the same stream, for in-kernel jitter/nonce use. */
-u64 crypto_getrandom_u64(void);
 
 /* Self-test against the published vectors. Returns 0 when every case
  * matches, -1 otherwise. */

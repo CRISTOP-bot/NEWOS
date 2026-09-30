@@ -13,6 +13,7 @@
 #define HIST_MAX 16
 #define MAX_ARGS 16
 #define MAX_STAGES 8
+#define O_TRUNC NSH_O_TRUNC
 
 /* --- history ----------------------------------------------------------- */
 
@@ -320,7 +321,9 @@ static int read_line(void)
                 continue;
             }
             if (c >= '0' && c <= '9') {
-                csi_num = csi_num * 10 + (c - '0');
+                /* CSI input is untrusted; keep the parameter bounded. */
+                if (csi_num < 1000)
+                    csi_num = csi_num * 10 + (c - '0');
                 continue;
             }
             esc = csi = 0;
@@ -390,6 +393,8 @@ static int tokenize(char *ln, char *argv[], int max)
             ln++;
         if (!*ln)
             break;
+        if (n >= max)
+            return -1;
         if (is_op(*ln)) {
             /* Operator tokens live in opsym: `>>` may be glued to its
              * path, and we must never overwrite the byte after them. */
@@ -408,7 +413,6 @@ static int tokenize(char *ln, char *argv[], int max)
         }
         char *word = ln;
         char *dst = ln, *src = ln;
-        char *nul = 0;             /* byte to NUL once src has moved past it */
         char quote = 0;
         while (*src) {
             if (quote) {
@@ -431,14 +435,13 @@ static int tokenize(char *ln, char *argv[], int max)
                 *dst++ = *src++;
             }
         }
-        if (dst == src)
-            nul = dst;             /* nothing stripped: NUL the separator */
-        else
+        if (quote)
+            return -1;             /* unmatched single/double quote */
+        if (dst < src)
             *dst = '\0';
-        if (*src)
-            src++;                 /* step over the separator/operator byte */
-        if (nul)
-            *nul = '\0';
+        else if (*src == ' ' || *src == '\t')
+            *src++ = '\0';
+        /* Leave an operator in place for the next token iteration. */
         tok_op[n] = 0;
         argv[n++] = word;
         ln = src;
@@ -450,7 +453,11 @@ static int tokenize(char *ln, char *argv[], int max)
 
 static int builtin_cd(int argc, char **argv)
 {
-    const char *dir = argc > 1 ? argv[1] : "/root";
+    const char *dir = argc > 1 ? argv[1] : "/";
+    if (argc > 2) {
+        nputs("cd: too many arguments\n");
+        return 1;
+    }
     if (sys_chdir(dir) != 0) {
         putf("cd: %s: no such directory\n", dir);
         return 1;
@@ -472,7 +479,10 @@ static int builtin_help(void)
     nputs("/bin: ls cat echo mkdir rmdir rm mv touch pwd clear uname\n");
     nputs("       hostname whoami id date uptime ps kill sleep free\n");
     nputs("       df wc head grep sort hello img vid desktop\n");
-    nputs("       about newpkg newfetch kilo lua tinygl ltest\n");
+    nputs("       about newpkg newfetch kilo nano ltest\n");
+    nputs("GNU tools install under /usr/bin; use /usr/bin/<tool>\n");
+    nputs("Images: img /etc/splash.bmp  |  img /etc/test.ppm\n");
+    nputs("nano/kilo: terminal text editor (Ctrl+S saves, Ctrl+Q quits)\n");
     nputs("pipes: cmd1 | cmd2    redirect: cmd > f, cmd >> f, cmd < f\n");
     nputs("boot: init=<path> gui=0/1 headless=1 test_mode=1\n");
     nputs("keys: Ctrl+A/E line ends, Ctrl+U/W/K cut, Ctrl+Y/V paste,\n");
@@ -524,36 +534,40 @@ static int is_builtin_name(const char *s)
            nstrcmp(s, "clear") == 0;
 }
 
-/* Spawn argv[0] as a /bin tool; fdin/fdout >= 0 are inherited from us
- * into the child's stdin/stdout (-1 keeps the serial defaults).
- * Returns the pid or -1 (error already printed). */
+/* Spawn an executable path while passing the original command argv. */
+static long spawn_path(const char *path, char **argv, int argc,
+                       int fdin, int fdout)
+{
+    if (fdin < 0 && fdout < 0)
+        return sys_spawn2(path, argv, argc);
+    return sys_spawn3(path, argv, argc, fdin, fdout);
+}
+
+/* Bare commands search native tools first, then installed GNU tools. */
 static long spawn_bin(char **argv, int argc, int fdin, int fdout)
 {
-    char path[128];
+    char path[256];
+    const char *name = argv[0];
     long pid;
 
-    /* Reject path separators: without this, `../etc/motd` escapes /bin
-     * via "/bin/../etc/motd" (VFS resolves `..`), allowing arbitrary
-     * spawn. Only plain tool names are accepted. */
-    for (const char *p = argv[0]; *p; p++) {
-        if (*p == '/') {
-            putf("nsh: %s: command not found\n", argv[0]);
-            return -1;
-        }
+    for (const char *p = name; *p; p++) {
+        if (*p == '/')
+            return spawn_path(name, argv, argc, fdin, fdout);
     }
-    if (nstrlen(argv[0]) > sizeof(path) - 6) {
+    if (nstrlen(name) > sizeof(path) - 10) {
         putf("nsh: command too long\n");
         return -1;
     }
     nstrcpy(path, "/bin/");
-    nstrcat(path, argv[0]);
-
-    if (fdin < 0 && fdout < 0)
-        pid = sys_spawn2(path, argv, argc);
-    else
-        pid = sys_spawn3(path, argv, argc, fdin, fdout);
+    nstrcat(path, name);
+    pid = spawn_path(path, argv, argc, fdin, fdout);
+    if (pid >= 0)
+        return pid;
+    nstrcpy(path, "/usr/bin/");
+    nstrcat(path, name);
+    pid = spawn_path(path, argv, argc, fdin, fdout);
     if (pid < 0)
-        putf("nsh: %s: command not found\n", argv[0]);
+        putf("nsh: %s: command not found\n", name);
     return pid;
 }
 
@@ -595,8 +609,11 @@ static void run_pipeline(char *args[], int n)
     for (i = 0; i < n; i++) {
         int k = tok_op[i] ? op_kind(args[i]) : 0;
         if (!k) {
-            if (st_n[ns] < MAX_ARGS)
-                st_av[ns][st_n[ns]++] = args[i];
+            if (st_n[ns] == MAX_ARGS) {
+                putf("nsh: too many arguments (maximum %d)\n", MAX_ARGS);
+                return;
+            }
+            st_av[ns][st_n[ns]++] = args[i];
             continue;
         }
         if (k == 1) {
@@ -655,7 +672,7 @@ static void run_pipeline(char *args[], int n)
         }
     }
     if (out_path) {
-        out_fd = (int)sys_open(out_path, O_WRITE | O_CREATE);
+        out_fd = (int)sys_open(out_path, O_WRITE | O_CREATE | O_TRUNC);
         if (out_fd < 0) {
             putf("nsh: %s: cannot open for writing\n", out_path);
             if (in_fd >= 0)
@@ -677,6 +694,27 @@ static void run_pipeline(char *args[], int n)
 
         pid[i] = spawn_bin(st_av[i], st_n[i], fdin, fdout);
         if (pid[i] < 0) {
+            /* Release the parent's pipe references before waiting. A child
+             * may be blocked writing to a pipe whose reader was never
+             * spawned; waiting first would deadlock the shell. */
+            for (int j = 1; j < nstages; j++) {
+                if (pfd[j - 1][0] >= 0) {
+                    sys_close(pfd[j - 1][0]);
+                    pfd[j - 1][0] = -1;
+                }
+                if (pfd[j - 1][1] >= 0) {
+                    sys_close(pfd[j - 1][1]);
+                    pfd[j - 1][1] = -1;
+                }
+            }
+            if (in_fd >= 0) {
+                sys_close(in_fd);
+                in_fd = -1;
+            }
+            if (out_fd >= 0) {
+                sys_close(out_fd);
+                out_fd = -1;
+            }
             while (--i >= 0)
                 sys_waitpid((pid_t)pid[i]);
             goto fail;
@@ -716,6 +754,10 @@ static void exec_line(char *ln)
     static char *args[MAX_ARGS + 1];
     int n = tokenize(ln, args, MAX_ARGS);
 
+    if (n < 0) {
+        nputs("nsh: syntax error: unmatched quote or too many tokens\n");
+        return;
+    }
     if (n == 0)
         return;
     args[n] = 0;
@@ -753,6 +795,7 @@ static int run_script(const char *path)
     long n;
     size_t pos = 0, have = 0, used = 0;
     int status = 0;
+    int overflow = 0;
 
     if (fd < 0)
         return -1;
@@ -772,19 +815,28 @@ static int run_script(const char *path)
         while (used < have) {
             char c = buf[used++];
             if (c == '\n') {
-                ln[pos] = '\0';
-                if (pos && ln[0] != '#')
-                    exec_line(ln);
+                if (overflow) {
+                    nputs("nsh: script line too long; skipped\n");
+                } else {
+                    ln[pos] = '\0';
+                    if (pos && ln[0] != '#')
+                        exec_line(ln);
+                }
                 pos = 0;
+                overflow = 0;
                 continue;
             }
             if (c == '\r')
                 continue;
             if (pos < sizeof(ln) - 1)
                 ln[pos++] = c;
+            else
+                overflow = 1;
         }
     }
-    if (pos) {
+    if (overflow) {
+        nputs("nsh: script line too long; skipped\n");
+    } else if (pos) {
         ln[pos] = '\0';
         if (ln[0] != '#')
             exec_line(ln);

@@ -19,6 +19,7 @@
 #include <iru_string.h>
 #include <iru_bitmap.h>
 #include <core/core_time.h>
+#include <crypto/crypto.h>
 
 #define NEWOS_VERSION "0.3.0-gui"
 #define NEWOS_TARGET  "x86_64"
@@ -169,6 +170,7 @@ struct ktest {
 };
 
 static const struct ktest ktests[] = {
+    { "crypto-sha256", crypto_selftest },
     { "bitmap",    ktest_bitmap     },
     { "heap-rw",   ktest_heap_rw    },
     { "pmm-alloc", ktest_pmm_alloc_free },

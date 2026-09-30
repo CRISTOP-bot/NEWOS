@@ -5,7 +5,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-BIN="$ROOT/build/toolchain/bin"
+BIN="$ROOT/toolchain/out/bin"
 CC="$BIN/x86_64-elf-gcc"
 LD="$BIN/x86_64-elf-ld"
 TMP="$(mktemp -d)"

@@ -22,7 +22,7 @@
 ARCH            ?= x86_64
 CONFIG          ?= configs/$(ARCH)/debug.config
 # Cross toolchain prefix (empty = host gcc/ld). Build it once with
-#   tools/toolchain/build.sh
+#   toolchain/build.sh
 # then use: make CROSS_PREFIX=x86_64-elf- all
 # (needs toolchain/out/bin on PATH).
 CROSS_PREFIX    ?=
@@ -132,17 +132,19 @@ LIB_SRCS        := lib/kernel/iru_bitmap.c lib/kernel/iru_format.c \
                    lib/kernel/iru_lock.c lib/kernel/iru_memory.c \
                    lib/kernel/iru_ringbuf.c lib/kernel/iru_string.c
 
-# libc: freestanding C library for userland (string/stdlib/stdio/malloc).
+# libc: freestanding C library for userland (POSIX I/O, heap, mmap, termios).
 # Built as a static archive; programs opt in (see ltest link rule).
 LIBC_SRCS       := libc/src/string.c libc/src/stdlib.c \
                    libc/src/stdio.c libc/src/malloc.c libc/src/unistd.c \
-                   libc/src/syscall.c libc/src/errno.c libc/src/time.c \
+                   libc/src/syscall.c libc/src/mman.c libc/src/errno.c libc/src/time.c \
                    libc/src/signal.c libc/src/termios.c libc/src/ioctl.c
 LIBC_OBJS       := $(patsubst %.c,$(BUILD_DIR)/obj/%.o,$(LIBC_SRCS))
+LIBC_HEADERS    := $(wildcard libc/include/*.h libc/include/sys/*.h)
 LIBC_A          := $(BUILD_DIR)/userland/libc.a
 
 KERNEL_SRCS_C   := $(CORE_SRCS) $(MM_SRCS) $(FS_SRCS) $(DRV_SRCS) \
-                   $(IPC_SRCS) $(LIB_SRCS)
+                   $(IPC_SRCS) $(LIB_SRCS) \
+                   crypto/crypto_sha256.c crypto/crypto_chacha20.c
 
 # ---------------------------------------------------------------------------
 # Userland paths (definitions precede the object list, which uses them)
@@ -173,11 +175,12 @@ PPM_EMBED       := $(BUILD_DIR)/obj/userland/testppm.bin.o
 # with a standard main(argc, argv). Installed into the root fs by initramfs.
 PROG_NAMES      := ls cat echo mkdir rmdir rm mv touch pwd clear uname \
                     hostname whoami id date uptime ps kill sleep free df \
-                    wc head grep sort img vid ltest about newfetch desktop newpkg kilo \
-                    lua tinygl
+                    wc head grep sort img vid ltest about newfetch desktop newpkg kilo
 PROG_OBJS       := $(patsubst %,$(BUILD_DIR)/userland/%.o,$(PROG_NAMES))
 PROG_BINS       := $(patsubst %,$(BUILD_DIR)/userland/%.elf,$(PROG_NAMES))
 PROG_EMBEDS     := $(patsubst %,$(BUILD_DIR)/obj/userland/%.bin.o,$(PROG_NAMES))
+NANO_BIN        := $(BUILD_DIR)/userland/nano.elf
+NANO_EMBED      := $(BUILD_DIR)/obj/userland/nano.bin.o
 
 # newpkg carries a second translation unit: the portable `.new` format core
 # (shared with the host test driver). Linked explicitly like ltest+libc.
@@ -214,19 +217,17 @@ NSH_RC_EMBED      := $(BUILD_DIR)/obj/userland/nsh_rc.bin.o
 #
 # Declared BEFORE OBJS on purpose: `OBJS :=` expands immediately, so a
 # later definition would silently drop the embeds (see AGENT.md).
-GNU_STAGE       := $(BUILD_DIR)/gnu
+GNU_STAGE       := ports/stage
+GNU_STAGE_INPUTS := $(wildcard $(GNU_STAGE)/*)
 GNU_PKG_VERSION := 9.7
 GNU_PKG         := $(BUILD_DIR)/gnu-coreutils.new
 GNU_PKG_EMBED   := $(BUILD_DIR)/obj/userland/gnu_coreutils.bin.o
 
-# No prerequisites beyond the directory: the archive is rebuilt when `make
-# gnu` invalidates it, and an unstaged tree yields a zero-length blob the
-# kernel skips, so `make all` stays green without Docker (and CI works).
-$(GNU_PKG): | dirs
-	$(Q)if ! bash scripts/pack-gnu.sh $(GNU_STAGE) $@ $(GNU_PKG_VERSION) >/dev/null 2>&1; then \
-	  echo "  GNU pkg: nothing staged (run 'make gnu') -> empty placeholder"; \
-	  : > $@; \
-	fi
+# Package the checked-in staged tools directly; `make gnu` refreshes this
+# same stage from upstream. They install under /usr/bin, preserving native
+# NEWOS commands under /bin.
+$(GNU_PKG): $(GNU_STAGE_INPUTS) scripts/pack-gnu.sh tools/newpkg/newpkg-build.py | dirs
+	$(Q)bash scripts/pack-gnu.sh $(GNU_STAGE) $@ $(GNU_PKG_VERSION)
 
 # The blob symbol is derived from the operand name: gnu-coreutils.new ->
 # _binary_gnu_coreutils_new_{start,end}.
@@ -237,7 +238,7 @@ $(GNU_PKG_EMBED): $(GNU_PKG)
 
 gnu: | dirs
 	$(E) "Building GNU tools with musl (Docker) ..."
-	$(Q)bash scripts/build-gnu.sh stage $(GNU_STAGE)
+	$(Q)bash scripts/build-gnu.sh stage ports/stage
 	$(Q)rm -f $(GNU_PKG)
 
 gnu-pkg: $(GNU_PKG)
@@ -250,13 +251,14 @@ gnu-pkg: $(GNU_PKG)
 # $(KERNEL_BIN) goes the same way: `make all` reaches it through the ISO
 # chain, and a plain `make all` would otherwise remove the -kernel image
 # that `make qemu`/scripts/qemu-shell.py boot.
-.SECONDARY: $(PROG_BINS) $(KERNEL_BIN)
+.SECONDARY: $(PROG_BINS) $(NANO_BIN) $(KERNEL_BIN)
 
 OBJS_C          := $(patsubst %.c,$(BUILD_DIR)/obj/%.o,$(KERNEL_SRCS_C) $(ARCH_SRCS_C))
 OBJS_ASM        := $(patsubst %.S,$(BUILD_DIR)/obj/%.o,$(ARCH_SRCS_ASM))
 OBJS            := $(OBJS_C) $(OBJS_ASM) $(HELLO_EMBED) $(INIT_EMBED) \
                    $(PROG_EMBEDS) $(SPLASH_EMBED) $(PPM_EMBED) \
-                   $(SAMPLE_NEW_EMBED) $(NSH_RC_EMBED) $(GNU_PKG_EMBED)
+                   $(SAMPLE_NEW_EMBED) $(NSH_RC_EMBED) $(GNU_PKG_EMBED) \
+                   $(NANO_EMBED)
 
 INCLUDE         := -Iinclude -I. -Ilib/kernel -Iarch/$(ARCH)/include \
                    -I$(BUILD_DIR)
@@ -345,6 +347,18 @@ $(BUILD_DIR)/obj/userland/%.bin.o: $(BUILD_DIR)/userland/%.elf
 	$(E) "  EMB $<"
 	$(Q)cd $(BUILD_DIR) && $(LD) -r -b binary -o obj/userland/$*.bin.o $*.elf
 
+# nano is the familiar command name for the already-ported Kilo terminal
+# editor. Reuse the same tested binary instead of carrying a second fork.
+$(NANO_BIN): $(BUILD_DIR)/userland/kilo.elf
+	$(Q)mkdir -p $(dir $@)
+	$(Q)cp $< $@
+
+$(NANO_EMBED): $(NANO_BIN)
+	$(Q)mkdir -p $(dir $@)
+	$(Q)cp $< $(BUILD_DIR)/nano.elf
+	$(E) "  EMB nano (Kilo editor)"
+	$(Q)cd $(BUILD_DIR) && $(LD) -r -b binary -o obj/userland/nano.bin.o nano.elf
+
 # --- newpkg: toolbox tool + portable format core -------------------------
 # newpkg_main.c comes from the data-driven rule above; the format core is
 # an extra object linked explicitly (explicit rules win over the pattern
@@ -384,7 +398,7 @@ $(SAMPLE_NEW_EMBED): $(NEWPKG_SAMPLE_NEW)
 # --- libc (static archive for userland) --------------------------------
 # Compiled with the userland flags (NOT the kernel -mcmodel=kernel ones).
 
-$(BUILD_DIR)/obj/libc/%.o: libc/%.c | dirs
+$(BUILD_DIR)/obj/libc/%.o: libc/%.c $(LIBC_HEADERS) | dirs
 	$(Q)mkdir -p $(dir $@)
 	$(E) "  UCC $<"
 	$(Q)$(CC) $(USER_CFLAGS) -o $@ $<
@@ -401,6 +415,7 @@ $(BUILD_DIR)/userland/ltest.elf: $(BUILD_DIR)/userland/ltest.o \
 	$(Q)mkdir -p $(dir $@)
 	$(E) "  ULD $@ +libc"
 	$(Q)$(LD) -n -static -nostdlib -T $(APP_LD) -o $@ $(filter %.o,$^) $(filter %.a,$^)
+$(BUILD_DIR)/userland/ltest.o $(BUILD_DIR)/userland/kilo.o: $(LIBC_HEADERS)
 $(BUILD_DIR)/userland/kilo.elf: $(BUILD_DIR)/userland/kilo.o \
     $(NSHLIB_OBJ) $(START_OBJ) $(LIBC_A) $(APP_LD)
 	$(Q)mkdir -p $(dir $@)
@@ -411,7 +426,7 @@ $(BUILD_DIR)/userland/kilo.elf: $(BUILD_DIR)/userland/kilo.o \
 # The font is fetched once and cached; the images are generated locally
 # with python3 (no external image tools needed).
 
-$(FONT_HDR):
+$(FONT_HDR): bc/font8x8_basic.h scripts/fetch-font.sh
 	$(Q)bash scripts/fetch-font.sh $(FONT_HDR)
 
 $(TEST_PPM): scripts/gen-images.py
@@ -609,7 +624,7 @@ $(LIMINE_ISO): $(LIMINE_BIN) $(LIMINE_ROOT)/limine.conf \
 limine: $(LIMINE_BIN)
 
 # Cross toolchain (opt-in): builds binutils+GCC for x86_64-elf under
-# build/toolchain/. Use with `make CROSS_PREFIX=x86_64-elf- ...`
+# toolchain/out/. Use with `make CROSS_PREFIX=x86_64-elf- ...`
 # after exporting toolchain/out/bin on PATH.
 toolchain:
 	$(Q)bash toolchain/build.sh
