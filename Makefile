@@ -21,6 +21,10 @@
 # ---------------------------------------------------------------------------
 ARCH            ?= x86_64
 CONFIG          ?= configs/$(ARCH)/debug.config
+SUPPORTED_ARCHES := x86_64
+ifeq ($(filter $(ARCH),$(SUPPORTED_ARCHES)),)
+$(error ARCH='$(ARCH)' is not implemented yet; supported architecture: x86_64 (see docs/porting-roadmap.md))
+endif
 # Cross toolchain prefix (empty = host gcc/ld). Build it once with
 #   toolchain/build.sh
 # then use: make CROSS_PREFIX=x86_64-elf- all
@@ -141,6 +145,11 @@ LIBC_SRCS       := libc/src/string.c libc/src/stdlib.c \
 LIBC_OBJS       := $(patsubst %.c,$(BUILD_DIR)/obj/%.o,$(LIBC_SRCS))
 LIBC_HEADERS    := $(wildcard libc/include/*.h libc/include/sys/*.h)
 LIBC_A          := $(BUILD_DIR)/userland/libc.a
+SDK_ROOT        := $(BUILD_DIR)/newos-sdk
+SDK_HEADERS     := $(SDK_ROOT)/usr/include/.newos-headers
+SDK_LIBC        := $(SDK_ROOT)/usr/lib/libc.a
+SDK_LIBNSH      := $(SDK_ROOT)/usr/lib/libnsh.a
+SDK_CRT0        := $(SDK_ROOT)/usr/lib/crt0.o
 
 KERNEL_SRCS_C   := $(CORE_SRCS) $(MM_SRCS) $(FS_SRCS) $(DRV_SRCS) \
                    $(IPC_SRCS) $(LIB_SRCS) \
@@ -175,7 +184,7 @@ PPM_EMBED       := $(BUILD_DIR)/obj/userland/testppm.bin.o
 # with a standard main(argc, argv). Installed into the root fs by initramfs.
 PROG_NAMES      := ls cat echo mkdir rmdir rm mv touch pwd clear uname \
                     hostname whoami id date uptime ps kill sleep free df \
-                    wc head grep sort img vid ltest about newfetch desktop newpkg kilo
+                    wc head grep find sort img vid ltest about newfetch desktop newpkg kilo
 PROG_OBJS       := $(patsubst %,$(BUILD_DIR)/userland/%.o,$(PROG_NAMES))
 PROG_BINS       := $(patsubst %,$(BUILD_DIR)/userland/%.elf,$(PROG_NAMES))
 PROG_EMBEDS     := $(patsubst %,$(BUILD_DIR)/obj/userland/%.bin.o,$(PROG_NAMES))
@@ -202,14 +211,12 @@ NSH_RC            := $(BUILD_DIR)/nsh.rc
 NSH_RC_EMBED      := $(BUILD_DIR)/obj/userland/nsh_rc.bin.o
 
 # --- GNU tools (host-built, static musl) ---------------------------------
-# Upstream GNU programs cannot be compiled on board (NEWOS ships no C
-# toolchain and its libc is a deliberately small subset), so they are built
-# on the HOST against musl: musl emits Linux syscall numbers, which is the
-# numbering this kernel's ABI follows, and `-static` yields the plain
-# ET_EXEC image elf_loader.c can map. scripts/build-gnu.sh stages the
-# resulting ELFs under $(GNU_STAGE)/<tool>, and scripts/pack-gnu.sh turns
-# whatever is staged into ONE `.new` archive that the board installs with
-# `newpkg install /tmp/gnu-coreutils.new`.
+# The optional upstream GNU package is cross-built on the host against musl.
+# These static Linux ET_EXEC files can be mapped by elf_loader.c, but their
+# Linux syscall-instruction/TLS ABI is not implemented by NEWOS; installation
+# under /usr/bin is packaging only and does not make them runnable yet.
+# scripts/build-gnu.sh stages them under $(GNU_STAGE)/<tool>, and
+# scripts/pack-gnu.sh turns that stage into one `.new` archive.
 #
 # One archive rather than one embed per tool: 68 coreutils are 10 MiB, and
 # shipping them through the package manager is both smaller in the build
@@ -408,6 +415,31 @@ $(LIBC_A): $(LIBC_OBJS) | dirs
 	$(E) "  AR  $@"
 	$(Q)$(AR) rcs $@ $(LIBC_OBJS)
 
+# C application SDK: cross compiler users link against NEWOS libc and the
+# syscall/startup shim, never the host/newlib syscall layer.
+$(SDK_HEADERS): $(LIBC_HEADERS) abi/syscall_abi.h
+	$(Q)mkdir -p $(SDK_ROOT)/usr/include/newos
+	$(Q)cp -R libc/include/. $(SDK_ROOT)/usr/include/
+	$(Q)cp abi/syscall_abi.h $(SDK_ROOT)/usr/include/newos/syscall_abi.h
+	$(Q)touch $@
+
+$(SDK_LIBC): $(LIBC_A)
+	$(Q)mkdir -p $(dir $@)
+	$(Q)cp $< $@
+
+$(SDK_LIBNSH): $(NSHLIB_OBJ)
+	$(Q)mkdir -p $(dir $@)
+	$(Q)rm -f $@
+	$(Q)$(AR) rcs $@ $<
+
+$(SDK_CRT0): $(START_OBJ)
+	$(Q)mkdir -p $(dir $@)
+	$(Q)cp $< $@
+
+.PHONY: sdk
+sdk: $(SDK_HEADERS) $(SDK_LIBC) $(SDK_LIBNSH) $(SDK_CRT0)
+	$(E) "NEWOS C SDK ready: $(SDK_ROOT)"
+
 # ltest proves libc: same recipe as the toolbox pattern rule plus libc.a
 # (explicit rules win over pattern rules).
 $(BUILD_DIR)/userland/ltest.elf: $(BUILD_DIR)/userland/ltest.o \
@@ -477,7 +509,7 @@ $(BUILD_DIR)/obj/drivers/graphics/fb.o: $(FONT_HDR)
 # Rules
 # ---------------------------------------------------------------------------
 .PHONY: all clean qemu qemu-debug qemu-test qemu-network qemu-disk iso \
-        qemu-limine qemu-limine-test limine toolchain check-config dirs \
+        qemu-limine qemu-limine-test limine toolchain sdk check-config dirs \
         lint-layers check-newpkg build-info help \
         vbox vbox-setup vbox-test FORCE
 
@@ -514,6 +546,7 @@ help:
 	@echo "  make check-newpkg      package system tests (no QEMU needed)"
 	@echo "  make lint-layers       layering contract check only"
 	@echo "  make toolchain         build x86_64-elf cross toolchain"
+	@echo "  make CROSS_PREFIX=x86_64-elf- sdk  stage the NEWOS C SDK"
 	@echo "  make clean             remove build/ entirely"
 	@echo "Options: V=0 (short log), V=1 (full commands, default),"
 	@echo "  ARCH=x86_64, CROSS_PREFIX=x86_64-elf-, CONFIG=path/to/config"
@@ -638,9 +671,13 @@ qemu-limine: $(LIMINE_ISO)
 qemu-limine-test: LIMINE_CMDLINE := test_mode=1
 qemu-limine-test: $(LIMINE_ISO)
 	$(E) "Running automated test suite through Limine in QEMU ..."
-	$(Q)$(QEMU) -cdrom $(LIMINE_ISO) -boot order=d -serial stdio -no-reboot -m 128M \
-	  -device isa-debug-exit,iobase=0xf4 -device pcnet; \
-	  echo "QEMU exit status: $$?"
+	$(Q)status=0; $(QEMU) -cdrom $(LIMINE_ISO) -boot order=d -serial stdio -no-reboot -m 128M \
+	  -device isa-debug-exit,iobase=0xf4 -device pcnet || status=$$?; \
+	echo "QEMU exit status: $$status"; \
+	if [ "$$status" -ne 1 ]; then \
+	  echo "qemu-limine-test: FAIL (expected QEMU exit status 1)"; exit 1; \
+	fi; \
+	echo "qemu-limine-test: PASS"
 
 # --- Oracle VM VirtualBox --------------------------------------------------
 # The Limine ISO boots on VirtualBox's legacy BIOS with a VMSVGA display:
@@ -716,12 +753,18 @@ qemu-test: $(KERNEL_BIN)
 qemu-rc: $(KERNEL_BIN)
 	$(E) "Running scripted nsh session in QEMU ..."
 	$(Q)rm -f $(BUILD_DIR)/nsh.log
-	$(Q)timeout $(or $(RC_TIMEOUT),60) $(QEMU) -kernel $(KERNEL_BIN) \
+	$(Q)status=0; timeout $(or $(RC_TIMEOUT),60) $(QEMU) -kernel $(KERNEL_BIN) \
 	  -m 512M -display none -no-reboot \
 	  -device isa-debug-exit,iobase=0xf4 \
-	  -serial file:$(BUILD_DIR)/nsh.log -append "test_mode=1" \
-	    >/dev/null 2>&1 || true
-	$(Q)cat $(BUILD_DIR)/nsh.log
+	  -serial file:$(BUILD_DIR)/nsh.log \
+	    >/dev/null 2>&1 || status=$$?; \
+	cat $(BUILD_DIR)/nsh.log; \
+	if grep -q 'USER EXCEPTION' $(BUILD_DIR)/nsh.log; then \
+	  echo "qemu-rc: FAIL (userspace exception)"; exit 1; \
+	fi; \
+	if [ "$$status" -ne 0 ] && [ "$$status" -ne 124 ]; then \
+	  echo "qemu-rc: FAIL (QEMU exit $$status)"; exit 1; \
+	fi
 
 qemu-network: all
 	$(E) "Booting NEWOS with user-mode networking ..."

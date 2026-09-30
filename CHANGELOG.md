@@ -6,6 +6,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- Native `/bin/find` command with recursive directory traversal, basename
+  wildcard matching, file/directory filters and depth bounds; `/bin` and
+  shell help now expose it. The userland library also exports `sys_stat()`.
 - Syscall ABI `SYS_OPEN` (7) and `SYS_CLOSE` (8) (`abi/syscall_abi.h`):
   per-process fd allocation backed by the VFS, with user-pointer validation
   and `O_CREATE` support; `SYS_READ` now serves any open fd through the VFS
@@ -48,6 +51,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `brand/app-icons/` and `brand/newos-1024.png` still have no consumer.
 
 ### Fixed
+- `desktop` microfont glyph rows were read least-significant-bit first while
+  the embedded glyphs are stored most-significant-bit first, mirroring text.
+  The corrected table has unique character mappings and a `?` fallback;
+  desktop labels now render at readable scale. Window painting is clipped to
+  each frame, layout uses the reported framebuffer dimensions, cursor rendering
+  avoids trails, and the taskbar reserves space for its live clock.
+- Desktop click routing now honors the topmost window before its controls,
+  preventing covered windows from receiving close/minimize actions. Files
+  entries remain sourced from `/bin`, with visible-row selection and wheel
+  scrolling; live memory changes trigger refreshes.
 - Memory-map parsers previously collapsed all RAM between the lowest and
   highest map entries, feeding MMIO holes to the physical allocator. The
   PMM now receives strictly the RAM runs and rejects nothing else.

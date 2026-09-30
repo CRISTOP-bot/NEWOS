@@ -124,8 +124,10 @@ while IFS= read -r f; do
             violations=$((violations + 1))
         fi
     done < <(sed -nE 's/^[[:space:]]*#include[[:space:]]+([<"][^>"]+[>"]).*$/\1/p' "$f")
-done < <(find . -type f -name '*.c' -o -type f -name '*.h' | \
-         grep -v '^\./build/' | grep -v '^\./\.git/' | sort)
+done < <(find . -type d \( -path './build' -o -path './.git' \
+                         -o -path './toolchain/out' -o -path './ports/build' \) \
+         -prune -o \
+         -type f \( -name '*.c' -o -name '*.h' \) -print | sort)
 
 if [ "$violations" -eq 0 ]; then
     echo "layering: OK (no violations)"

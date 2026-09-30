@@ -27,9 +27,10 @@ The x86_64 kernel reaches `BUILD=PASS`, `BOOT=PASS`, and `QEMU=PASS`:
   remap, serial console, PMM (bitmap + buddy over all usable RAM ranges),
   kheap, VFS with tmpfs / devfs, initramfs, device-model core, PCI +
   PCnet / serial / PS/2 / PIT / CMOS drivers, framebuffer console.
-- Interactive `nsh` shell (`/init`) with a 30-tool `/bin` toolbox, native
+- Interactive `nsh` shell (`/init`) with a native `/bin` toolbox, including
+  recursive `find`,
   `.new` package manager (`newpkg`), and a C library (`libc.a`).
-- Self-tests: 6 phase-1 kernel tests + 8 phase-2 userland/ABI tests —
+- Self-tests: 7 phase-1 kernel tests + 9 phase-2 userland/ABI tests —
   all pass (`make qemu-test`, QEMU exit `1` = PASS).
 
 ## Build & run
@@ -91,9 +92,9 @@ See `docs/architecture.md` for design details.
 | PMM / kheap / VMM | `mm/` |
 | VFS / tmpfs / devfs / initramfs | `fs/` |
 | Processes, threads, ELF | `process/` |
-| Syscall dispatcher (syscalls 0-21) | `syscall/` |
+| Syscall dispatcher | `syscall/` |
 | Drivers | `drivers/`, `lib/kernel/` (`iru_*`), `ipc/` |
-| User ABI + userland | `abi/`, `user/programs/*/` (shell + 30 `/bin` tools), `user/lib/nshlib` |
+| User ABI + userland | `abi/`, `user/programs/*/` (shell + native `/bin` tools), `user/lib/nshlib` |
 | Native packages | `user/programs/newpkg/`, `packages/*.newspec`, `tools/newpkg/` |
 | C library | `libc/` (`libc.a`) |
 | Build system | `Makefile`, `configs/x86_64/debug.config` |
@@ -102,6 +103,8 @@ See `docs/architecture.md` for design details.
 
 See [ROADMAP.md](ROADMAP.md): v0.3 Persistence → v0.4 Memory & processes →
 v0.5 Network → v0.6 Packages v2 → v0.7 Hardware/SMP → v0.8 Ports → v1.0.
+See [docs/porting-roadmap.md](docs/porting-roadmap.md) for the BoredOS port
+inventory and the actual Nano, native compiler, and ARM64 prerequisites.
 
 ## Continuous integration
 

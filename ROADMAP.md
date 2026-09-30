@@ -3,17 +3,19 @@
 Where NEWOS is going, in what order, and what is explicitly **not** planned.
 This is a living document: completed items move to `CHANGELOG.md`,
 and every milestone must keep `BUILD=PASS`, `BOOT=PASS`, `QEMU=PASS`
-(14/14 self-tests green) or it does not ship.
+(16/16 self-tests green) or it does not ship.
 
 ## Where we are
 
 - **Version:** `0.2.0-pre-alpha` (+ an `Unreleased` stack in `CHANGELOG.md`).
 - **Works today:** triple boot (PVH / Multiboot2 / Limine BIOS+UEFI),
-  PMM bitmap+buddy, VMM, VFS (tmpfs/devfs/initramfs), syscalls 0–21,
-  `nsh` + 30 `/bin` tools, framebuffer (`img`, `vid`, `desktop`),
+  PMM bitmap+buddy, VMM, VFS (tmpfs/devfs/initramfs), a Linux-numbered
+  syscall ABI with NEWOS extensions,
+  `nsh` + native `/bin` toolbox (including recursive `find`), framebuffer
+  (`img`, `vid`, `desktop`),
   native `.new` packages with rollback, reproducible ISOs, MIT.
 - **Honest gaps:** no disk driver (RAM-only FS), no IP stack
-  (PCnet loopback only), no `lseek/stat/mmap/sbrk/signals`,
+  (PCnet loopback only), no `truncate/mmap/sbrk/signals`,
   no USB/AHCI/NVMe/audio, no APIC/ACPI/SMP, JPEG/PNG refused
   (no userspace heap+FPU yet), package repos need net+persistence.
   See `docs/virtualbox-and-hardware.md`, `docs/packages.md`,
@@ -43,9 +45,9 @@ Goal: the filesystem lives on real storage.
   (`-drive if=none,id=d0,file=...,format=raw -device ich9-ahci …`).
 - On-disk filesystem: a small native FS (preferred, spec it in
   `docs/newfs.md`) or read-only ext2 as bootstrap — decide in an RFC issue.
-- Syscalls: `SYS_LSEEK`, `SYS_STAT/FSTAT`, `SYS_TRUNCATE` (+ `O_TRUNC`),
-  **`SYS_RENAME`** — this unlocks atomic package replace
-  (kills the unlink+create crash window, see `docs/packages.md`).
+- `SYS_RENAME` exists for in-memory filesystems; persistent storage still
+  needs durable metadata and crash-safe transactions before package updates
+  can be considered atomic.
 - `mount/umount` for the disk FS next to tmpfs/devfs; `/var/lib/newpkg`
   becomes persistent.
 - Acceptance: install `.new`, reboot, package still installed;
@@ -119,6 +121,10 @@ Goal: second architecture booting to shell.
 - `toolchain/build.sh` gains `aarch64-elf`/`riscv64-elf` targets.
 - Acceptance: `make ARCH=arm64 qemu-test` → exit 1 (PASS) under
   `qemu-system-aarch64 -M virt`.
+
+ARM64 is a planned port, not a supported build target yet. The current
+implementation gaps and staged bring-up gates are tracked in
+`docs/porting-roadmap.md`.
 - Explicitly **not** in v0.8: dropping x86_64 as primary; x86_64
   stays the reference until a port passes the full matrix.
 
@@ -145,7 +151,6 @@ Ordered roughly by size. All must include tests + docs.
 5. PCnet RX interrupt path (stepping stone to v0.5).
 6. `stb_image` vendor spike behind a build flag (needs v0.4 heap first).
 7. QEMU screendump gallery automation (`scripts/` + `web/assets/`).
-8. Mirror-text bug in `desktop` microfont (see website screenshots).
 
 ## Non-goals
 

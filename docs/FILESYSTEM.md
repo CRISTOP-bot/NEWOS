@@ -18,7 +18,7 @@ contents are native to NEWOS and its current drivers.
 | `/run` | Runtime state, including lock files |
 | `/srv` | Data served by system services |
 | `/tmp` | Temporary files and staged packages |
-| `/usr/bin`, `/usr/sbin` | Add-on and packaged commands; GNU tools install here |
+| `/usr/bin`, `/usr/sbin` | Add-on command paths; the experimental GNU package installs here, but its Linux runtime ABI is unsupported |
 | `/usr/include`, `/usr/lib`, `/usr/lib64`, `/usr/src` | Development files and libraries |
 | `/usr/share` | Architecture-independent data, documentation and licenses |
 | `/usr/local` | Locally installed software |

@@ -12,7 +12,7 @@ make all            # ISO Limine -> build/images/newos-x86_64-limine.iso
 make build/images/newos-x86_64.elf   # kernel PVH/multiboot2 (lo que arranca qemu-test)
 make limine         # kernel variante Limine  -> build/images/newos-x86_64-limine.elf
 make build/images/newos-x86_64-limine.iso   # ISO híbrida BIOS+UEFI (Limine)
-make qemu-test      # suite automatizada PVH (14 tests, exit 1 = PASS)
+make qemu-test      # suite automatizada PVH (16 tests, exit 1 = PASS)
 make qemu-limine-test  # suite vía ISO Limine (rebuild con test_mode=1)
 make qemu           # arranque interactivo con ventana (requiere DISPLAY)
 make clean
@@ -137,6 +137,6 @@ PASS, >= 3 = fallo). Sin `test_mode` arranca `/init` (shell interactiva).
 
 1. Auditar antes de tocar (leer código, no asumir APIs).
 2. Cambios pequeños, compilar (`-Werror`), `lint-layers` en verde.
-3. `make qemu-test` 14/14 + boot ISO BIOS y UEFI + screenshot si hay
+3. `make qemu-test` 16/16 + boot ISO BIOS y UEFI + screenshot si hay
    salida visual.
 4. No commits salvo pedido explícito. No `TODO`s como implementación.

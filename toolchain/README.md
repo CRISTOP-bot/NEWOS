@@ -38,10 +38,23 @@ the host assembler. `bash toolchain/test.sh` smoke-tests the install
 without building the whole tree.
 
 This is a **host-side cross toolchain** for building NEWOS. Its GCC and
-binutils executables run on Linux and emit bare-metal `x86_64-elf` code;
-they are not guest programs that can be copied into NEWOS `/bin`. NEWOS
-does not yet provide the process, virtual-memory, and host ABI support a
-native GCC driver and its assembler/linker subprocesses require.
+binutils executables run on Linux and emit `x86_64-elf` code. To compile a
+static C application against the NEWOS ABI and libc, use the accompanying
+driver after building the cross compiler:
+
+```sh
+make toolchain
+toolchain/newos-gcc -o build/hello.elf toolchain/examples/hello.c
+readelf -h build/hello.elf | grep 'Type:'   # EXEC (Executable file)
+```
+
+The driver stages the NEWOS headers, C runtime entry, syscall shim, and
+`libc.a` under `build/newos-sdk/`. Its output is a static ELF executable
+for the current x86_64 NEWOS loader; it is not a Linux program. Install the
+ELF into an NEWOS filesystem/package to run it. The underlying GCC and
+binutils still run on the host. A compiler that itself runs inside NEWOS is
+a separate bootstrap stage requiring more process, virtual-memory, and
+hosted-libc support.
 
 ## Target libc (newlib)
 

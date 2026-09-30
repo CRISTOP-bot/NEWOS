@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# build-gnu.sh: host builder for the GNU tools NEWOS runs as /bin programs.
+# build-gnu.sh: host builder for an experimental GNU coreutils package.
 #
 # Why on the host: NEWOS carries no C toolchain on board and its libc is a
 # deliberately small subset (no gnulib, no locale, no wide chars), so
 # upstream GNU sources cannot compile against it.
-# Why musl: musl emits Linux syscall numbers, which is exactly the numbering
-# NEWOS's ABI follows (include/abi/syscall_abi.h), and `-static` yields the
-# plain ET_EXEC image process/elf_loader.c maps. The result is genuine GNU
-# programs, not reimplementations.
+# Static musl removes PT_INTERP and produces ET_EXEC files the loader can
+# map, but they use Linux's SYSCALL and TLS runtime ABI. NEWOS does not
+# implement that ABI, so these programs install under /usr/bin but are not
+# runnable on NEWOS yet.
 #
 # Usage:
 #   bash scripts/build-gnu.sh stage <dir>   # build, then drop ELFs into <dir>

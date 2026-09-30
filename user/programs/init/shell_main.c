@@ -478,7 +478,7 @@ static int builtin_help(void)
     nputs("builtins: cd, exit, help, history, clear\n");
     nputs("/bin: ls cat echo mkdir rmdir rm mv touch pwd clear uname\n");
     nputs("       hostname whoami id date uptime ps kill sleep free\n");
-    nputs("       df wc head grep sort hello img vid desktop\n");
+    nputs("       df wc head grep find sort hello img vid desktop\n");
     nputs("       about newpkg newfetch kilo nano ltest\n");
     nputs("GNU tools install under /usr/bin; use /usr/bin/<tool>\n");
     nputs("Images: img /etc/splash.bmp  |  img /etc/test.ppm\n");

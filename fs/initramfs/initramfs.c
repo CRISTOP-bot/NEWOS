@@ -62,6 +62,7 @@ DECL_BIN(df)
 DECL_BIN(wc)
 DECL_BIN(head)
 DECL_BIN(grep)
+DECL_BIN(find)
 DECL_BIN(sort)
 DECL_BIN(newpkg)
 
@@ -120,6 +121,7 @@ static const struct {
     BIN(wc)
     BIN(head)
     BIN(grep)
+    BIN(find)
     BIN(sort)
     BIN(newpkg)
     { "nano", _binary_nano_elf_start, _binary_nano_elf_end },

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Pack the staged static musl ELFs (scripts/build-gnu.sh) into one `.new`
-# archive the board can install with `newpkg install`.
+# Pack the staged static musl Linux ELFs (scripts/build-gnu.sh) into one
+# experimental `.new` archive that `newpkg` can install.
 #
 #   scripts/pack-gnu.sh [stagedir] [outfile] [version]
 #

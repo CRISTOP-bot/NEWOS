@@ -59,6 +59,11 @@ long sys_rename(const char *oldpath, const char *newpath)
     return SYSC2(SYS_RENAME, oldpath, newpath);
 }
 
+long sys_stat(const char *path, struct nsh_stat *st)
+{
+    return SYSC2(SYS_STAT, path, st);
+}
+
 long sys_readdir(const char *path, struct nsh_dirent *buf, u64 bytes)
 {
     return SYSC3(SYS_READDIR, path, buf, bytes);

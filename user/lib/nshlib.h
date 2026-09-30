@@ -37,6 +37,7 @@ long sys_close(int fd);
 long sys_mkdir(const char *path);
 long sys_unlink(const char *path);
 long sys_rename(const char *oldpath, const char *newpath);
+long sys_stat(const char *path, struct nsh_stat *st);
 long sys_readdir(const char *path, struct nsh_dirent *buf, u64 bytes);
 long sys_chdir(const char *path);
 long sys_getcwd(char *buf, u64 size);

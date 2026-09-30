@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# Compile and link a static NEWOS x86_64 user program with the NEWOS ABI/libc.
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+TC_BIN="$ROOT/toolchain/out/bin"
+CC="$TC_BIN/x86_64-elf-gcc"
+SDK="$ROOT/build/newos-sdk"
+
+if [ ! -x "$CC" ]; then
+    echo "newos-gcc: cross compiler missing; run 'make toolchain' first" >&2
+    exit 127
+fi
+
+export PATH="$TC_BIN:$PATH"
+make -s -C "$ROOT" CROSS_PREFIX=x86_64-elf- sdk
+
+exec "$CC" \
+    -ffreestanding -fno-pic -fno-pie -fno-stack-protector \
+    -fno-builtin -fno-asynchronous-unwind-tables -fno-unwind-tables \
+    -mgeneral-regs-only -O2 \
+    -isystem "$SDK/usr/include" \
+    -nostdlib -static -no-pie \
+    -Wl,-T,"$ROOT/user/lib/app.ld" \
+    -Wl,--build-id=none -Wl,-e,_start \
+    "$SDK/usr/lib/crt0.o" "$@" \
+    -L"$SDK/usr/lib" \
+    -Wl,--start-group -lnsh -lc -Wl,--end-group -lgcc

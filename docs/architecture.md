@@ -69,7 +69,7 @@ together; they are the exception, not the rule.
    and the fbcon text backend registers next to serial/VGA text.
 5. `core_init` mounts the root filesystem (initramfs over tmpfs, devfs),
    initializes processes/threads, registers the syscall table, runs the
-   in-kernel self-tests (6 phase-1 + 8 phase-2) and finally launches
+   in-kernel self-tests (7 phase-1 + 9 phase-2) and finally launches
    `/init` (interactive shell) or `/bin/hello` in `test_mode`.
 
 See `docs/boot.md` for details and `docs/abi.md` for the user interface.
