@@ -19,13 +19,13 @@
 #define DESK_MAX_W  2048u
 #define DESK_MAX_H  1200u
 
-#define CLR_PANEL   0x0f3460u
-#define CLR_TASKBAR 0x1a1a2eu
-#define CLR_ACTIVE  0xe94560u
-#define CLR_ACCENT  0x00d2ffu
-#define CLR_WINDOW1 0x1b4332u
-#define CLR_WINDOW2 0x2d6a4fu
-#define CLR_WINDOW3 0x40916cu
+#define CLR_PANEL   0x101b32u
+#define CLR_TASKBAR 0x101522u
+#define CLR_ACTIVE  0x62d6c8u
+#define CLR_ACCENT  0x62d6c8u
+#define CLR_WINDOW1 0x245a68u
+#define CLR_WINDOW2 0x6553a0u
+#define CLR_WINDOW3 0x277c70u
 #define CLR_TEXT    0xeaeaeau
 #define CLR_TEXT_DIM 0x8a8a9au
 
@@ -387,16 +387,25 @@ static void redraw_all(u64 pw, u64 ph, u64 mem_used, u64 mem_total,
 {
     unsigned int i;
     u64 y;
+    /* Deep twilight wallpaper with fine stars. */
     for (y = PANEL_H; y < ph; y++) {
-        u64 px = (y * 16u) / ph;
-        u32 b = (u32)(48u + (y * 96u) / ph);
-        u32 color = (px << 16) | (16u << 8) | b;
-        for (i = 0; i < pw; i++)
-            canvas[y * screen_w + i] = color;
+        u32 r = 10u + (u32)(y * 15u / ph);
+        u32 g = 20u + (u32)(y * 23u / ph);
+        u32 b = 42u + (u32)(y * 35u / ph);
+        u32 color = (r << 16) | (g << 8) | b;
+        for (i = 0; i < pw; i++) canvas[y * screen_w + i] = color;
     }
+    for (i = 0; i < 22; i++) {
+        u64 sx = ((u64)i * 97u + 31u) % pw;
+        u64 sy = PANEL_H + (((u64)i * 53u + 17u) % (ph - PANEL_H));
+        solid(sx, sy, 2, 2, (i % 3u) ? 0x35465au : 0x597080u);
+    }
+    text_at("NEWOS", 22, ph / 2u - 16u, 4u, 0x314657u, 0x0d1827u);
+    text_at("A SMALL SYSTEM WITH ROOM TO GROW", 26, ph / 2u + 10u, 1u,
+            0x3f5969u, 0x0d1827u);
     /* taskbar bg */
     solid(0, ph - TASKBAR_H, pw, TASKBAR_H, CLR_TASKBAR);
-    hline(0, ph - TASKBAR_H, pw, 0x333355u);
+    hline(0, ph - TASKBAR_H, pw, 0x354252u);
     /* windows back to front */
     for (i = MAX_W; i > 0; i--)
         if (WOPEN[i - 1] && !WMIN[i - 1])
@@ -407,7 +416,7 @@ static void redraw_all(u64 pw, u64 ph, u64 mem_used, u64 mem_total,
         u64 bx = 4;
         for (i = 0; (u64)i < MAX_W; i++) {
             if (!WOPEN[i]) continue;
-            u64 bw = 60;
+            u64 bw = 72;
             u32 bg = WMIN[i] ? 0x20202au :
                      ((int)i == focused ? CLR_ACTIVE : 0x2a2a3eu);
             solid(bx, ph - TASKBAR_H + 3, bw - 6, TASKBAR_H - 6, bg);
@@ -436,8 +445,10 @@ static void redraw_all(u64 pw, u64 ph, u64 mem_used, u64 mem_total,
     }
     /* panel */
     solid(0, 0, pw, PANEL_H, CLR_PANEL);
-    hline(0, PANEL_H - 1, pw, 0x333355u);
-    text_at("NEWOS 0.3.0", 6, 6, 2u, 0xffffffu, CLR_PANEL);
+    hline(0, PANEL_H - 1, pw, 0x354252u);
+    solid(8, 6, 15, 15, CLR_ACCENT);
+    text_at("N", 11, 10, 2u, 0x101522u, CLR_ACCENT);
+    text_at("NEWOS 0.3.0", 29, 8, 1u, 0xffffffu, CLR_PANEL);
     {
         char n2[4]; u64 v = uptime; u64 h = v / 3600; v %= 3600;
         u64 m = v / 60; u64 s = v % 60;
@@ -450,7 +461,7 @@ static void redraw_all(u64 pw, u64 ph, u64 mem_used, u64 mem_total,
         n2[0] = (char)('0' + s / 10); n2[1] = (char)('0' + s % 10); n2[2] = '\0';
         text_at(n2, pw - 20, 10, 1u, 0xaaaaaau, CLR_PANEL);
     }
-    hline(pw / 2 - 30, PANEL_H / 2 - 1, 60, CLR_ACCENT);
+    text_at("WORKSPACE", pw / 2u - 20u, 10, 1u, 0x9aabba, CLR_PANEL);
     /* cursor */
     cursor_paint(mx, my);
     present(pw, ph);
@@ -502,8 +513,38 @@ int main(int argc, char **argv)
     u64 pw = fi.width < DESK_MAX_W ? fi.width : DESK_MAX_W;
     u64 ph = fi.height < DESK_MAX_H ? fi.height : DESK_MAX_H;
     screen_w = pw; screen_h = ph;
+    {
+        long margin = 18;
+        long usable_w = (long)pw - 2 * margin;
+        long usable_h = (long)ph - (long)PANEL_H - (long)TASKBAR_H - 2 * margin;
+        long col = usable_w / 2;
+        long row = usable_h / 2;
+        if (col < 190) col = usable_w;
+        if (row < 105) row = usable_h;
+        WW[0] = col > 390 ? 350 : col - 8;
+        WW[1] = col > 390 ? 330 : col - 8;
+        WW[2] = col > 390 ? 350 : col - 8;
+        WW[3] = col > 390 ? 320 : col - 8;
+        WH[0] = row > 200 ? 180 : row - 8;
+        WH[1] = row > 200 ? 190 : row - 8;
+        WH[2] = row > 200 ? 160 : row - 8;
+        WH[3] = row > 200 ? 180 : row - 8;
+        WX[0] = margin; WY[0] = PANEL_H + margin;
+        WX[1] = col > 190 ? margin + col : margin;
+        WY[1] = PANEL_H + margin;
+        WX[2] = margin; WY[2] = PANEL_H + margin + row;
+        WX[3] = col > 190 ? margin + col : margin;
+        WY[3] = PANEL_H + margin + row;
+        for (int wi = 0; wi < (int)MAX_W; wi++) {
+            if (WW[wi] < 64) WW[wi] = 64;
+            if (WH[wi] < PANEL_H + 20) WH[wi] = PANEL_H + 20;
+            if (WX[wi] + WW[wi] > (long)pw) WX[wi] = (long)pw - WW[wi];
+            if (WY[wi] + WH[wi] > (long)ph - TASKBAR_H)
+                WY[wi] = (long)ph - TASKBAR_H - WH[wi];
+        }
+    }
     load_bin_entries();
-    nputs("desktop: improved GUI ready\n");
+    nputs("desktop: NEWOS workspace ready\n");
 
     if (sys_sysinfo(&si) == 0 && si.total_frames) {
         mem_total = si.total_frames * 4096u / (1024u * 1024u);
@@ -532,7 +573,7 @@ int main(int argc, char **argv)
                 u64 bx = 4;
                 for (i = 0; (u64)i < MAX_W; i++) {
                     if (!WOPEN[i]) continue;
-                    if ((u64)px >= bx && (u64)px < bx + 54) {
+                    if ((u64)px >= bx && (u64)px < bx + 66) {
                         if (i == 0 && !WMIN[i]) {
                             WMIN[i] = 1;
                             focused = -1;
@@ -546,7 +587,7 @@ int main(int argc, char **argv)
                         on_taskbar = 1;
                         break;
                     }
-                    bx += 60;
+                    bx += 72;
                 }
                 on_taskbar = 1;
             }

@@ -66,11 +66,33 @@ jobs:
         run: |
           make iso
           mkdir -p build
+          ovmf_code=""
+          for candidate in \
+            /usr/share/OVMF/OVMF_CODE_4M.fd \
+            /usr/share/OVMF/OVMF_CODE.fd \
+            /usr/share/edk2/x64/OVMF_CODE.4m.fd \
+            /usr/share/ovmf/x64/OVMF_CODE.4m.fd; do
+            if [ -f "$candidate" ]; then
+              ovmf_code="$candidate"
+              break
+            fi
+          done
+          if [ -z "$ovmf_code" ]; then
+            echo "Could not find an OVMF_CODE firmware image"
+            exit 1
+          fi
+          ovmf_vars="${ovmf_code/OVMF_CODE/OVMF_VARS}"
+          if [ ! -f "$ovmf_vars" ]; then
+            echo "Could not find matching OVMF_VARS image for $ovmf_code"
+            exit 1
+          fi
+          cp "$ovmf_vars" build/OVMF_VARS.fd
           set +e
           timeout 120 qemu-system-x86_64 \
-            -bios /usr/share/OVMF/OVMF.fd \
+            -drive if=pflash,format=raw,unit=0,readonly=on,file="$ovmf_code" \
+            -drive if=pflash,format=raw,unit=1,file=build/OVMF_VARS.fd \
             -cdrom build/images/newos-x86_64.iso \
-            -boot d -serial file:build/mb2-boot.log -no-reboot -m 128M \
+            -boot d -serial file:build/mb2-boot.log -no-reboot -m 256M \
             -display none
           qemu_status=$?
           set -e

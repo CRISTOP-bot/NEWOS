@@ -117,7 +117,8 @@ static void fill_stat(struct vfs_inode *in, struct nsh_stat *st)
     if (in->mode & VFS_MODE_DIR)
         st->st_size = 4096;
     st->st_blocks = ((s64)in->size + 511) / 512;
-    st->st_atime = st->st_mtime = st->st_ctime = (nsh_s64)epoch_now();
+    st->st_atime_sec = st->st_mtime_sec = st->st_ctime_sec =
+        (nsh_s64)epoch_now();
 }
 
 static long posix_stat_at(struct process *p, u64 upath, u64 ubuf)

@@ -22,7 +22,6 @@ typedef int            pid_t;
  * VFS read/write/create model). */
 #define O_READ   0                    /* O_RDONLY */
 #define O_WRITE  1                    /* O_WRONLY */
-#define O_RDWR   2
 #define O_CREATE 00000100             /* O_CREAT */
 
 /* inode mode bits (mirror of the kernel VFS modes). */

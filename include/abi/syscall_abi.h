@@ -292,11 +292,12 @@ struct nsh_stat {
     nsh_s64 st_size;
     nsh_s64 st_blksize;
     nsh_s64 st_blocks;
-    nsh_s64 st_atime;
+    /* Use explicit names: glibc defines st_atime as st_atim.tv_sec. */
+    nsh_s64 st_atime_sec;
     nsh_s64 st_atime_nsec;
-    nsh_s64 st_mtime;
+    nsh_s64 st_mtime_sec;
     nsh_s64 st_mtime_nsec;
-    nsh_s64 st_ctime;
+    nsh_s64 st_ctime_sec;
     nsh_s64 st_ctime_nsec;
     nsh_u64 __st_spare[3];
 };

@@ -9,8 +9,8 @@
  * archive passed by the boot loader as a multiboot module. */
 
 #define DEFAULT_ROOT_DIRS \
-    { "dev", "proc", "sys", "tmp", "etc", "bin", "sbin", \
-      "lib", "usr", "home", "root", "run", "opt", "var", "mnt" }
+    { "boot", "dev", "proc", "sys", "tmp", "etc", "bin", "sbin", \
+      "lib", "lib64", "usr", "home", "root", "run", "opt", "var", "mnt" }
 
 static const char *root_dirs[] = DEFAULT_ROOT_DIRS;
 
@@ -148,7 +148,26 @@ void initramfs_init(void)
         vfs_mkdir(path);
     }
     vfs_mkdir("/home/user");
-    vfs_mkdir("/usr/bin");
+    /* Conventional Linux-style hierarchy. Directories are created parent
+     * first because this VFS intentionally does not synthesize missing ones. */
+    static const char *system_dirs[] = {
+        "/usr/bin", "/usr/sbin", "/usr/lib", "/usr/lib64", "/usr/include",
+        "/usr/share", "/usr/share/doc", "/usr/share/doc/newos",
+        "/usr/share/man", "/usr/share/misc", "/usr/share/licenses",
+        "/usr/src", "/usr/local",
+        "/usr/local/bin", "/usr/local/sbin", "/usr/local/lib",
+        "/usr/local/share", "/usr/local/etc", "/etc/skel", "/etc/init.d",
+        "/etc/opt", "/run/lock", "/var/cache", "/var/cache/newpkg",
+        "/var/lib", "/var/lib/misc", "/var/log", "/var/opt", "/var/spool",
+        "/var/tmp", "/srv", "/media", "/home/user/.config",
+        "/home/user/.cache", "/home/user/.local", "/home/user/.local/share",
+        "/home/user/Desktop", "/home/user/Documents",
+        "/home/user/Downloads", "/home/user/Pictures",
+        "/root/Desktop", "/root/Documents", "/root/Downloads",
+        "/root/Pictures"
+    };
+    for (size_t i = 0; i < sizeof(system_dirs) / sizeof(system_dirs[0]); i++)
+        vfs_mkdir(system_dirs[i]);
     /* Package database home (userspace newpkg registers installs here). */
     vfs_mkdir("/var/lib");
     vfs_mkdir("/var/lib/newpkg");
@@ -158,11 +177,36 @@ void initramfs_init(void)
     static const char passwd[] =
         "root:x:0:0:root:/root:/bin/sh\n"
         "user:x:1000:1000:user:/home/user:/bin/sh\n";
+    static const char group[] =
+        "root:x:0:\n"
+        "users:x:100:\n"
+        "user:x:1000:user\n";
+    static const char shells[] = "/bin/sh\n";
+    static const char issue[] = "NEWOS 0.3.0 \\n \\m (x86_64)\n\n";
+    static const char profile[] =
+        "# Per-user shell setup for NEWOS.\n"
+        "# Built-in programs are in /bin; installed tools are in /usr/bin.\n";
     static const char motd[] =
         "\n"
-        "  NEWOS 0.2.0-pre-alpha (x86_64) - nsh shell\n"
-        "  Type 'help' for commands. Spanish keyboard ready.\n"
+        "  NEWOS 0.3.0 (x86_64) - nsh shell\n"
+        "  Type 'help' for commands.\n"
         "\n";
+    static const char os_release[] =
+        "NAME=\"NEWOS\"\n"
+        "PRETTY_NAME=\"NEWOS 0.3.0\"\n"
+        "ID=newos\n"
+        "VERSION_ID=\"0.3.0\"\n"
+        "VERSION_CODENAME=\"gui\"\n"
+        "HOME_URL=\"https://github.com/CRISTOP-bot/NEWOS\"\n";
+    static const char distro_readme[] =
+        "NEWOS\n"
+        "=====\n"
+        "Native x86_64 operating system.\n"
+        "\n"
+        "System commands: /bin\n"
+        "Additional packages: /usr/bin\n"
+        "Configuration: /etc\n"
+        "Variable state: /var\n";
     static const char root_readme[] =
         "This is root's home. Be careful, you are the superuser.\n";
     static const char user_readme[] =
@@ -175,7 +219,15 @@ void initramfs_init(void)
     static const struct write_req dotfiles[] = {
         { "/etc/hostname", hostname },
         { "/etc/passwd", passwd },
+        { "/etc/group", group },
+        { "/etc/shells", shells },
+        { "/etc/issue", issue },
         { "/etc/motd", motd },
+        { "/etc/os-release", os_release },
+        { "/usr/share/doc/newos/README", distro_readme },
+        { "/etc/skel/.profile", profile },
+        { "/home/user/.profile", profile },
+        { "/root/.profile", profile },
         { "/root/README", root_readme },
         { "/home/user/README", user_readme },
     };
