@@ -47,6 +47,14 @@ make help           # full target list (V=0 for a short log, V=1 verbose)
 make clean
 ```
 
+Every push to `main` runs the build, package-manager tests, and QEMU boot
+tests. Passing commits publish a GitHub prerelease with the kernel and ISO
+images, and update the build environment at
+`ghcr.io/cristop-bot/newos-build` (`latest` and `sha-*` tags). Pull requests
+run the same checks without publishing. Pull and run the published build
+environment with `docker compose pull newos` followed by
+`docker compose run --rm newos`.
+
 Automated test mode:
 
 ```sh

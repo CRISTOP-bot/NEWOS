@@ -1,0 +1,165 @@
+name: CI and publish
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: newos-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  test:
+    name: Build and test NEWOS
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Check whitespace in changed files
+        env:
+          GITHUB_EVENT_BEFORE: ${{ github.event.before }}
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          GITHUB_SHA: ${{ github.sha }}
+          GITHUB_BASE_REF: ${{ github.base_ref }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+            git diff --check "origin/$GITHUB_BASE_REF...HEAD"
+          elif [ -n "$GITHUB_EVENT_BEFORE" ] && \
+               [ "$GITHUB_EVENT_BEFORE" != "0000000000000000000000000000000000000000" ]; then
+            git diff --check "$GITHUB_EVENT_BEFORE" "$GITHUB_SHA"
+          fi
+
+      - name: Install build and test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            gcc make nasm binutils python3 curl unzip \
+            qemu-system-x86 grub-common grub-pc-bin grub-efi-amd64-bin \
+            xorriso mtools ovmf
+
+      - name: Check source layering
+        run: make lint-layers
+
+      - name: Test package manager
+        run: make check-newpkg
+
+      - name: Build standalone kernel and Limine ISO
+        run: |
+          make build/images/newos-x86_64.elf
+          make all
+
+      - name: Validate Multiboot2 kernel
+        run: grub-file --is-x86-multiboot2 build/images/newos-x86_64.elf
+
+      - name: Run kernel self-tests in QEMU
+        run: bash scripts/ci/run_qemu_test.sh
+
+      - name: Build and boot Multiboot2 ISO in QEMU
+        run: |
+          make iso
+          mkdir -p build
+          set +e
+          timeout 120 qemu-system-x86_64 \
+            -bios /usr/share/OVMF/OVMF.fd \
+            -cdrom build/images/newos-x86_64.iso \
+            -boot d -serial file:build/mb2-boot.log -no-reboot -m 128M \
+            -display none
+          qemu_status=$?
+          set -e
+          if [ "$qemu_status" -ne 0 ] && [ "$qemu_status" -ne 124 ]; then
+            echo "QEMU exited unexpectedly: $qemu_status"
+            exit 1
+          fi
+          grep -E "NEWOS .* booted" build/mb2-boot.log
+          grep -E "[0-9]+ tests, 0 failures" build/mb2-boot.log
+
+      - name: Upload release assets
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: newos-release-assets
+          if-no-files-found: error
+          path: |
+            build/images/newos-x86_64.elf
+            build/images/newos-x86_64.iso
+            build/images/newos-x86_64-limine.elf
+            build/images/newos-x86_64-limine.iso
+
+  release:
+    name: Create GitHub prerelease
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download tested build assets
+        uses: actions/download-artifact@v4
+        with:
+          name: newos-release-assets
+          path: release-assets
+
+      - name: Create one prerelease for this commit
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          GITHUB_SHA: ${{ github.sha }}
+        run: |
+          short_sha="${GITHUB_SHA::12}"
+          tag="main-${short_sha}"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" release-assets/* --clobber
+          else
+            gh release create "$tag" release-assets/* \
+              --target "$GITHUB_SHA" \
+              --title "NEWOS main ${short_sha}" \
+              --notes "Automated, tested build from main at ${GITHUB_SHA}." \
+              --prerelease
+          fi
+
+  docker:
+    name: Publish Docker build environment
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set image name and tags
+        id: metadata
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/cristop-bot/newos-build
+          tags: |
+            type=raw,value=latest
+            type=sha,prefix=sha-,format=short
+
+      - name: Build and publish Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.metadata.outputs.tags }}
+          labels: ${{ steps.metadata.outputs.labels }}

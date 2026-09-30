@@ -1,7 +1,7 @@
 services:
   newos:
     build: .
-    image: newos-build
+    image: ghcr.io/cristop-bot/newos-build:latest
     working_dir: /src
     volumes:
       - .:/src
