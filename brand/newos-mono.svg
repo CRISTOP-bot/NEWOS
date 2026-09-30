@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" width="1000" height="1000" role="img" aria-label="NEWOS (mono)">
+<title>NEWOS (mono)</title>
+<defs><mask id="m"><rect width="1000" height="1000" fill="#FFFFFF"/><path d="M330 370l170 130-170 130 M540 595h150v95H540Z" fill="#0B0B0B" stroke="#0B0B0B" stroke-width="95" stroke-linejoin="miter"/></mask></defs>
+<path d="M150 150H850V680L680 850H150Z" fill="currentColor" mask="url(#m)"/>
+</svg>

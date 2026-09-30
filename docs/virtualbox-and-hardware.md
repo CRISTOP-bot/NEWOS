@@ -45,20 +45,26 @@ Optional serial debugging (VirtualBox legacy BIOS has no UEFI console plumbing):
 | ---- | -------- | ------ |
 | multiboot2 via GRUB ISO | SeaBIOS (QEMU `-boot d`) | `NEWOS: boot complete.` |
 | multiboot2 via GRUB ISO | OVMF/UEFI (QEMU `-bios` + `OVMF.fd`) | `NEWOS: boot complete.` |
-| PVH | QEMU `-kernel` (`run_qemu_test.sh`) | 5 + 5 self-tests pass |
+| PVH | QEMU `-kernel` (`run_qemu_test.sh`) | 6 + 8 self-tests pass |
 
-The GRUB menu is configured for both consoles (`terminal_input
-console` + `terminal_input serial`), so it works on a VGA-only machine and on
-a serial-only headless rig alike; a missing serial port is non-fatal.
+The GRUB menu is configured for the serial console (`terminal_input
+serial` + `terminal_output serial`, 115200 8N1), so a headless rig with
+COM1 works; on a VGA-only machine the menu itself is not visible but the
+default entry boots NEWOS anyway and the kernel mirrors output on the VGA
+text screen. A missing serial port is non-fatal.
 
 ## Reproducible ISO
 
 `make iso` pins every time-derived byte (volume timestamps, the xorriso
 `.uuid` volume marker, and the `efi.img` FAT volume serial) so that two
-`make clean && make iso` runs produce **byte-identical** ISOs:
+`make clean && make iso` runs produce **byte-identical** ISOs. Verify with
+two consecutive builds and compare hashes:
 
-- Twice: `make clean && make iso && sha256sum build/images/newos-x86_64.iso`
-- Current expectation: `6c84433a7921adcd1d14ec5d932d48992b817149087ee591472278380f34c2a2`
+```sh
+make clean && make iso && sha256sum build/images/newos-x86_64.iso
+make clean && make iso && sha256sum build/images/newos-x86_64.iso
+```
 
-The kernel ELF is reproducible too
-(`d60467ba31618c4676f15dd6ee6482e88c764869cac55178f49893f2d255d7db`).
+(The hashes move with the tree — new tools or initramfs content change
+the image — so no hash is pinned here; equality of the two runs is the
+property.) The kernel ELF is reproducible the same way.

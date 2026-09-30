@@ -15,6 +15,8 @@
 #   L8 ipc                  inter-process primitives
 #   L9 syscall              dispatcher (talks to process + fs + mm)
 #   L10 user                userland programs (ABI only)
+#   LX libc                 freestanding C library (self-contained + ABI);
+#                           userland side only, never imported by the kernel
 #
 # Rule: a file in domain D may only #include headers whose class is
 # either D itself or one of the classes in D's allow list (below). In
@@ -33,6 +35,7 @@ violations=0
 file_class() {
     case "$1" in
         lib/kernel/*)          echo LIB ;;
+        libc/*)                echo LIBC ;;
         abi/*)                 echo ABI ;;
         user/*)                echo USER ;;
         core/*)                echo CORE ;;
@@ -82,10 +85,13 @@ allowed() {
         DRV)  echo LIB ARCH CORE MM DRV ;;
         MM)   echo LIB ARCH CORE MM ;;
         FS)   echo LIB CORE MM DRV FS ;;
-        PROC) echo LIB ARCH CORE MM FS PROC ;;
-        IPC)  echo LIB CORE IPC ;;
-        SYSC) echo ABI LIB ARCH CORE MM FS PROC SYSC ;;
+        # PROC may use IPC so process_free can drop pipe references when a
+        # process dies; IPC may use MM for pipe storage; SYSC drives pipes.
+        PROC) echo LIB ARCH CORE MM FS PROC IPC ;;
+        IPC)  echo LIB CORE MM IPC ;;
+        SYSC) echo ABI LIB ARCH CORE MM FS PROC IPC SYSC ;;
         LIB)  echo LIB CORE ;;
+        LIBC) echo ABI LIBC ;;
         USER) echo ABI LIB ;;
         ABI)  echo ABI CORE ;;
         *)    echo "" ;;

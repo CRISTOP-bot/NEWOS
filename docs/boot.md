@@ -1,7 +1,7 @@
 # Booting x86_64 NEWOS
 
-The kernel is a freestanding x86_64 ELF. It can be reached through two
-boot protocols, both parsed at runtime with no firmware dependency beyond
+The kernel is a freestanding x86_64 ELF. It can be reached through three
+boot protocols, all parsed at runtime with no firmware dependency beyond
 what the boot manager already did:
 
 - **multiboot2** — GRUB (`multiboot2 /boot/newos.elf`, see the `iso` target).
@@ -10,6 +10,13 @@ what the boot manager already did:
 - **PVH** — QEMU's `-kernel` path constructs a `hvm_start_info`; `arch_main`
   probes physical memory for the magic `0x336ec578` in `start_info` and falls
   back to multiboot2 when it is not found.
+- **Limine** — the `newos-x86_64-limine.elf` variant (separate link via
+  `scripts/limine.ld`) requests entry point, HHDM, memory map, command
+  line and **framebuffer**; `limine_arch_main` (`arch/x86_64/boot/limine.c`)
+  takes over paging (Limine is already in long mode), copies the usable
+  runs, snapshots the first framebuffer and rejoins the common
+  `kernel_boot_tail`. Only this path enables graphics (`fbcon` +
+  `img`/`vid`); the other two keep VGA text + serial.
 
 ## Stage 1: 32-bit trampoline (`x86_entry.S`)
 
@@ -28,9 +35,10 @@ Starts at `_start` (the linker entry). Runs BSP-only, before C:
 Runs on the pre-built early stack and boot page tables:
 
 1. `x86_get_loaders()` — detects multiboot2 vs PVH and copies the memory map
-   (`x86_multiboot2.c` / `x86_pvh.c`) into a normalized bootinfo.
-2. `pmm_allocator_init(mem_start, mem_end)` — seeds the physical allocator;
-   the loader map only hands out usable RAM.
+   (`x86_multiboot2.c` / `x86_pvh.c`) into normalized RAM ranges.
+2. `pmm_allocator_init_ranges(runs, nruns)` — seeds the physical allocator
+   from every usable run; MMIO holes are never handed out as free memory.
+   (The single-range `pmm_allocator_init()` remains only as a thin wrapper.)
 3. `x64_gdt_init` / `x64_tss_install` — sets up GDT + TSS (RSP0 for syscalls).
 4. `x86_idt_init` — installs the IDT with gate types for trap/int, including
    the `int $0x80` user syscall gate.
@@ -39,9 +47,11 @@ Runs on the pre-built early stack and boot page tables:
    - kernel image mapped at its link address `0xffffffff80000000`
    - pages marked NX; final `invlpg`/`mov cr3` switches to it.
 6. `mm_heap_init()` — early 4 MiB arena for the kernel heap.
-7. `core_init` — mounts `initramfs` (a `/bin/hello` + `/init` hierarchy built
-   into the image), devfs and tmpfs, sets up processes/threads, registers the
-   syscall table, runs self-tests, and finally launches `/bin/hello`.
+7. `core_init` — mounts `initramfs` (the `/bin` toolbox + `/init` hierarchy
+   built into the image, plus `/var/lib/newpkg` and a sample `.new` staged
+   under `/tmp`), devfs and tmpfs, sets up processes/threads, registers the
+   syscall table, runs self-tests, and finally launches `/init`
+   (interactive shell) — or `/bin/hello` in `test_mode`.
 
 ## Terminal boot log
 
@@ -51,16 +61,20 @@ boot: PVH protocol detected ...
 PMM: tracking N frames (M MiB) from physical 100000
 VMM: kernel address space ready (CR3=..., direct map at 0xfffffe0000000000)
 ...
-=== 5 tests, 0 failures ===
-userland: entering hello (pid 2) at ring 3
-Hello from ring 3!
-ResidentPID: 2
+=== 6 tests, 0 failures ===
+=== 8 tests, 0 failures ===
+userland: entering init (pid 4) at ring 3
+root@newos:/#
 NEWOS: boot complete.
 ```
 
+On Limine the log starts with `NEWOS x86_64 boot: Limine boot protocol`
+plus `limine: framebuffer WxH ...` and `fb: ... UC window ...` lines, and
+the same text is mirrored on the graphics screen by fbcon.
+
 ## Multiboot2 header
 
-Located in `.multiboot2` (`x86_boot.S`): magic, architecture 0, header length,
+Located in `.multiboot` (`x86_entry.S`): magic, architecture 0, header length,
 checksum, and a `multiboot2_header_tag_info_request` so the loader always
 provides a memory map. `grub-file --is-x86-multiboot2 build/images/newos-x86_64.elf`
 validates it in CI.

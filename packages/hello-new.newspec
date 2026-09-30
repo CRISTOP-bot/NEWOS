@@ -1,0 +1,24 @@
+# hello-new.newspec: first real `.new` test package for NEWOS.
+#
+# The payload reuses the existing freestanding hello ELF (built by the
+# normal userland rules) under a NON-conflicting destination: the running
+# system already ships a built-in /bin/hello via initramfs, so this package
+# installs /bin/hello-new (runnable from nsh as `hello-new`) to exercise
+# install -> list -> files -> run -> remove without clobbering anything.
+#
+# Build on the HOST (NEWOS carries no toolchain on board):
+#   python3 tools/newpkg/newpkg-build.py packages/hello-new.newspec \
+#       -o build/packages/hello-new-1.0.0-x86_64.new
+
+name = "hello-new"
+version = "1.0.0"
+arch = "x86_64"
+desc = "Hello world smoke-test program for the .new package system"
+license = "MIT"
+maintainer = "NEWOS"
+build = "make build/packages/hello-new-1.0.0-x86_64.new"
+newos-min = "0.2.0"
+depends = ""
+
+files:
+  build/userland/hello.elf /bin/hello-new 0755

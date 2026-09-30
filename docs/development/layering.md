@@ -35,8 +35,12 @@ add an include, keep these outcomes:
 
 - production domains never reach a layer above them (no `drivers/` code
   including `fs/*`, no `mm/` code including `process/*`, ...);
+- `libc/` is userland-side only (lint class `LIBC`: self + `ABI`); the
+  kernel never imports it, and userland programs reach it by relative
+  include (ignored by the lint like the other local includes);
 - everything that needs integer types uses `core/core_types.h` (or
-  `<stdint.h>` for ABI/boot headers), never a hand-rolled duplicate;
+  `<stdint.h>` for ABI/boot headers), never a hand-rolled duplicate
+  (`libc` carries its own `stddef.h` because it cannot use either);
 - system headers (`<stdint.h>`/`<stddef.h>`) and same-directory quoted
   includes are allowed and ignored by the lint.
 

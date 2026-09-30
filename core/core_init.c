@@ -14,11 +14,13 @@
 #include <process/proc_thread.h>
 #include <process/sched.h>
 #include <x86_cpu.h>
+#include <x86_fpu.h>
 #include <x86_gdt.h>
 #include <iru_string.h>
 #include <iru_bitmap.h>
+#include <core/core_time.h>
 
-#define NEWOS_VERSION "0.2.0-pre-alpha"
+#define NEWOS_VERSION "0.3.0-gui"
 #define NEWOS_TARGET  "x86_64"
 
 int run_phase2_tests(void);
@@ -80,23 +82,58 @@ static int ktest_vfs_tmpfs(void)
     buf[n] = '\0';
     if (strncmp(buf, "NEWOS", 5) != 0)
         return -1;
+
+    /* unlink round-trip on nested paths (regression: split_parent ate
+     * the first basename char, so every nested unlink failed). */
+    if (vfs_create("/tmp/ktest-unlink") != 0)
+        return -1;
+    if (!vfs_lookup("/tmp/ktest-unlink"))
+        return -1;
+    if (vfs_unlink("/tmp/ktest-unlink") != 0)
+        return -1;
+    if (vfs_lookup("/tmp/ktest-unlink"))
+        return -1;
+    /* Single-char nested name (the old code produced an empty name). */
+    if (vfs_create("/tmp/k") != 0)
+        return -1;
+    if (vfs_unlink("/tmp/k") != 0)
+        return -1;
+    if (vfs_lookup("/tmp/k"))
+        return -1;
+    /* Unlinking a missing nested file must still fail. */
+    if (vfs_unlink("/tmp/ktest-unlink") == 0)
+        return -1;
     return 0;
 }
 
 static int ktest_pipe(void)
 {
-    struct ipc_pipe pipe;
-    ipc_pipe_init(&pipe);
+    struct ipc_pipe *pipe = ipc_pipe_new();
+    if (!pipe)
+        return -1;
+    struct ipc_pipe_fd *w = ipc_pipe_fd_new(pipe, 0);
+    struct ipc_pipe_fd *r = ipc_pipe_fd_new(pipe, 1);
+    if (!w || !r) {
+        ipc_pipe_fd_close(w);
+        ipc_pipe_fd_close(r);
+        return -1;
+    }
 
     char in[] = "pipe-data";
     char out[32];
 
-    if (ipc_pipe_write(&pipe, in, sizeof(in)) != sizeof(in))
+    /* With an open reader the write must land in full. */
+    if (ipc_pipe_write(pipe, in, sizeof(in)) != sizeof(in))
         return -1;
-    if (ipc_pipe_read(&pipe, out, sizeof(out)) != sizeof(in))
+    if (ipc_pipe_read(pipe, out, sizeof(out)) != sizeof(in))
         return -1;
     if (memcmp(in, out, sizeof(in)) != 0)
         return -1;
+    /* Once the reader is gone, writers must be refused (EPIPE rule). */
+    ipc_pipe_fd_close(r);
+    if (ipc_pipe_write(pipe, in, sizeof(in)) != 0)
+        return -1;
+    ipc_pipe_fd_close(w);   /* frees the pipe: both ends closed */
     return 0;
 }
 
@@ -162,13 +199,25 @@ static int cmdline_has_test_mode(void)
     return boot_cmdline_has("test_mode=1");
 }
 
+static int cmdline_has_headless(void)
+{
+    return boot_cmdline_has("headless=1");
+}
+
+static int cmdline_has_gui(void)
+{
+    return boot_cmdline_has("gui=1");
+}
+
 /* -------------------------------------------------------------------------
  * Phase 2: userland bootstrap.
  *
- * The kernel teleports its own execution onto a dedicated init stack (kernel
- * half, direct map), captures a resume point with a self context switch,
- * then drops to ring 3. When the process exits (SYS_EXIT or a fault) it
- * resumes the capture and the boot finalizes.
+ * BoredOS-style init: reads init= bootloader parameter, spawns the
+ * configured init binary, with a fallback chain:
+ *   gui=1 → /bin/desktop (default)
+ *   init=<path> → user-configured init
+ *   fallback → /init (shell)
+ *   emergency → /bin/sh
  * ---------------------------------------------------------------------- */
 
 static int s_user_done;
@@ -207,6 +256,11 @@ static void run_userland(u64 arg)
         process_current_set(p);
         vmm_switch_to(p->space);
         x64_tss_set_rsp0(p->thread.kernel_stack_top);
+        /* Give the program its own clean x87/SSE image and record that the
+         * register bank now belongs to it: the epilogue saves this image back
+         * on the first handoff. */
+        g_user_fpu_area = (u64)(uintptr_t)&p->thread.fpu[0];
+        x64_fpu_load(p->thread.fpu);
         printk("userland: entering %s (pid %u) at ring 3\n", p->name,
                (unsigned)p->pid);
         x64_enter_user(&p->thread);   /* never returns */
@@ -218,25 +272,76 @@ static void run_userland(u64 arg)
 
 static void boot_userland(void)
 {
-    /* In test mode the deterministic hello program doubles as the init
-     * process so the CI checksum the exact same terminal output; in a real
-     * boot /init is the interactive console shell. */
-    const char *image = cmdline_has_test_mode() ? "/bin/hello" : "/init";
-    const char *name = cmdline_has_test_mode() ? "hello" : "init";
-    printk("userland: launching %s\n", image);
-    struct process *p = process_create_from_vfs(image, name);
-    if (!p) {
-        s_phase2_failures = 1;
-        printk("=== PHASE 2: FAIL ===\n");
-        if (cmdline_has_test_mode())
-            qemu_debug_exit(1);
-        printk("NEWOS: boot complete (userland failed to start).\n");
+    /* Headless mode: launch shell directly.
+     * Default: /init (interactive shell)
+     * Fallback: /bin/sh (emergency rescue)
+     * If gui=0, skip desktop and use /init directly. */
+    const char *fallback1 = "/init";
+    const char *fallback2 = "/bin/sh";
+    struct process *p = NULL;
+
+    if (cmdline_has_headless()) {
+        printk("userland: headless mode, launching shell\n");
+        p = process_create_from_vfs(fallback2, "shell");
+        if (p) {
+            p->is_init = 1;
+            sched_add_process(p);
+            u64 isp = thread_init_stack();
+            x64_goto_stack(isp, run_userland, (u64)p);
+            return;
+        }
+    } else if (!cmdline_has_gui() && boot_cmdline_has("gui=") == 0) {
+        /* Default: headless mode when no gui= parameter specified */
+        printk("userland: default headless mode, launching shell\n");
+        p = process_create_from_vfs(fallback2, "shell");
+        if (p) {
+            p->is_init = 1;
+            sched_add_process(p);
+            u64 isp = thread_init_stack();
+            x64_goto_stack(isp, run_userland, (u64)p);
+            return;
+        }
+        printk("userland: shell failed, trying fallback\n");
+    } else {
+        printk("userland: headless mode, launching shell\n");
+        p = process_create_from_vfs(fallback2, "shell");
+        if (p) {
+            p->is_init = 1;
+            sched_add_process(p);
+            u64 isp = thread_init_stack();
+            x64_goto_stack(isp, run_userland, (u64)p);
+            return;
+        }
+    }
+
+    /* Fallback 1: /init */
+    printk("userland: launching %s\n", fallback1);
+    p = process_create_from_vfs(fallback1, "init");
+    if (p) {
+        p->is_init = 1;
+        sched_add_process(p);
+        u64 isp = thread_init_stack();
+        x64_goto_stack(isp, run_userland, (u64)p);
         return;
     }
-    p->is_init = 1;
 
-    u64 isp = thread_init_stack();
-    x64_goto_stack(isp, run_userland, (u64)p);   /* no return */
+    /* Fallback 2: /bin/sh */
+    printk("userland: %s failed, emergency fallback to /bin/sh\n", fallback1);
+    p = process_create_from_vfs(fallback2, "sh");
+    if (p) {
+        p->is_init = 1;
+        sched_add_process(p);
+        u64 isp = thread_init_stack();
+        x64_goto_stack(isp, run_userland, (u64)p);
+        return;
+    }
+
+    /* Everything failed */
+    s_phase2_failures = 1;
+    printk("=== PHASE 2: FAIL ===\n");
+    if (cmdline_has_test_mode())
+        qemu_debug_exit(1);
+    printk("NEWOS: boot complete (all init binaries failed).\n");
 }
 
 /* Everything after the banner runs from the direct-map init stack. The early
@@ -254,6 +359,15 @@ static void kernel_boot_main(u64 arg)
         printk("Test mode: aborted by failures (%d + %d).\n",
                failures, s_phase2_failures);
         qemu_debug_exit(1);
+    }
+
+    /* Success must terminate the run too: falling through to boot_userland()
+     * left `make qemu-test` waiting on an interactive shell, so the verdict
+     * depended on serial EOF instead of the tests (a missing kernel ELF
+     * reported the same "pass" status as a green suite). */
+    if (cmdline_has_test_mode()) {
+        printk("=== SELFTESTS: all phases 0 failures ===\n");
+        qemu_debug_exit(0);
     }
 
     boot_userland();

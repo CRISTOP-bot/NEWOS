@@ -32,6 +32,7 @@ struct inode_ops {
     int (*readdir)(struct vfs_inode *dir, void *buf, size_t len,
                    size_t *got);
     int (*truncate)(struct vfs_inode *inode, size_t size);
+    void (*destroy)(struct vfs_inode *inode);   /* free fs-private data */
 };
 
 struct vfs_inode {
@@ -50,14 +51,24 @@ struct vfs_file {
     struct vfs_inode *inode;
     u64 offset;
     int flags;
+    u32 uflags;                  /* Linux O_* bits as passed to open(2) */
 };
 
 void vfs_init(void);
 
 struct vfs_inode *vfs_root(void);
 struct vfs_inode *vfs_lookup(const char *path);
+/* cwd-aware lookup: absolute paths ignore cwd, relative ones resolve
+ * under it (cwd must be absolute, e.g. "/home/user"). */
+struct vfs_inode *vfs_lookup_cwd(const char *cwd, const char *path);
 int  vfs_mkdir(const char *path);
 int  vfs_create(const char *path);
+/* Remove a file or an empty directory. Refuses non-empty directories. */
+int  vfs_unlink(const char *path);
+/* Move oldpath onto newpath, replacing the destination. Both paths must be
+ * absolute and resolve inside the in-memory tree (tmpfs, devfs, sysfs):
+ * on-disk filesystems keep their own directory state and are refused. */
+int  vfs_rename(const char *oldpath, const char *newpath);
 struct vfs_file *vfs_open(const char *path, int flags);
 struct vfs_file *vfs_open_inode(struct vfs_inode *inode, int flags);
 int  vfs_read(struct vfs_file *f, void *buf, size_t len);

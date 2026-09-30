@@ -11,6 +11,8 @@
 #include <mm/mm_heap.h>
 #include <abi/syscall_abi.h>
 #include <x86_frame.h>
+#include <x86_cpu.h>
+#include <x86_fpu.h>
 #include <iru_string.h>
 
 /* Phase 2 unit tests: PMM phys wrappers, address-space lifecycle + CR3
@@ -304,6 +306,135 @@ fail:
     return -1;
 }
 
+/* ---------------- x87/SSE state ---------------- */
+
+/* Three images plus the one the registers held on entry. All 16-byte aligned:
+ * FXSAVE/FXRSTOR fault with #GP on a misaligned operand. */
+static u8 fpu_live[X64_FPU_AREA_SIZE] __attribute__((aligned(X64_FPU_AREA_ALIGN)));
+static u8 fpu_a[X64_FPU_AREA_SIZE] __attribute__((aligned(X64_FPU_AREA_ALIGN)));
+static u8 fpu_b[X64_FPU_AREA_SIZE] __attribute__((aligned(X64_FPU_AREA_ALIGN)));
+
+static u16 fpu_get_u16(const u8 *a, u64 off)
+{
+    u16 v;
+    memcpy(&v, a + off, sizeof(v));
+    return v;
+}
+
+static u32 fpu_get_u32(const u8 *a, u64 off)
+{
+    u32 v;
+    memcpy(&v, a + off, sizeof(v));
+    return v;
+}
+
+static void fpu_put_u16(u8 *a, u64 off, u16 v) { memcpy(a + off, &v, sizeof(v)); }
+static void fpu_put_u32(u8 *a, u64 off, u32 v) { memcpy(a + off, &v, sizeof(v)); }
+static void fpu_put_u64(u8 *a, u64 off, u64 v) { memcpy(a + off, &v, sizeof(v)); }
+
+/* The fields the register bank must carry through a save/restore pair.
+ * FSW and the FOP/FIP/FDP pointer fields are deliberately left out: the CPU
+ * does not restore them as written, so comparing them would be flaky. */
+static int fpu_cmp(const u8 *x, const u8 *y)
+{
+    if (fpu_get_u16(x, X64_FPU_FCW_OFF) != fpu_get_u16(y, X64_FPU_FCW_OFF))
+        return -1;
+    if (x[X64_FPU_FTW_OFF] != y[X64_FPU_FTW_OFF])
+        return -1;
+    if (fpu_get_u32(x, X64_FPU_MXCSR_OFF) != fpu_get_u32(y, X64_FPU_MXCSR_OFF))
+        return -1;
+    for (int i = 0; i < 16; i++)
+        if (memcmp(x + X64_FPU_XMM_OFF + (u64)i * 16,
+                   y + X64_FPU_XMM_OFF + (u64)i * 16, 16) != 0)
+            return -1;
+    for (int i = 0; i < 8; i++)
+        if (memcmp(x + X64_FPU_ST_OFF + (u64)i * 16,
+                   y + X64_FPU_ST_OFF + (u64)i * 16, 10) != 0)
+            return -1;
+    return 0;
+}
+
+static int ktest2_fpu(void)
+{
+    if (!x64_fpu_available()) {
+        printk("fpu: CPU has no FXSR - state handling not testable here\n");
+        return 0;
+    }
+    /* Every gcc x86-64 build emits SSE2 for float/double: without it no real
+     * user binary can run, so a missing SSE2 is a failure of this milestone. */
+    if (!x64_fpu_sse2())
+        return -1;
+
+    /* x64_fpu_enable() must have left the state accessible (TS clear is what
+     * makes FP/SSE instructions execute instead of trapping #NM). */
+    u64 cr0 = read_cr0();
+    if ((cr0 & (X64_CR0_TS | X64_CR0_EM)) != 0 || !(cr0 & X64_CR0_MP))
+        return -1;
+    u64 want = X64_CR4_OSFXSR | X64_CR4_OSMMX;
+    if ((read_cr4() & want) != want)
+        return -1;
+
+    /* The test rewrites the whole register bank; park it first. Phase 2 runs
+     * before any user context exists, so nothing real is being clobbered. */
+    x64_fpu_save(fpu_live);
+
+    /* 1. The image every new thread starts from. */
+    x64_fpu_area_init(fpu_a);
+    if (fpu_get_u16(fpu_a, X64_FPU_FCW_OFF) != X64_FPU_FCW_INIT ||
+        fpu_get_u32(fpu_a, X64_FPU_MXCSR_OFF) != X64_FPU_MXCSR_INIT ||
+        fpu_a[X64_FPU_FTW_OFF] != X64_FPU_FTW_EMPTY)
+        goto fail;
+    for (int i = 0; i < 16; i++)
+        for (int b = 0; b < 16; b++)
+            if (fpu_a[X64_FPU_XMM_OFF + i * 16 + b] != 0)
+                goto fail;
+
+    /* 2. It must actually be loadable and stable (a bad image #GP's here). */
+    x64_fpu_load(fpu_a);
+    x64_fpu_save(fpu_b);
+    if (fpu_cmp(fpu_a, fpu_b) != 0)
+        goto fail;
+
+    /* 3. A distinctive state, the case that matters for the context switch:
+     * every XMM register and every x87 slot carrying its own bit pattern, a
+     * non-default MXCSR and all tags valid (so the x87 slots really move). */
+    x64_fpu_area_init(fpu_a);
+    fpu_put_u32(fpu_a, X64_FPU_MXCSR_OFF, 0x1FA1);  /* DE+IE flags set */
+    fpu_a[X64_FPU_FTW_OFF] = 0x00;                  /* all 8 tags valid */
+    for (int i = 0; i < 16; i++) {
+        u64 base = 0xF000000000000000ull + ((u64)i << 32);
+        fpu_put_u64(fpu_a, X64_FPU_XMM_OFF + (u64)i * 16, base | 0x01234567ull);
+        fpu_put_u64(fpu_a, X64_FPU_XMM_OFF + (u64)i * 16 + 8,
+                    base + 0x89ABCDEFull);
+    }
+    for (int i = 0; i < 8; i++) {
+        /* Valid normalized 80-bit number: integer bit set, bias 0x3FFF. */
+        fpu_put_u64(fpu_a, X64_FPU_ST_OFF + (u64)i * 16,
+                    0x8000000000000000ull | (u64)(i + 1));
+        fpu_put_u16(fpu_a, X64_FPU_ST_OFF + (u64)i * 16 + 8, 0x3FFF);
+    }
+    x64_fpu_load(fpu_a);
+    x64_fpu_save(fpu_b);
+    if (fpu_cmp(fpu_a, fpu_b) != 0)
+        goto fail;
+
+    /* 4. Switching back and forth must not leak one context's numbers into
+     * the other (this is the exact pair the epilogue runs per handoff). */
+    x64_fpu_load(fpu_live);
+    x64_fpu_load(fpu_a);
+    x64_fpu_load(fpu_live);
+    x64_fpu_save(fpu_b);
+    if (fpu_cmp(fpu_live, fpu_b) != 0)
+        goto fail;
+
+    x64_fpu_load(fpu_live);
+    return 0;
+
+fail:
+    x64_fpu_load(fpu_live);
+    return -1;
+}
+
 /* ---------------- driver ---------------- */
 
 static int ktest2_timer(void)
@@ -317,9 +448,157 @@ static int ktest2_timer(void)
     return 0;
 }
 
+/* SYS_OPEN / SYS_CLOSE / SYS_READ-through-VFS, driven through the real
+ * dispatcher with a real user address space active (usercopy validated). */
+static int ktest2_open_close(void)
+{
+    struct process *p = process_create_from_vfs("/bin/hello", "opentest");
+    if (!p)
+        return -1;
+
+    process_current_set(p);
+
+    /* One scratch user page: path strings at +0, data buffer at +256. */
+    uintptr_t va = (uintptr_t)USER_SPACE_BASE + (uintptr_t)USER_SPACE_END / 2;
+    va &= ~(uintptr_t)(PAGE_SIZE - 1);
+    if (vmm_alloc_page(p->space, va, VMM_USER | VMM_WRITE | VMM_NX) != 0)
+        goto fail;
+    uintptr_t phys = 0;
+    if (!vmm_page_lookup(p->space, va, &phys, NULL))
+        goto fail;
+    u8 *up = (u8 *)phys_to_virt(phys);
+    const uintptr_t va_data = va + 256;
+
+    if (vmm_switch_to(p->space) != 0)
+        goto fail;
+
+    struct x64_iframe f;
+    memset(&f, 0, sizeof(f));
+
+    /* Open an existing file and read it through the new SYS_READ path.
+     * SYS_OPEN speaks the Linux O_* flags (the ABI userland and real
+     * binaries use), so the test must not pass internal VFS_O_* here. */
+    memcpy(up, "/etc/version", 13);
+    f.rax = SYS_OPEN;
+    f.rdi = va;
+    f.rsi = NSH_O_RDONLY;
+    long fd = syscall_dispatch(&f);
+    if (fd < 3 || fd >= PROCESS_MAX_FDS)
+        goto fail_back;
+
+    memset(&f, 0, sizeof(f));
+    f.rax = SYS_READ;
+    f.rdi = (u64)fd;
+    f.rsi = va_data;
+    f.rdx = 32;
+    long n = syscall_dispatch(&f);
+    if (n <= 0)
+        goto fail_back;
+    {
+        char out[40];
+        memset(out, 0, sizeof(out));
+        if (copy_from_user(out, (const void *)va_data, (size_t)n) != 0)
+            goto fail_back;
+        if (n < 5 || memcmp(out, "NEWOS", 5) != 0)
+            goto fail_back;
+    }
+
+    /* Close works once; a second close of the same fd is refused. */
+    memset(&f, 0, sizeof(f));
+    f.rax = SYS_CLOSE;
+    f.rdi = (u64)fd;
+    if (syscall_dispatch(&f) != 0)
+        goto fail_back;
+    memset(&f, 0, sizeof(f));
+    f.rax = SYS_CLOSE;
+    f.rdi = (u64)fd;
+    if (syscall_dispatch(&f) != SYSCALL_RET_ERROR)
+        goto fail_back;
+
+    /* O_CREATE round trip: write through SYS_WRITE, read back. */
+    memcpy(up, "/tmp/open-test", 15);
+    memset(&f, 0, sizeof(f));
+    f.rax = SYS_OPEN;
+    f.rdi = va;
+    f.rsi = NSH_O_RDWR | NSH_O_CREAT;
+    fd = syscall_dispatch(&f);
+    if (fd < 0)
+        goto fail_back;
+    memcpy(up + 256, "hello-open", 10);
+    memset(&f, 0, sizeof(f));
+    f.rax = SYS_WRITE;
+    f.rdi = (u64)fd;
+    f.rsi = va_data;
+    f.rdx = 10;
+    if (syscall_dispatch(&f) != 10)
+        goto fail_back;
+    memset(&f, 0, sizeof(f));
+    f.rax = SYS_CLOSE;
+    f.rdi = (u64)fd;
+    if (syscall_dispatch(&f) != 0)
+        goto fail_back;
+
+    memset(&f, 0, sizeof(f));
+    f.rax = SYS_OPEN;
+    f.rdi = va;                 /* still "/tmp/open-test" */
+    f.rsi = NSH_O_RDONLY;
+    fd = syscall_dispatch(&f);
+    if (fd < 0)
+        goto fail_back;
+    memset(&f, 0, sizeof(f));
+    f.rax = SYS_READ;
+    f.rdi = (u64)fd;
+    f.rsi = va_data;
+    f.rdx = 32;
+    n = syscall_dispatch(&f);
+    if (n != 10)
+        goto fail_back;
+    {
+        char out[16];
+        memset(out, 0, sizeof(out));
+        if (copy_from_user(out, (const void *)va_data, 10) != 0)
+            goto fail_back;
+        if (memcmp(out, "hello-open", 10) != 0)
+            goto fail_back;
+    }
+    memset(&f, 0, sizeof(f));
+    f.rax = SYS_CLOSE;
+    f.rdi = (u64)fd;
+    if (syscall_dispatch(&f) != 0)
+        goto fail_back;
+
+    /* Error cases: missing file without O_CREATE, bogus flags. */
+    memcpy(up, "/no/such/file", 14);
+    memset(&f, 0, sizeof(f));
+    f.rax = SYS_OPEN;
+    f.rdi = va;
+    f.rsi = NSH_O_RDONLY;
+    if (syscall_dispatch(&f) != SYSCALL_RET_ERROR)
+        goto fail_back;
+    memcpy(up, "/etc/version", 13);
+    memset(&f, 0, sizeof(f));
+    f.rax = SYS_OPEN;
+    f.rdi = va;
+    f.rsi = NSH_O_RDWR | NSH_O_WRONLY;     /* 2|1: accmode 3, reserved */
+    if (syscall_dispatch(&f) != SYSCALL_RET_ERROR)
+        goto fail_back;
+
+    if (vmm_switch_to(vmm_kernel_space()) != 0)
+        goto fail;
+    process_current_set(NULL);
+    process_free(p);
+    return 0;
+
+fail_back:
+    vmm_switch_to(vmm_kernel_space());
+fail:
+    process_current_set(NULL);
+    process_free(p);
+    return -1;
+}
+
 /* Process lifetime without real CPU handoff (no timer context yet whose
- * preemption could run the child): create -> schedule -> zombie -> reclaim. */
-static int ktest2_proc_life(void)
+ * preemption could run the child): create -> schedule -> zombie -> reclaim. */static int ktest2_proc_life(void)
 {
     struct process *c =
         process_create_from_vfs("/bin/hello", "lifetest");
@@ -358,8 +637,10 @@ static const struct ktest2 ktests2[] = {
     { "usercopy",    ktest2_usercopy    },
     { "elf-loader",  ktest2_elf         },
     { "syscalls",    ktest2_syscall     },
+    { "open-close",  ktest2_open_close  },
     { "timer-pit",   ktest2_timer       },
     { "proc-life",   ktest2_proc_life   },
+    { "fpu-state",   ktest2_fpu         },
 };
 
 int run_phase2_tests(void)

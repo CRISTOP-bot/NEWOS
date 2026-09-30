@@ -13,6 +13,25 @@
     ((struct multiboot2_tag *)((u8 *)(tag) + \
         (((tag)->size + 7) & ~7)))
 
+/* Declare fb_init_early for GRUB multiboot2 framebuffer support. */
+extern void fb_init_early(u64 phys, u64 width, u64 height, u64 pitch, u32 bpp, u8 model, u8 rs, u8 rn, u8 gs, u8 gn, u8 bs, u8 bn);
+
+/* Declare framebuffer tag struct from multiboot2 spec. */
+struct mb_fb_tag {
+    u32 framebuffer_type;
+    u64 framebuffer_addr;
+    u32 framebuffer_pitch;
+    u16 framebuffer_width;
+    u16 framebuffer_height;
+    u16 framebuffer_bpp;
+    u16 red_field_position;
+    u16 red_mask_size;
+    u16 green_field_position;
+    u16 green_mask_size;
+    u16 blue_field_position;
+    u16 blue_mask_size;
+} __attribute__((packed));
+
 void mbi_parse_mmap(u64 mbi_phys)
 {
     /* The multiboot info lives in low physical memory while the early
@@ -85,8 +104,36 @@ void mbi_parse_mmap(u64 mbi_phys)
             }
             break;
         }
-        case MULTIBOOT2_TAG_FRAMEBUFFER: {
-            pr_info("mbi: framebuffer present\n");
+case MULTIBOOT2_TAG_FRAMEBUFFER: {
+            /* Multiboot2 FRAMEBUFFER tag data (after 8-byte tag header):
+             *   u32 framebuffer_type   (offset 0)
+             *   u64 framebuffer_addr   (offset 4)
+             *   u32 framebuffer_pitch  (offset 12)
+             *   u16 framebuffer_width  (offset 16)
+             *   u16 framebuffer_height (offset 18)
+             *   u16 framebuffer_bpp    (offset 20)
+             *   ...color masks follow...
+             */
+            u8 *d = (u8 *)tag + 8;
+            u16 w = *(u16 *)(d + 16);
+            u16 h = *(u16 *)(d + 18);
+            u16 bpp = *(u16 *)(d + 20);
+            u32 pitch = *(u32 *)(d + 12);
+            u64 addr;
+            u8 *pa = (u8 *)&addr;
+            pa[0] = d[4]; pa[1] = d[5]; pa[2] = d[6]; pa[3] = d[7];
+            pa[4] = d[8]; pa[5] = d[9]; pa[6] = d[10]; pa[7] = d[11];
+            pr_info("mbi: framebuffer %ux%u @ %p, %ubpp pitch %u\n",
+                    w, h, (void *)addr, bpp, pitch);
+            if (addr && w && h) {
+                fb_init_early(addr, w, h, pitch, bpp, 1,
+                              *(u16 *)(d + 22),
+                              *(u16 *)(d + 24),
+                              *(u16 *)(d + 26),
+                              *(u16 *)(d + 28),
+                              *(u16 *)(d + 30),
+                              *(u16 *)(d + 32));
+            }
             break;
         }
         default:

@@ -64,7 +64,10 @@ static int elf_map_segment(struct elf_image *img,
 
     if (p_filesz > p_memsz || p_memsz > (uintptr_t)USER_SPACE_END)
         return -1;
-    if (ph->p_offset + p_filesz > img->size)
+    /* Overflow-safe bounds check: p_offset/p_filesz are attacker-controlled
+     * (ELF from VFS). p_offset+p_filesz could wrap to a small value and
+     * bypass a naive `> size` test, leading to OOB memcpy. */
+    if (ph->p_offset > img->size || p_filesz > img->size - ph->p_offset)
         return -1;
     uintptr_t vstart = ALIGN_DOWN(p_vaddr, PAGE_SIZE);
     uintptr_t vend = ALIGN_UP(p_vaddr + p_memsz, PAGE_SIZE);

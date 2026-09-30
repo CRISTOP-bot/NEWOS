@@ -6,6 +6,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- Syscall ABI `SYS_OPEN` (7) and `SYS_CLOSE` (8) (`abi/syscall_abi.h`):
+  per-process fd allocation backed by the VFS, with user-pointer validation
+  and `O_CREATE` support; `SYS_READ` now serves any open fd through the VFS
+  while stdin keeps its blocking console semantics. Covered by the new
+  phase-2 `open-close` test (open/read/close + `O_CREATE` write/read-back
+  round trip + error cases, all through the real dispatcher).
+- GCC 16 (C23) build fix: `bool`/`true`/`false` in `core_types.h` now defer
+  to the compiler builtins instead of redefining the keywords.
 - Multi-run RAM registration (`pmm_allocator_init_ranges()`): boot parsers
   now hand every RAM E820 region (clamped to the direct-map window) to the
   PMM instead of one collapsed interval, so no MMIO hole is ever handed out
@@ -21,11 +29,50 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   via `scripts/iso/fixup_iso.py`, so two clean ISO builds are byte-identical.
 - Usage documentation: `docs/virtualbox-and-hardware.md` (VirtualBox legacy
   BIOS + real hardware + validation matrix).
+- Native `.new` package system (`docs/packages.md`, `docs/new-format.md`,
+  `docs/newpkg.md`): deterministic `NEW1` container (header + `key: value`
+  metadata + sorted manifest + raw payload, CRC32 throughout), userspace
+  `/bin/newpkg` (`info/verify/install/remove/list/files`, dependency
+  checks with cycle detection, conflict scan, install rollback), host
+  builder (`tools/newpkg/newpkg-build.py`, `packages/*.newspec`), first
+  real package `hello-new-1.0.0-x86_64.new` (staged at
+  `/tmp/hello-new-1.0.0-x86_64.new`, installs runnable `/bin/hello-new`),
+  and `make check-newpkg` (C unit driver + end-to-end suite driving the
+  shipped installer code).
+- Brand identity (`brand/`) now feeds every asset the build consumes:
+  `/etc/splash.bmp` installs from `brand/newos-splash.bmp` instead of a
+  generated gradient placeholder (`scripts/gen-images.py` is reduced to the
+  PPM decoder test image), the website serves the brand mark as favicon,
+  header and footer logo (mono variant, so it follows the site theme), and
+  `README.md` opens with `brand/newos.svg`. The per-tool icons under
+  `brand/app-icons/` and `brand/newos-1024.png` still have no consumer.
 
 ### Fixed
 - Memory-map parsers previously collapsed all RAM between the lowest and
   highest map entries, feeding MMIO holes to the physical allocator. The
   PMM now receives strictly the RAM runs and rejects nothing else.
+- `vfs_unlink()` in `split_parent()` dropped the first basename character
+  of nested paths (`/bin/x` was looked up as `ello`), so unlinking anything
+  below the root always failed (this broke `rm` on nested paths and would
+  have blocked package removal). Covered by new `vfs-tmpfs` unlink
+  round-trip assertions (nested + single-char names).
+- `make qemu-test` was a false green: `all` builds only the Limine ISO, so the
+  PVH kernel the suite boots was never a prerequisite and never existed. A
+  missing kernel made QEMU exit 1, which the `exit 1 = PASS` convention
+  reported as success. The target now depends on the kernel it boots and
+  fails unless QEMU exits with the pass status.
+- The PVH kernel did not link: `fb.c` wrote the framebuffer PML4 slot through
+  `x64_pml4`, whose `.early_bss` address is out of reach of a high-half
+  RIP-relative displacement (`-mcmodel=kernel` truncated `R_X86_64_PC32`).
+  It now reaches the table through the direct map, as `x86_paging.c` does.
+- `test_mode=1` only terminated the run on failure; a green run fell through
+  into the interactive shell, so the suite's verdict depended on serial EOF.
+  Success now prints a summary and exits through `isa-debug-exit` too.
+- The `open-close` self-test failed since the ABI switched to Linux `O_*`
+  flags: it still passed internal `VFS_O_*` values, so `O_CREATE` was never
+  decoded and the create round trip was skipped. The test now speaks the
+  syscall ABI, and `SYS_OPEN` rejects the reserved `O_ACCMODE` value 3
+  instead of silently treating it as read-write.
 
 ### Verified
 - `BOOT=PASS` - ISO boots to `NEWOS: boot complete.` under SeaBIOS (legacy

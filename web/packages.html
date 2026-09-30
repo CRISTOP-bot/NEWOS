@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Paquetes .new — NEWOS</title>
+<meta name="theme-color" content="#ffffff">
+<meta name="description" content="Sistema de paquetes .new de NEWOS: formato NEW1, CLI newpkg, cómo crear y publicar paquetes.">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<script>(function(){var t;try{t=localStorage.getItem("newos-theme")}catch(e){}if(!t)t=matchMedia("(prefers-color-scheme:dark)").matches?"dark":"light";document.documentElement.setAttribute("data-theme",t)})()</script>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<nav><div class="nav-in">
+  <a class="brand" href="index.html" style="text-decoration:none"><svg class="mark" viewBox="0 0 1000 1000" aria-hidden="true"><defs><mask id="p"><rect x="150" y="150" width="700" height="700" rx="150" fill="#fff"/><path d="M330 370l170 130-170 130" fill="none" stroke="#000" stroke-width="95" stroke-linejoin="round" stroke-linecap="round"/></mask></defs><rect x="150" y="150" width="700" height="700" rx="150" fill="currentColor" mask="url(#p)"/><rect x="540" y="595" width="150" height="95" rx="8" fill="currentColor"/></svg><span class="logo">NEWOS</span> <small>v0.2.0-pre-alpha</small></a>
+  <button class="hamb" aria-label="Abrir menú">☰</button>
+  <div class="links"><a href="index.html">Inicio</a><a href="docs.html">Documentación</a><a href="api.html">Syscalls y comandos</a><a href="packages.html" class="active">Paquetes .new</a><a href="downloads.html">Descargas</a><a href="changelog.html">Changelog</a><a href="https://github.com/CRISTOP-bot/NEWOS" target="_blank" rel="noopener">GitHub ↗</a><button class="theme-btn" id="themeBtn" aria-label="Cambiar tema"></button></div>
+</div></nav>
+<div class="wrap"><section>
+<div class="kicker">Gestor nativo</div>
+<h1>Paquetes <span class="mono">.new</span></h1>
+<p class="sub">Contenedor determinista <b>NEW1</b> (header 48 B + metadata + manifest + payload, CRC32 IEEE en todo), CLI <span class="mono">/bin/newpkg</span>, builder host y base de datos en <span class="mono">/var/lib/newpkg</span>. Primer paquete real: <span class="mono">hello-new-1.0.0-x86_64.new</span>.</p>
+
+<h3 class="sec">CLI newpkg</h3>
+<pre class="block">newpkg info &lt;pkg.new&gt;     # metadata + lista de ficheros + CRCs
+newpkg verify &lt;pkg.new&gt;   # integridad total incl. payload
+newpkg install [--force] &lt;pkg.new&gt;  # validado con rollback
+newpkg remove &lt;name&gt;      # borra ficheros + DB
+newpkg list               # name + version (readdir /var/lib/newpkg/*.info)
+newpkg files &lt;name&gt;       # dump .files</pre>
+<div class="grid g2">
+<div class="card"><h3>Pipeline de install</h3><p>magia → CRCs → lens → keys → arch (<span class="mono">uname -m</span>) → release (≥ <span class="mono">newos-min</span>) → deps (DFS depth 16, detecta ciclos <span class="mono">A→B→A</span>) → conflictos (absent / mismo pkg / <span class="mono">--force</span>) → extracción streameada 512 B sin seek (unlink-antes-de-reescribir) → registro <span class="mono">&lt;name&gt;.info</span> + <span class="mono">.files</span> con <span class="mono">installed-at</span> CMOS. Fallo = rollback (unlink creados + DB parcial).</p></div>
+<div class="card"><h3>Límites honestos v1</h3><p>Sin <span class="mono">update/search/install &lt;name&gt;</span> por repo (requiere red + persistencia + firmas; CRC32 detecta corrupción, no malicia). Sin compresión (bit0 reservado) ni firmas (spec v2). Replace = unlink+create (ventana de crash hasta reinstall). Permisos viajan en manifest pero sin enforcement UID/mode.</p></div>
+</div>
+
+<h3 class="sec">Ciclo de vida de un paquete</h3>
+<div class="steps">
+<div class="stp"><b>Describe.</b> Escribe tu <span class="mono">packages/mi-app.newspec</span> (nombre, versión, arch, ficheros + modos).</div>
+<div class="stp"><b>Construye.</b> <span class="mono">python3 tools/newpkg/newpkg-build.py</span> genera el <span class="mono">.new</span> determinista (bytes idénticos en cada build).</div>
+<div class="stp"><b>Verifica.</b> <span class="mono">make check-newpkg</span> corre 80+ asserts unitarios y 19 tests end-to-end sin QEMU.</div>
+<div class="stp"><b>Instala.</b> Copia el <span class="mono">.new</span> al NEWOS vivo y <span class="mono">newpkg verify</span> + <span class="mono">newpkg install</span> (con rollback si algo falla).</div>
+<div class="stp"><b>Gestiona.</b> <span class="mono">newpkg list / files / remove</span> contra la DB de <span class="mono">/var/lib/newpkg</span>.</div>
+</div>
+
+<h3 class="sec">Formato NEW1</h3>
+<div class="tbl-wrap"><table><thead><tr><th>Parte</th><th>Contenido</th></tr></thead><tbody>
+<tr><td class="mono">[header 48 B]</td><td>LE: magia <span class="mono">NEW1</span>, spec 1, flags 0, meta_len 1–4096, manifest_len 1–16384, payload_len 0–8 MiB, CRCs header/meta/manifest/payload, file_count 1–256, reserved 0.</td></tr>
+<tr><td class="mono">[metadata]</td><td><span class="mono">key:value\n</span> LF ordenado. Requeridos: name version arch desc license maintainer build newos-min (+ opcional depends <span class="mono">"b (&gt;=1.0), c"</span>, ops = == &gt;= &lt;= &gt; &lt;).</td></tr>
+<tr><td class="mono">[manifest]</td><td>Ordenado: <span class="mono">octmode size-dec crc-hex8 abspath</span>, 2 MiB/fichero.</td></tr>
+<tr><td class="mono">[payload]</td><td>Raw concatenado en orden del manifest, sin compresión.</td></tr>
+</tbody></table></div>
+<p class="sub">Nombre: <span class="mono">&lt;name&gt;-&lt;version&gt;-&lt;arch&gt;.new</span>. Paths absolutos 2–255 chars <span class="mono">[A-Za-z0-9._+~@%=-/]</span>, sin <span class="mono">//</span>, sin <span class="mono">.</span>/<span class="mono">..</span>, bajo <span class="mono">/bin /sbin /lib /etc /usr /opt /var /home /root /tmp</span>; rechaza <span class="mono">/dev /proc /sys /init /</span>.</p>
+
+<h3 class="sec">Crear un paquete (.newspec)</h3>
+<pre class="block"># packages/hello-new.newspec
+name="hello-new" version="1.0.0" arch="x86_64"
+desc="Hello world smoke-test" license="MIT" maintainer="NEWOS"
+build="make build/packages/..." newos-min="0.2.0" depends=""
+files: build/userland/hello.elf /bin/hello-new 0755
+
+# construir + probar (sin QEMU):
+python3 tools/newpkg/newpkg-build.py   # bytes deterministas, LF, sin timestamps
+make check-newpkg                       # unit 80+ asserts + e2e 19 tests</pre>
+<p class="sub">Mapa v1: core portable <span class="mono">newpkg_format.h/.c</span> (sin syscalls/libc/FPU) · CLI <span class="mono">newpkg_main.c → /bin/newpkg</span> · builder <span class="mono">newpkg-build.py</span> · driver <span class="mono">host-test.c</span> · jail <span class="mono">posix-shim.c ($NEWPKG_HOST_ROOT)</span> · suite <span class="mono">tests/test_newpkg.py</span>. Docs: <span class="mono">docs/packages.md new-format.md newpkg.md</span>.</p>
+<p><a href="downloads.html">→ Descargar hello-new .new</a></p>
+</section></div>
+<footer><div class="wrap foot"><div><b style="color:var(--txt)">NEWOS</b> · paquetes deterministas NEW1</div><div><a href="api.html">Syscalls</a> · <a href="downloads.html">Descargas</a> · <a href="changelog.html">Changelog</a></div></div></footer>
+<button class="backtop" id="backtop" aria-label="Volver arriba">↑</button>
+<script src="app.js"></script>
+</body>
+</html>

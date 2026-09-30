@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" role="img" aria-label="NEWOS">
+<title>NEWOS</title>
+<defs><mask id="p"><rect x="150" y="150" width="700" height="700" rx="150" fill="#fff"/><path d="M330 370l170 130-170 130" fill="none" stroke="#000" stroke-width="95" stroke-linejoin="round" stroke-linecap="round"/></mask></defs>
+<rect width="1000" height="1000" rx="200" fill="#1C203F"/>
+<rect x="150" y="150" width="700" height="700" rx="150" fill="#D7D9E5" mask="url(#p)"/>
+<rect x="540" y="595" width="150" height="95" rx="8" fill="#AFB3CB"/>
+</svg>

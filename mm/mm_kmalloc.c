@@ -26,11 +26,24 @@
 #define HEAP_ALIGN       16
 #define HEAP_MIN_BLOCK   32
 
+/* Block size must stay a multiple of HEAP_ALIGN: a data pointer is
+ * `block + HDR_SIZE`, and block starts are 16-aligned, so anything else
+ * silently hands out under-aligned memory for every caller. FXSAVE images
+ * in struct thread are the consumer that faults (#GP) on it. */
+#define HEAP_HDR_SIZE    32
+#define HDR_SIZE         HEAP_HDR_SIZE
+
 struct heap_header {
     u64 magic;
     size_t total_size;
-    int free;
-} __attribute__((packed));
+    u64 free;                 /* 64-bit: keeps the header at 32 bytes */
+    u64 reserved;
+};
+
+_Static_assert(sizeof(struct heap_header) == HEAP_HDR_SIZE,
+               "heap_header must be exactly HEAP_HDR_SIZE bytes");
+_Static_assert(HEAP_HDR_SIZE % HEAP_ALIGN == 0,
+               "heap_header size must be a multiple of HEAP_ALIGN");
 
 struct free_node {
     struct free_node *next;
@@ -47,27 +60,34 @@ struct heap_arena {
 
 static struct heap_arena *g_heap = NULL;
 
-#define HDR_SIZE   (sizeof(struct heap_header))
 #define DATA_TO_HDR(p) ((struct heap_header *)((u8 *)(p) - HDR_SIZE))
 #define HDR_TO_DATA(h) ((void *)((u8 *)(h) + HDR_SIZE))
+
+/* Offset of the first block: the arena header is padded up so that every
+ * block start, and therefore every data pointer, keeps HEAP_ALIGN. */
+#define ARENA_BLOCKS_OFF   ALIGN_UP(sizeof(struct heap_arena), HEAP_ALIGN)
+
+static struct heap_header *heap_first_header(void)
+{
+    return (struct heap_header *)((u8 *)g_heap + ARENA_BLOCKS_OFF);
+}
 
 void kheap_init(void *arena, size_t size)
 {
     size = ALIGN_DOWN(size, HEAP_ALIGN);
-    if (size <= sizeof(struct heap_arena))
+    if (size <= ARENA_BLOCKS_OFF + HDR_SIZE + HEAP_MIN_BLOCK)
         panic("kheap: arena too small");
 
     g_heap = (struct heap_arena *)arena;
     g_heap->magic = HEAP_MAGIC;
     g_heap->first_free = NULL;
     g_heap->total = size;
-    g_heap->used = sizeof(struct heap_arena);
+    g_heap->used = ARENA_BLOCKS_OFF;
     spinlock_init(&g_heap->lock, "kheap");
 
-    struct heap_header *hdr =
-        (struct heap_header *)((u8 *)arena + sizeof(struct heap_arena));
+    struct heap_header *hdr = heap_first_header();
     hdr->magic = HEAP_HDR_MAGIC;
-    hdr->total_size = size - sizeof(struct heap_arena);
+    hdr->total_size = size - ARENA_BLOCKS_OFF;
     hdr->free = 1;
 
     struct free_node *node = (struct free_node *)HDR_TO_DATA(hdr);
@@ -106,6 +126,11 @@ void *kmalloc(size_t size)
 
     if (size == 0)
         size = 1;
+
+    /* Overflow-safe: size+HDR_SIZE could wrap to a small value and hand
+     * out an undersized block -> heap overflow by the caller. */
+    if (size > (size_t)-1 - HDR_SIZE)
+        return NULL;
 
     spinlock_lock(&g_heap->lock);
 
@@ -194,24 +219,6 @@ void kfree(void *ptr)
     spinlock_unlock(&g_heap->lock);
 }
 
-void *kmalloc_aligned(size_t size, size_t align)
-{
-    if (!g_heap)
-        return NULL;
-
-    /* Over-allocate then align within the returned block. The padding
-     * region wastes memory but keeps the data pointer 8-aligned-window
-     * safe; callers needing strict alignment use kmalloc + manual align. */
-    size_t padded = size + align + HDR_SIZE + HEAP_ALIGN;
-    void *raw = kmalloc(padded);
-    if (!raw)
-        return NULL;
-
-    uintptr_t addr = (uintptr_t)raw;
-    uintptr_t aligned = ALIGN_UP(addr, align);
-    return (void *)aligned;
-}
-
 void *krealloc(void *ptr, size_t size)
 {
     if (!ptr)
@@ -245,8 +252,7 @@ void kheap_dump(void)
     printk("kheap: arena=%p size=%u used=%u\n",
            g_heap, (unsigned)g_heap->total, (unsigned)g_heap->used);
 
-    struct heap_header *hdr =
-        (struct heap_header *)((u8 *)g_heap + sizeof(struct heap_arena));
+    struct heap_header *hdr = heap_first_header();
     while ((u8 *)hdr + HDR_SIZE <= (u8 *)g_heap + g_heap->total &&
            hdr->magic == HEAP_HDR_MAGIC) {
         printk("kheap: block @%p size=%u %s\n", hdr,

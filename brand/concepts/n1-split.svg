@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" width="1000" height="1000" role="img" aria-label="n1-split">
+<title>n1-split</title>
+<defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0" stop-color="#4A4DC8"/><stop offset="1" stop-color="#29305D"/></linearGradient></defs><defs><clipPath id="c"><path d="M150 150H850V680L680 850H150Z"/></clipPath><mask id="cut"><rect width="1000" height="1000" fill="#FFFFFF"/><path d="M880 190L190 880" stroke="#0B0B0B" stroke-width="46"/></mask></defs><g clip-path="url(#c)" mask="url(#cut)"><path d="M150 150h700L150 850Z" fill="url(#g)"/><path d="M850 150v700H150Z" fill="#A1A5BB"/></g>
+</svg>

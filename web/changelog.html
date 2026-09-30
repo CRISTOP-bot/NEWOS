@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Changelog — NEWOS</title>
+<meta name="theme-color" content="#ffffff">
+<meta name="description" content="Historial de cambios de NEWOS: Unreleased, v0.2.0-pre-alpha y v0.1.0-pre-alpha.">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<script>(function(){var t;try{t=localStorage.getItem("newos-theme")}catch(e){}if(!t)t=matchMedia("(prefers-color-scheme:dark)").matches?"dark":"light";document.documentElement.setAttribute("data-theme",t)})()</script>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<nav><div class="nav-in">
+  <a class="brand" href="index.html" style="text-decoration:none"><svg class="mark" viewBox="0 0 1000 1000" aria-hidden="true"><defs><mask id="p"><rect x="150" y="150" width="700" height="700" rx="150" fill="#fff"/><path d="M330 370l170 130-170 130" fill="none" stroke="#000" stroke-width="95" stroke-linejoin="round" stroke-linecap="round"/></mask></defs><rect x="150" y="150" width="700" height="700" rx="150" fill="currentColor" mask="url(#p)"/><rect x="540" y="595" width="150" height="95" rx="8" fill="currentColor"/></svg><span class="logo">NEWOS</span> <small>v0.2.0-pre-alpha</small></a>
+  <button class="hamb" aria-label="Abrir menú">☰</button>
+  <div class="links"><a href="index.html">Inicio</a><a href="docs.html">Documentación</a><a href="api.html">Syscalls y comandos</a><a href="packages.html">Paquetes .new</a><a href="downloads.html">Descargas</a><a href="changelog.html" class="active">Changelog</a><a href="https://github.com/CRISTOP-bot/NEWOS" target="_blank" rel="noopener">GitHub ↗</a><button class="theme-btn" id="themeBtn" aria-label="Cambiar tema"></button></div>
+</div></nav>
+<div class="wrap"><section>
+<div class="kicker">Historial · formato Keep a Changelog</div>
+<h1>Changelog</h1>
+<p class="sub">Fuente: <span class="mono">CHANGELOG.md</span> del repo. Versión actual: <b>0.2.0-pre-alpha</b>.</p>
+
+<h3 class="sec">Unreleased <span class="tag">en desarrollo</span></h3>
+<div class="card"><h3>Añadido</h3><ul>
+<li>Syscalls <span class="mono">SYS_OPEN</span> (7) y <span class="mono">SYS_CLOSE</span> (8) + test fase-2 <span class="mono">open-close</span>.</li>
+<li>Fix GCC 16 / C23 (<span class="mono">bool</span> en <span class="mono">core_types.h</span>).</li>
+<li>PMM multi-run: registra cada región E820, nunca MMIO como RAM.</li>
+<li>Consola de texto VGA 80×25 (máquinas sin serie, p. ej. VirtualBox).</li>
+<li>Config GRUB robusta (serie + VGA) e ISO reproducible byte-idéntica.</li>
+<li>Sistema de paquetes <span class="mono">.new</span> completo (formato NEW1, <span class="mono">/bin/newpkg</span>, builder host, <span class="mono">hello-new-1.0.0</span>, <span class="mono">make check-newpkg</span>).</li>
+<li>Doc <span class="mono">docs/virtualbox-and-hardware.md</span>.</li>
+</ul></div>
+<div class="card" style="margin-top:12px"><h3>Corregido · Verificado</h3><ul>
+<li><span class="mono">vfs_unlink split_parent</span> comía el primer carácter del basename (rompía <span class="mono">rm</span> anidado y el remove de paquetes).</li>
+<li><span class="badge ok">BOOT=PASS</span> SeaBIOS + OVMF · <span class="badge ok">REPRO</span> ISO byte-idéntica.</li>
+</ul></div>
+
+<h3 class="sec">0.2.0-pre-alpha <span class="tag">2026-09-10 · actual</span></h3>
+<div class="card"><p>Rework al layout canónico por capas (<span class="mono">abi/ arch/*/ core/ drivers/ fs/ include/ ipc/ lib/kernel/ mm/ process/ syscall/ user/</span>), Makefile único con ledger explícito, jerarquía <span class="mono">build/</span>, lint de layering en cada build, set de docs (architecture/build/boot/abi/layering) y PHDRS sin RWE. Verificado: <span class="badge ok">BUILD=PASS</span> <span class="badge ok">BOOT=PASS</span> <span class="badge ok">SELF-TEST</span> <span class="badge ok">QEMU=PASS</span>.</p></div>
+
+<h3 class="sec">0.1.0-pre-alpha <span class="tag">2026-09-06</span></h3>
+<div class="card"><p>Hito fase-1: build limpio con <span class="mono">-Werror</span>, arranque PVH + multiboot2, self-tests de kernel con exit-code machine-checkable (<span class="mono">isa-debug-exit</span>), workflows de CI, MIT/VERSION/CHANGELOG y fixes de TSS/IDT/PIC/PVH/VFS.</p></div>
+<p style="margin-top:12px"><a href="downloads.html">→ Descargar esta versión</a> · <a href="https://github.com/CRISTOP-bot/NEWOS/blob/main/CHANGELOG.md">Ver CHANGELOG.md original →</a></p>
+</section></div>
+<footer><div class="wrap foot"><div><b style="color:var(--txt)">NEWOS</b> · Keep a Changelog · MIT</div><div><a href="index.html">Inicio</a> · <a href="downloads.html">Descargas</a></div></div></footer>
+<button class="backtop" id="backtop" aria-label="Volver arriba">↑</button>
+<script src="app.js"></script>
+</body>
+</html>

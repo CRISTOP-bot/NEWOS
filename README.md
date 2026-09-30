@@ -1,38 +1,49 @@
+<p align="center">
+  <img src="brand/newos.svg" alt="NEWOS logo" width="112" height="112">
+</p>
+
 # NEWOS
 
 A proprietary, Linux-independent operating system, designed and written from
-scratch: kernel, ABI, syscall ABI, libc, dynamic linker, init, shell, VFS,
-drivers, toolchain, and GUI — targeting x86, x86_64, ARM, ARM64, RISC-V, and
-RISC-V64.
+scratch: kernel, ABI, syscall ABI, libc, init, shell, VFS, drivers,
+toolchain, and a native package system — targeting x86_64 today (ARM64 and
+RISC-V 64 configs exist as planning placeholders).
 
 The system is built as a strictly layered, fully modular tree. Nothing is
 copied from Linux; everything follows the layered order:
 **Hardware → Arch → Kernel → Drivers → Syscalls → libc → Userspace.**
 
-## Status (Phase 1)
+## Status
 
 The x86_64 kernel reaches `BUILD=PASS`, `BOOT=PASS`, and `QEMU=PASS`:
 
-- Builds clean under `-Werror` with `gcc -mcmodel=kernel`.
-- Boots in QEMU through **two independent paths**:
+- Builds clean under `-Werror` (host `gcc` or the `x86_64-elf` cross
+  toolchain, `-mcmodel=kernel`, `-mgeneral-regs-only`).
+- Boots in QEMU through **three independent paths**:
   - **PVH** (`qemu -kernel`, via the Xen ELF note), the default dev path.
   - **Multiboot2** (GRUB, via `make iso`).
+  - **Limine** (BIOS+UEFI ISO, the only path with a framebuffer).
 - Early long-mode setup: identity + high-half paging, GDT/TSS, IDT, PIC
-  remap, serial console, PMM (bitmap), kheap (first-fit), VFS with tmpfs /
-  devfs, initramfs, first device-model core.
-- Kernel self-tests: bitmap, heap-rw, pmm-alloc, pipe, vfs-tmpfs — all pass.
+  remap, serial console, PMM (bitmap + buddy over all usable RAM ranges),
+  kheap, VFS with tmpfs / devfs, initramfs, device-model core, PCI +
+  PCnet / serial / PS/2 / PIT / CMOS drivers, framebuffer console.
+- Interactive `nsh` shell (`/init`) with a 30-tool `/bin` toolbox, native
+  `.new` package manager (`newpkg`), and a C library (`libc.a`).
+- Self-tests: 6 phase-1 kernel tests + 8 phase-2 userland/ABI tests —
+  all pass (`make qemu-test`, QEMU exit `1` = PASS).
 
 ## Build & run
 
-Requirements: `gcc`, `make`, `nasm`, `ld`, `qemu-system-x86_64`
-(plus `grub-mkrescue`/`xorriso` for the ISO).
+Requirements: `gcc`, `make`, `nasm`, `ld`, `qemu-system-x86_64`, `python3`
+(plus `grub-mkrescue`/`xorriso` for the ISOs).
 
 ```sh
-make all        # build build/images/newos-x86_64.elf  (BUILD=PASS)
-make qemu       # boot in QEMU (serial console)  (BOOT=PASS)
-make qemu-test  # boot, run self-tests, exit with a machine-checkable code
-make iso        # GRUB multiboot2 ISO
-make qemu-debug # boot with GDB server on :1234
+make all            # build build/images/newos-x86_64.elf  (BUILD=PASS)
+make qemu           # boot in QEMU (serial console)  (BOOT=PASS)
+make qemu-test      # boot, run self-tests, exit with a machine-checkable code
+make qemu-limine-test  # suite through the Limine ISO (graphics path)
+make check-newpkg   # package system tests (no QEMU needed)
+make help           # full target list (V=0 for a short log, V=1 verbose)
 make clean
 ```
 
@@ -50,12 +61,15 @@ The kernel runs its self-tests and writes the result to QEMU's
 
 ## Boot protocol
 
-- **Multiboot2** header and a **PVH ELF note** coexist in `_start`. GRUB and
-  QEMU each use the one they understand and ignore the other.
+- **Multiboot2** header, a **PVH ELF note**, and **Limine** requests coexist
+  in the image. GRUB, QEMU (`-kernel`) and Limine each use the entry they
+  understand and ignore the rest.
 - The 32-bit trampoline builds early four-level paging (identity low 1 GiB +
-  high-half kernel window), then long mode, and enters `arch_main`.
-- PVH start-info and multiboot2 info structures are parsed to seed the PMM
-  with the real RAM map; single low chunk skipped, fragmented regions spanned.
+  high-half kernel window), then long mode, and enters `arch_main`
+  (Limine enters 64-bit directly via `limine_arch_main`).
+- PVH start-info, multiboot2 info structures, and the Limine memory map are
+  parsed into normalized RAM ranges that seed the PMM; MMIO holes are never
+  handed out as free memory.
 
 ## Repository layout
 
@@ -69,19 +83,26 @@ See `docs/architecture.md` for design details.
 | PMM / kheap / VMM | `mm/` |
 | VFS / tmpfs / devfs / initramfs | `fs/` |
 | Processes, threads, ELF | `process/` |
-| Syscall dispatcher | `syscall/` |
+| Syscall dispatcher (syscalls 0-21) | `syscall/` |
 | Drivers | `drivers/`, `lib/kernel/` (`iru_*`), `ipc/` |
-| User ABI + userland | `abi/`, `user/programs/hello/` |
+| User ABI + userland | `abi/`, `user/programs/*/` (shell + 30 `/bin` tools), `user/lib/nshlib` |
+| Native packages | `user/programs/newpkg/`, `packages/*.newspec`, `tools/newpkg/` |
+| C library | `libc/` (`libc.a`) |
 | Build system | `Makefile`, `configs/x86_64/debug.config` |
+
+## Roadmap
+
+See [ROADMAP.md](ROADMAP.md): v0.3 Persistence → v0.4 Memory & processes →
+v0.5 Network → v0.6 Packages v2 → v0.7 Hardware/SMP → v0.8 Ports → v1.0.
 
 ## Continuous integration
 
 - `.github/workflows/build.yml` — build all targets, validate the multiboot2
-  header.
+  header, run the package system tests (`make check-newpkg`).
 - `.github/workflows/qemu-test.yml` — `BUILD=PASS`, `QEMU=PASS`,
   multiboot2-ISO `BOOT=PASS`.
-- `.github/workflows/static-analysis.yml` — warnings-as-errors build and
-  whitespace checks.
+- `.github/workflows/static-analysis.yml` — warnings-as-errors build,
+  layering contract, and whitespace checks.
 
 ## License
 

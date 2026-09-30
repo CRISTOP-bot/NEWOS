@@ -22,6 +22,9 @@ jobs:
       - name: Build kernel
         run: |
           make ARCH=${{ matrix.arch }} all
+      - name: Package system tests (no QEMU needed)
+        run: |
+          make ARCH=${{ matrix.arch }} check-newpkg
       - name: Validate multiboot2 header
         run: |
           grub-file --is-x86-multiboot2 build/images/newos-${{ matrix.arch }}.elf \

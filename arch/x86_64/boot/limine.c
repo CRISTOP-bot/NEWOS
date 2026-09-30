@@ -8,6 +8,7 @@
 #include <x86_idt.h>
 #include <x86_mmu.h>
 #include <x86_vendor.h>
+#include <drivers/fb.h>
 #include <iru_string.h>
 
 /* Limine boot protocol entry point.
@@ -87,6 +88,12 @@ static volatile struct limine_executable_cmdline_request
     .revision = 0, .response = NULL
 };
 
+__attribute__((used, section(".limine_requests"), aligned(8)))
+static volatile struct limine_framebuffer_request framebuffer_request = {
+    .id = LIMINE_FRAMEBUFFER_REQUEST,
+    .revision = 0, .response = NULL
+};
+
 __attribute__((used, section(".limine_requests_end_marker")))
 static volatile LIMINE_REQUESTS_END_MARKER;
 
@@ -110,10 +117,11 @@ static void limine_build_paging(void)
         x64_pdpt_high[t] = 0;
         x64_pd[t] = 0;
         x64_pd_kernel[t] = 0;
-        x64_pt_kernel[t] = 0;
-        x64_pt_kernel1[t] = 0;
-        x64_pt_kernel2[t] = 0;
+        for (int p = 0; p < X64_KMAP_PTS; p++)
+            x64_pt_kernel[p][t] = 0;
         x64_pdpt_direct[t] = 0;
+        for (int p = 0; p < 4; p++)
+            x64_pd_direct[p][t] = 0;
     }
 
     /* PML4 wiring: identity (0), direct physical map (508), high half. */
@@ -127,27 +135,36 @@ static void limine_build_paging(void)
     x64_pdpt_low[0] = limine_phys_of((uintptr_t)x64_pd) | rw;
     x64_pdpt_high[510] = limine_phys_of((uintptr_t)x64_pd_kernel) | rw;
 
-    /* Kernel PD -> three 4 KiB page tables (6 MiB window). */
-    x64_pd_kernel[0] = limine_phys_of((uintptr_t)x64_pt_kernel) | rw;
-    x64_pd_kernel[1] = limine_phys_of((uintptr_t)x64_pt_kernel1) | rw;
-    x64_pd_kernel[2] = limine_phys_of((uintptr_t)x64_pt_kernel2) | rw;
+    /* Kernel PD -> X64_KMAP_PTS 4 KiB page tables (window sized by
+     * X64_KMAP_PTS * 2 MiB, matching KERNEL_MAP_PAGES in x86_entry.S). */
+    for (int p = 0; p < X64_KMAP_PTS; p++)
+        x64_pd_kernel[p] = limine_phys_of((uintptr_t)x64_pt_kernel[p]) | rw;
 
     /* Identity: 512 x 2 MiB pages mapping physical 0 .. 1 GiB. */
     for (u64 i = 0; i < X64_PTES; i++)
         x64_pd[i] = ((u64)i << X64_PD_SHIFT) | rw | X64_PAGE_HUGE;
 
-    /* Direct map: 4 x 1 GiB pages mapping physical 0 .. 4 GiB. */
-    for (int i = 0; i < 4; i++)
-        x64_pdpt_direct[i] =
-            ((u64)i << X64_PDPT_SHIFT) | rw | X64_PAGE_HUGE;
-
-    /* Kernel image: map KERNEL_BASE_VA .. +6 MiB onto the loader-provided
-     * physical base (which is not PHYS_LOAD_BASE under Limine). */
-    u64 *pts[3] = { x64_pt_kernel, x64_pt_kernel1, x64_pt_kernel2 };
-    for (int p = 0; p < 3; p++) {
+    /* Direct map: 4 PDs of 512 x 2 MiB pages mapping physical 0 .. 4 GiB.
+     * 2 MiB, never 1 GiB: VirtualBox hides PDPE1GB from CPUID, turning
+     * 1 GiB pages into reserved-bit #PFs on first touch. */
+    for (int p = 0; p < 4; p++) {
+        x64_pdpt_direct[p] =
+            limine_phys_of((uintptr_t)&x64_pd_direct[p]) | rw;
         for (u64 i = 0; i < X64_PTES; i++) {
-            pts[p][i] = (g_kernel_phys_base + ((u64)p * X64_PTES + i) *
-                         PAGE_SIZE) | X64_PAGE_PRESENT | X64_PAGE_WRITE;
+            x64_pd_direct[p][i] =
+                (((u64)p << X64_PDPT_SHIFT) + (i << X64_PD_SHIFT)) | rw |
+                X64_PAGE_HUGE;
+        }
+    }
+
+    /* Kernel image: map KERNEL_BASE_VA .. +X64_KMAP_PTS*2 MiB onto the
+     * loader-provided physical base (which is not PHYS_LOAD_BASE under
+     * Limine). 4 KiB pages, not huge: the base is only 4 KiB-aligned. */
+    for (int p = 0; p < X64_KMAP_PTS; p++) {
+        for (u64 i = 0; i < X64_PTES; i++) {
+            x64_pt_kernel[p][i] =
+                (g_kernel_phys_base + ((u64)p * X64_PTES + i) * PAGE_SIZE) |
+                X64_PAGE_PRESENT | X64_PAGE_WRITE;
         }
     }
 }
@@ -159,9 +176,15 @@ static void limine_warmup_direct_map(u64 hhdm_offset)
 {
     const u64 rw = X64_PAGE_PRESENT | X64_PAGE_WRITE;
 
-    for (int i = 0; i < 4; i++)
-        x64_pdpt_direct[i] =
-            ((u64)i << X64_PDPT_SHIFT) | rw | X64_PAGE_HUGE;
+    for (int p = 0; p < 4; p++) {
+        x64_pdpt_direct[p] =
+            limine_phys_of((uintptr_t)&x64_pd_direct[p]) | rw;
+        for (u64 i = 0; i < X64_PTES; i++) {
+            x64_pd_direct[p][i] =
+                (((u64)p << X64_PDPT_SHIFT) + (i << X64_PD_SHIFT)) | rw |
+                X64_PAGE_HUGE;
+        }
+    }
 
     u64 *active_pml4 = (u64 *)(uintptr_t)(read_cr3() + hhdm_offset);
     active_pml4[X64_PDIRECT_INDEX] =
@@ -234,6 +257,13 @@ void limine_arch_main(void)
         }
     }
 
+    /* Snapshot the first framebuffer: plain integers survive the
+     * paging switch below, Limine pointers do not. */
+    static u64 fb_phys, fb_w, fb_h, fb_pitch;
+    static u32 fb_bpp;
+    static u8 fb_model, fb_rs, fb_rn, fb_gs, fb_gn, fb_bs, fb_bn;
+    static int fb_found;
+
     printk_init();
     printk("NEWOS x86_64 boot: Limine boot protocol\n");
 
@@ -252,6 +282,35 @@ void limine_arch_main(void)
     pr_info("limine: %d memory map entries, %d usable run(s)\n",
             (int)mm->entry_count, nruns);
 
+    /* Snapshot the first framebuffer while Limine's tables still map the
+     * response: every pointer below dies with the CR3 switch. */
+    {
+        struct limine_framebuffer_response *fr =
+            framebuffer_request.response;
+        if (fr && fr->framebuffer_count && fr->framebuffers &&
+            fr->framebuffers[0]) {
+            struct limine_framebuffer *fb = fr->framebuffers[0];
+            /* The address is a HHDM virtual address, not physical. */
+            fb_phys = (u64)(uintptr_t)fb->address - hhdm->offset;
+            fb_w = fb->width;
+            fb_h = fb->height;
+            fb_pitch = fb->pitch;
+            fb_bpp = fb->bpp;
+            fb_model = fb->memory_model;
+            fb_rs = fb->red_mask_shift;
+            fb_rn = fb->red_mask_size;
+            fb_gs = fb->green_mask_shift;
+            fb_gn = fb->green_mask_size;
+            fb_bs = fb->blue_mask_shift;
+            fb_bn = fb->blue_mask_size;
+            fb_found = 1;
+            pr_info("limine: framebuffer %llux%llu pitch %llu bpp %u\n",
+                    fb_w, fb_h, fb_pitch, (unsigned)fb_bpp);
+        } else {
+            pr_info("limine: no framebuffer response\n");
+        }
+    }
+
     /* Install our own page tables and switch CR3. From here on the layout is
      * identical to the native boot path (identity + direct + high kernel). */
     limine_build_paging();
@@ -266,6 +325,11 @@ void limine_arch_main(void)
 
     cpu_vendor_init();
     x64_paging_init();
+
+    /* Paging is final: map the panel (if any) and light up fbcon. */
+    if (fb_found)
+        fb_init_early(fb_phys, fb_w, fb_h, fb_pitch, fb_bpp, fb_model,
+                      fb_rs, fb_rn, fb_gs, fb_gn, fb_bs, fb_bn);
 
     if (!nruns) {
         pr_warn("limine: no usable RAM regions in memory map\n");

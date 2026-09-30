@@ -1,0 +1,6 @@
+# La imagen es solo el toolchain; el arbol de trabajo entra montado en /src.
+# Nada del contexto acaba en la capa de build, por eso el .dockerignore
+# excluye todo.
+*
+!.dockerignore
+!Dockerfile

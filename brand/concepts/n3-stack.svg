@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" width="1000" height="1000" role="img" aria-label="n3-stack">
+<title>n3-stack</title>
+<defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0" stop-color="#4A4DC8"/><stop offset="1" stop-color="#29305D"/></linearGradient></defs><path d="M150 200h700v130H150Z" fill="url(#g)"/><path d="M150 400h470v130H150Z" fill="#666C92"/><path d="M150 600h130v130H150Z" fill="#DC8621"/>
+</svg>

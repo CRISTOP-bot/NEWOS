@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" width="1000" height="1000" role="img" aria-label="n4-aperture">
+<title>n4-aperture</title>
+<defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0" stop-color="#4A4DC8"/><stop offset="1" stop-color="#29305D"/></linearGradient></defs><path d="M500 190a310 310 0 1 0 310 310h-130a180 180 0 1 1-180-180Z" fill="url(#g)" transform="rotate(90 500 500)"/><path d="M690 690h190v190H690Z" fill="#DC8621"/>
+</svg>

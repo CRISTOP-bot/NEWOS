@@ -7,6 +7,7 @@
 #include <fs/vfs.h>
 #include <drivers/drv_core.h>
 #include <x86_cpu.h>
+#include <x86_fpu.h>
 #include <x86_gdt.h>
 #include <x86_idt.h>
 #include <x86_mmu.h>
@@ -15,6 +16,8 @@
 #include <fs/initramfs.h>
 #include <drivers/pit_timer.h>
 #include <drivers/serial_16550.h>
+#include <drivers/ps2.h>
+#include <drivers/cmos_rtc.h>
 #include <drivers/pci.h>
 #include <x86_vendor.h>
 #include "x86_multiboot2.h"
@@ -54,6 +57,13 @@ void kernel_boot_tail(void)
     pit_init(PIT_DEFAULT_HZ);
     serial_rx_irq_enable(SERIAL_COM1);
 
+    /* Local input: PS/2 keyboard (IRQ1) feeds the console queue so the
+     * graphical window accepts typing; the PS/2 mouse (IRQ12) drives the
+     * VGA text cursor. */
+    ps2_keyboard_init();
+    ps2_mouse_init();
+    cmos_rtc_init();
+
     /* Enter the kernel framework. */
     kernel_start();
 }
@@ -87,6 +97,10 @@ void arch_main(u32 magic, u32 info_phys)
 
     cpu_vendor_init();
     x64_paging_init();
+
+    /* x87/SSE: on before any user program runs, so the interrupt epilogue can
+     * FXSAVE/FXRSTOR unconditionally on a scheduler handoff. */
+    x64_fpu_enable();
 
     /* Physical memory from the boot memory map. */
     if (info_phys) {

@@ -84,6 +84,16 @@ int serial_rx_pop(u16 port)
     return c;
 }
 
+/* Non-destructive view of the oldest queued byte. Only the ring is
+ * inspected: reading RBR directly would consume it. */
+int serial_rx_peek(u16 port)
+{
+    (void)port;
+    if (g_rx_tail == g_rx_head)
+        return -1;
+    return g_rx_ring[g_rx_tail];
+}
+
 void serial_putc(u16 port, char c)
 {
     if (!serial_initialized)

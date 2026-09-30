@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script>(function(){var t;try{t=localStorage.getItem("newos-theme")}catch(e){}if(!t)t=matchMedia("(prefers-color-scheme:dark)").matches?"dark":"light";document.documentElement.setAttribute("data-theme",t)})()</script>
+<title>NEWOS — Sistema operativo desde cero · v0.2.0-pre-alpha</title>
+<meta name="description" content="NEWOS: kernel x86_64 monolítico escrito desde cero. Triple arranque, shell nsh, 30 herramientas, paquetes .new, libc propia. Documentación, API y descargas.">
+<meta name="theme-color" content="#ffffff">
+<meta property="og:title" content="NEWOS — Sistema operativo desde cero">
+<meta property="og:description" content="Kernel x86_64 monolítico, triple arranque, shell nsh, paquetes .new. MIT.">
+<meta property="og:type" content="website">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<nav><div class="nav-in">
+  <a class="brand" href="index.html" style="text-decoration:none"><svg class="mark" viewBox="0 0 1000 1000" aria-hidden="true"><defs><mask id="p"><rect x="150" y="150" width="700" height="700" rx="150" fill="#fff"/><path d="M330 370l170 130-170 130" fill="none" stroke="#000" stroke-width="95" stroke-linejoin="round" stroke-linecap="round"/></mask></defs><rect x="150" y="150" width="700" height="700" rx="150" fill="currentColor" mask="url(#p)"/><rect x="540" y="595" width="150" height="95" rx="8" fill="currentColor"/></svg><span class="logo">NEWOS</span> <small>v0.2.0-pre-alpha</small></a>
+  <button class="hamb" aria-label="Abrir menú">☰</button>
+  <div class="links">
+    <a href="index.html" class="active">Inicio</a>
+    <a href="docs.html">Documentación</a>
+    <a href="api.html">Syscalls y comandos</a>
+    <a href="packages.html">Paquetes .new</a>
+    <a href="downloads.html">Descargas</a>
+    <a href="changelog.html">Changelog</a>
+    <a href="https://github.com/CRISTOP-bot/NEWOS" target="_blank" rel="noopener">GitHub ↗</a>
+    <button class="theme-btn" id="themeBtn" aria-label="Cambiar tema"></button>
+  </div>
+</div></nav>
+
+<header class="hero"><div class="wrap">
+  <p class="kicker aos-fade">Rendimiento desde cero · x86_64 · MIT</p>
+  <h1 class="aos">Un sistema operativo<br><span class="g">escrito desde cero.</span><br>Sin Linux dentro.</h1>
+  <p class="lead aos d1">NEWOS es un kernel <b>monolítico x86_64</b> freestanding con ABI propia, VFS, PMM bitmap+buddy, drivers PCI/PCnet/serie/PS2/PIT/CMOS, framebuffer, shell interactiva <span class="mono">nsh</span>, 30 herramientas en <span class="mono">/bin</span>, gestor de paquetes nativo <span class="mono">.new</span> y <span class="mono">libc.a</span> propia.</p>
+  <div class="cta aos d2">
+    <a class="btn-edition" href="downloads.html">⬇ Descargar ISOs y kernel</a>
+    <a class="btn" href="#features">Conocer el sistema</a>
+    <a class="btn ghost" href="https://github.com/CRISTOP-bot/NEWOS" target="_blank" rel="noopener">★ GitHub</a>
+  </div>
+  <div class="badges aos d3">
+    <span class="badge ok">BUILD=PASS</span><span class="badge ok">BOOT=PASS</span><span class="badge ok">QEMU=PASS</span>
+    <span class="badge">14/14 tests</span><span class="badge">-Werror</span><span class="badge">MIT</span><span class="badge">x86_64</span>
+  </div>
+  <img class="hero-img aos-fade d2" src="assets/desktop.png" alt="Compositor desktop de NEWOS corriendo en QEMU con tres ventanas y cursor" width="1280" height="800">
+</div></header>
+
+<section class="band"><div class="wrap">
+  <h2>Capturas reales <span class="tag">QEMU · ISO Limine</span></h2>
+  <p class="sub">Sin mockups: estas imágenes salieron del framebuffer del propio NEWOS (1280×800 x32), capturadas por el puerto de monitor de QEMU mientras el sistema corría de verdad — boot, <span class="mono">newfetch</span> tecleado por PS/2 y el compositor <span class="mono">desktop</span>.</p>
+  <div class="shots">
+    <figure class="shot"><img src="assets/boot.png" alt="Arranque de NEWOS en framebuffer: log del kernel, tests PASS y prompt nsh" loading="lazy"><figcaption><b>Arranque.</b> Log en fbcon, PCI enumerado, 14/14 tests PASS, prompt <span class="mono">root@newos:/#</span>.<span class="real">REAL</span></figcaption></figure>
+    <figure class="shot"><img src="assets/newfetch.png" alt="newfetch ejecutado en NEWOS mostrando logo, memoria y paquetes" loading="lazy"><figcaption><b>newfetch.</b> Logo, 11/126 MiB, Display 1280×800 x32, 33 paquetes.<span class="real">REAL</span></figcaption></figure>
+    <figure class="shot"><img src="assets/desktop.png" alt="Compositor desktop de NEWOS con tres ventanas y cursor" loading="lazy"><figcaption><b>desktop.</b> Ventanas de memoria, ratón y versión + cursor con backing store.<span class="real">REAL</span></figcaption></figure>
+  </div>
+</div></section>
+
+<section><div class="wrap">
+  <h2>Pruébalo aquí mismo</h2>
+  <p class="sub">Así arranca NEWOS en QEMU (consola serie real) y debajo puedes usar el shell <span class="mono">nsh</span> simulado en tu navegador con salidas reales del OS. Escribe <span class="mono">help</span> y experimenta (<kbd>↑</kbd>/<kbd>↓</kbd> historial, <kbd>Ctrl</kbd>+<kbd>L</kbd> limpia). El sistema de verdad arranca con <span class="mono">make qemu-limine</span>.</p>
+  <div class="term" style="margin-bottom:14px"><div class="term-bar"><span class="dot" style="background:#f87171"></span><span class="dot" style="background:#fbbf24"></span><span class="dot" style="background:#a3e635"></span><span style="font-family:var(--mono);font-size:.72rem;color:var(--dim);margin-left:6px">qemu — newos serial console</span></div>
+<pre><span class="c-dim">NEWOS x86_64 boot: entry(magic=0x336ec578, info=...)</span>
+<span class="c-cyan">boot:</span> PVH protocol detected
+<span class="c-cyan">PMM:</span> tracking 32640 frames (127 MiB)
+<span class="c-cyan">VMM:</span> kernel address space ready <span class="c-dim">(CR3=..., direct map 0xfffffe0000000000)</span>
+<span class="c-green">=== 6 tests, 0 failures ===</span>
+<span class="c-green">=== 8 tests, 0 failures ===</span>
+<span class="c-dim">userland: entering init (pid 4) at ring 3</span>
+<span class="c-green">NEWOS 0.2.0-pre-alpha (x86_64) booted</span>
+<span class="c-green">NEWOS: boot complete.</span>
+<span class="c-yel">root@newos:/#</span> newfetch
+ <span class="c-green">█▄ █ █▀▀ █░ █░ █▀█ █▀▀</span>  <span class="c-cyan">root@newos</span>
+ <span class="c-green">█ ▀█ █▀▀ █▄▀█ █▄█ ▀▀█</span>  OS: NEWOS 0.2.0-pre-alpha
+ <span class="c-green">▀  ▀ ▀▀▀ ▀ ▀▀ ▀ ▀▀ ▀▀▀</span>  Kernel: NEWOS x86_64 · Shell: nsh</pre>
+  </div>
+  <div class="demo-term" id="demo-term"><div class="demo-out" id="demo-out"></div><div class="demo-in"><span class="ps" id="demo-ps">root@newos:/#</span><input id="demo-in-field" autocomplete="off" spellcheck="false" aria-label="Entrada del shell demo" placeholder="escribe help…"></div></div>
+</div></section>
+
+<section id="features"><div class="wrap">
+  <div class="sec-head">
+    <p class="eyebrow">Por qué NEWOS es diferente</p>
+    <h2>Nada copiado de Linux: cada capa, escrita a mano</h2>
+    <p class="sub">El árbol es estrictamente por capas y modular. Cada fichero vive en un dominio, lleva su prefijo y el linter de capas lo verifica en cada build.</p>
+  </div>
+  <div class="grid g4">
+    <div class="card aos"><div class="stat">3</div><div class="stat-l">vías de arranque</div><p>PVH (<span class="mono">qemu -kernel</span>), Multiboot2 (GRUB) y Limine (BIOS+UEFI, única con framebuffer).</p></div>
+    <div class="card aos d1"><div class="stat">22</div><div class="stat-l">syscalls 0–21</div><p>read/write/open/close/mkdir/readdir, spawn2/waitpid/ps/kill, uname/gettime/sysinfo, fbinfo/fbwrite.</p></div>
+    <div class="card aos d2"><div class="stat">33</div><div class="stat-l">programas userland</div><p>Shell <span class="mono">nsh</span> + toolbox de 30 (<span class="mono">ls cat ps desktop img vid …</span>) + <span class="mono">hello</span>.</p></div>
+    <div class="card aos d3"><div class="stat">14</div><div class="stat-l">self-tests que pasan</div><p>6 fase-1 kernel + 8 fase-2 userland/ABI. QEMU sale con código <span class="mono">1</span> = PASS.</p></div>
+  </div>
+</div></section>
+
+<section class="band"><div class="wrap">
+  <div class="sec-head">
+    <p class="eyebrow">Triple arranque</p>
+    <h2>Tres protocolos, un solo ELF</h2>
+    <p class="sub">El header Multiboot2, la nota ELF PVH y las peticiones Limine coexisten en la imagen. Cada bootloader usa su entrada e ignora el resto.</p>
+  </div>
+  <div class="grid g3">
+    <div class="card"><h3>🖥 PVH <span class="tag">dev default</span></h3><p><span class="mono">qemu -kernel build/images/newos-x86_64.elf</span>. Detecta la magia <span class="mono">0x336ec578</span>, arranca rapidísimo por consola serie. Ideal para desarrollar y para <span class="mono">make qemu-test</span>.</p></div>
+    <div class="card"><h3>💿 Multiboot2 + GRUB</h3><p><span class="mono">make iso</span> genera ISO reproducible byte-idéntica. Cabecera validada en CI con <span class="mono">grub-file --is-x86-multiboot2</span>. Trampolín 32-bit → long mode.</p></div>
+    <div class="card"><h3>🎨 Limine <span class="tag">framebuffer</span></h3><p>ISO híbrida BIOS+UEFI, única vía con framebuffer (ventana UC, fbcon, <span class="mono">img</span>, <span class="mono">vid</span>, <span class="mono">desktop</span>). v12.9.0 cacheada en <span class="mono">build/</span>.</p></div>
+  </div>
+</div></section>
+
+<section><div class="wrap">
+  <h2>Empieza en 60 segundos</h2>
+  <div class="grid g2">
+    <div><pre class="block">git clone https://github.com/CRISTOP-bot/NEWOS.git newos &amp;&amp; cd NEWOS
+make all            # → build/images/newos-x86_64.elf
+make qemu           # arranque interactivo (serie)
+make qemu-test      # suite 14 tests, exit 1 = PASS
+make check-newpkg   # tests de paquetes (sin QEMU)</pre></div>
+    <div><pre class="block">qemu-system-x86_64 -kernel build/images/newos-x86_64.elf \
+  -serial stdio -no-reboot -m 128M \
+  -device isa-debug-exit,iobase=0xf4 -append "test_mode=1"
+# exit 1 = todo PASS · exit ≥3 = fallo</pre></div>
+  </div>
+  <p class="sub" style="margin-top:12px">Requisitos: <span class="mono">gcc make nasm ld qemu-system-x86_64 python3</span> (+ <span class="mono">grub-mkrescue/xorriso</span> para ISOs, OVMF para UEFI). Toolchain cruzada opcional: <span class="mono">make toolchain</span> (binutils 2.44 + GCC 16.1.0).</p>
+</div></section>
+
+<section class="band"><div class="wrap">
+  <h2>Mapa del sistema</h2>
+  <div class="cake">
+    <div class="layer hot"><span class="lv">L10</span><b>user/</b> nsh + 30 herramientas<span class="ld">solo ABI</span></div>
+    <div class="layer"><span class="lv">L9</span><b>syscall/</b> dispatcher int $0x80 (0–21)<span class="ld">ABI…SYSC</span></div>
+    <div class="layer"><span class="lv">L7–8</span><b>process/ ipc/</b> ELF loader, scheduler, pipes<span class="ld">PROC · IPC</span></div>
+    <div class="layer"><span class="lv">L6</span><b>fs/</b> VFS + tmpfs / devfs / initramfs<span class="ld">LIB…FS</span></div>
+    <div class="layer"><span class="lv">L4–5</span><b>drivers/ mm/</b> serie·VGA·fb·PCI·PS2 · PMM+VMM+kheap<span class="ld">LIB…MM</span></div>
+    <div class="layer"><span class="lv">L2–3</span><b>arch/ core/</b> boot + init (orquestan todo)<span class="ld">permisivo</span></div>
+    <div class="layer"><span class="lv">L0–1</span><b>lib/kernel iru_* · abi/</b> base + ABI pública<span class="ld">autocontenido</span></div>
+  </div>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Capa</th><th>Directorios</th><th>Qué hace</th></tr></thead><tbody>
+    <tr><td class="mono">L0–L1 base</td><td class="mono">lib/kernel (iru_*), abi/</td><td>Utilidades kernel + ABI pública autocontenida (syscalls, multiboot2).</td></tr>
+    <tr><td class="mono">L2–L3 boot</td><td class="mono">arch/x86_64, core/</td><td>Trampolín, paging, GDT/TSS, IDT, PIC · printk/panic/init/selftests.</td></tr>
+    <tr><td class="mono">L4–L5 hw/mem</td><td class="mono">drivers/, mm/</td><td>Serie/VGA/fb, PCI, PCnet, PS2, PIT/CMOS · PMM bitmap+buddy, VMM, kheap.</td></tr>
+    <tr><td class="mono">L6–L8 fs/proc</td><td class="mono">fs/, process/, ipc/</td><td>VFS tmpfs/devfs/initramfs · ELF loader, scheduler, pipes.</td></tr>
+    <tr><td class="mono">L9–L10 api/user</td><td class="mono">syscall/, user/, libc/</td><td>Dispatcher int $0x80 (0–21) · nsh + 30 tools · libc.a freestanding.</td></tr>
+    </tbody></table></div>
+  <p style="margin-top:10px"><a href="docs.html">Ver documentación completa →</a> · <a href="api.html">Tabla de syscalls →</a> · <a href="packages.html">Sistema de paquetes →</a></p>
+</div></section>
+
+<section><div class="wrap">
+  <div class="sec-head">
+    <p class="eyebrow">Preguntas frecuentes</p>
+    <h2>Lo que todo el mundo pregunta</h2>
+  </div>
+  <details class="faq" open><summary>¿Es NEWOS una distro Linux?</summary><p>No. No hay ni una línea de Linux: kernel, ABI de syscalls, libc, shell, VFS, drivers y gestor de paquetes están escritos desde cero en este repo. Solo usa herramientas host (gcc, QEMU, GRUB) para compilar y arrancar.</p></details>
+  <details class="faq"><summary>¿En qué hardware corre?</summary><p>En cualquier x86_64 con ≥128 MiB: QEMU (PVH, ISO GRUB o ISO Limine), VirtualBox (ISO como CD, BIOS legacy) y hardware real por USB/CD. Validado en SeaBIOS y OVMF/UEFI. ARM64 y RISC-V solo existen como configs placeholder.</p></details>
+  <details class="faq"><summary>¿Por qué pone "proprietary" el README si la licencia es MIT?</summary><p>"Proprietary" ahí significa "propio / desde cero", no privativo. La licencia real es <b>MIT</b>: puedes usar, modificar y distribuir libremente. Ver <a href="https://github.com/CRISTOP-bot/NEWOS/blob/main/LICENSE">LICENSE</a>.</p></details>
+  <details class="faq"><summary>¿Tiene red, disco o USB?</summary><p>Todavía no: PCnet solo hace loopback (sin stack IP), el filesystem vive en RAM (sin driver de disco) y no hay USB/AHCI/NVMe. El formato de paquetes <span class="mono">.new</span> ya está diseñado para cuando lleguen red + persistencia + firmas.</p></details>
+  <details class="faq"><summary>¿Cómo contribuyo?</summary><p>Clona el <a href="https://github.com/CRISTOP-bot/NEWOS">repo</a>, lee <span class="mono">AGENT.md</span> y <span class="mono">docs/development/layering.md</span> (el contrato de capas se verifica en cada build con <span class="mono">make lint-layers</span>), y abre un PR. CI: build + qemu-test + static-analysis.</p></details>
+</div></section>
+
+<section class="band"><div class="wrap">
+  <h2>Estado y roadmap honesto</h2>
+  <p class="sub">Plan completo por hitos (v0.3 Persistencia → v1.0) en <a href="https://github.com/CRISTOP-bot/NEWOS/blob/main/ROADMAP.md">ROADMAP.md</a>.</p>
+  <div class="grid g2">
+    <div class="card"><h3>✅ Hoy funciona</h3><ul><li>Boot PVH + Multiboot2 + Limine (BIOS y UEFI)</li><li>Shell nsh con edición UTF-8, historial, quoting</li><li>Framebuffer: img (BMP/PPM), vid procedural, desktop con ventanas</li><li>Paquetes .new con install/rollback real</li><li>ISO reproducible byte-idéntica</li></ul></div>
+    <div class="card"><h3>🚧 Roadmap (no prometido aún)</h3><ul><li>Sin USB/AHCI/NVMe/HDA, sin APIC/ACPI/MSI</li><li>Red: solo loopback PCnet, sin stack IP</li><li>Sin lseek/stat/mmap/sbrk/señales</li><li>JPEG/PNG y vídeo real requieren heap+FPU userland</li><li>SMP=n · ARM64/RISC-V solo placeholders</li></ul></div>
+  </div>
+</div></section>
+
+<section class="final-cta"><div class="wrap">
+  <span class="badge-edition">v0.2.0-pre-alpha · x86_64</span>
+  <h2 style="margin-top:14px">¿Listo para verlo correr?</h2>
+  <p>Descarga la ISO o el kernel, arranca QEMU en segundos y construye tu propio sistema desde cero.</p>
+  <div class="cta">
+    <a class="btn-edition" href="downloads.html">⬇ Descargar ahora</a>
+    <a class="btn" href="https://github.com/CRISTOP-bot/NEWOS" target="_blank" rel="noopener">★ Star en GitHub</a>
+  </div>
+</div></section>
+
+<footer><div class="wrap foot foot-cols">
+  <div>
+    <a class="brand" href="index.html" style="text-decoration:none"><svg class="mark" viewBox="0 0 1000 1000" aria-hidden="true"><defs><mask id="pf"><rect x="150" y="150" width="700" height="700" rx="150" fill="#fff"/><path d="M330 370l170 130-170 130" fill="none" stroke="#000" stroke-width="95" stroke-linejoin="round" stroke-linecap="round"/></mask></defs><rect x="150" y="150" width="700" height="700" rx="150" fill="currentColor" mask="url(#pf)"/><rect x="540" y="595" width="150" height="95" rx="8" fill="currentColor"/></svg><span class="logo">NEWOS</span></a>
+    <p style="margin-top:10px">v0.2.0-pre-alpha · MIT © 2026 NEWOS contributors<br>Hecho desde cero: kernel, ABI, libc, shell, VFS, drivers y paquetes.</p>
+  </div>
+  <div>
+    <h4>Explorar</h4>
+    <a href="docs.html">Documentación</a><a href="api.html">Syscalls y comandos</a><a href="packages.html">Paquetes .new</a><a href="changelog.html">Changelog</a>
+  </div>
+  <div>
+    <h4>Comunidad</h4>
+    <a href="downloads.html">Descargas</a><a href="https://github.com/CRISTOP-bot/NEWOS" target="_blank" rel="noopener">GitHub</a><a href="https://github.com/CRISTOP-bot/NEWOS/blob/main/LICENSE">Licencia MIT</a><a href="https://github.com/CRISTOP-bot/NEWOS/blob/main/ROADMAP.md">Roadmap</a>
+  </div>
+</div></footer>
+<button class="backtop" id="backtop" aria-label="Volver arriba">↑</button>
+<script src="app.js"></script>
+<script src="terminal.js"></script>
+</body>
+</html>

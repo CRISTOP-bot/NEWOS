@@ -59,4 +59,29 @@ static inline int spinlock_is_locked(struct spinlock *lock)
     return lock->locked != SPINLOCK_UNLOCKED;
 }
 
+static inline u64 irq_save(void)
+{
+    u64 flags;
+    __asm__ volatile("pushfq; pop %0; cli" : "=r"(flags) :: "memory");
+    return flags;
+}
+
+static inline void irq_restore(u64 flags)
+{
+    __asm__ volatile("push %0; popfq" : : "r"(flags) : "memory");
+}
+
+static inline u64 spinlock_acquire_irqsave(struct spinlock *lock)
+{
+    u64 flags = irq_save();
+    spinlock_lock(lock);
+    return flags;
+}
+
+static inline void spinlock_release_irqrestore(struct spinlock *lock, u64 flags)
+{
+    spinlock_unlock(lock);
+    irq_restore(flags);
+}
+
 #endif

@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" width="1000" height="1000" role="img" aria-label="NEWOS">
+<title>NEWOS</title>
+<defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0" stop-color="#4A4DC8"/><stop offset="1" stop-color="#29305D"/></linearGradient></defs>
+<path d="M150 150H850V680L680 850H150Z" fill="url(#g)"/>
+<path d="M330 370l170 130-170 130" fill="none" stroke="#FFFFFF" stroke-width="95" stroke-linecap="square" stroke-linejoin="miter"/>
+<path d="M540 595h150v95H540Z" fill="#DC8621"/>
+</svg>

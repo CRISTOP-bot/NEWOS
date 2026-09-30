@@ -47,5 +47,6 @@ struct hvm_memmap_table_entry {
 extern const char *g_boot_cmdline;
 void boot_capture_cmdline(const char *cmd);
 int boot_cmdline_has(const char *needle);
+void boot_cmdline_read_value(const char *key, char *out, size_t out_size);
 
 #endif /* NEWOS_KERNEL_BOOTINFO_H */

@@ -8,6 +8,8 @@
 #define X64_PAGE_PRESENT (1ull << 0)
 #define X64_PAGE_WRITE   (1ull << 1)
 #define X64_PAGE_USER    (1ull << 2)
+#define X64_PAGE_PWT     (1ull << 3)   /* write-through */
+#define X64_PAGE_PCD     (1ull << 4)   /* cache-disable (UC with PWT) */
 #define X64_PAGE_ACCESS  (1ull << 5)
 #define X64_PAGE_DIRTY   (1ull << 6)
 #define X64_PAGE_HUGE    (1ull << 7)
@@ -32,10 +34,18 @@ extern u64 x64_pdpt_low[512];
 extern u64 x64_pdpt_high[512];
 extern u64 x64_pd[512];
 extern u64 x64_pd_kernel[512];
-extern u64 x64_pt_kernel[512];
-extern u64 x64_pt_kernel1[512];
-extern u64 x64_pt_kernel2[512];
+/* Early kernel-image page tables: X64_KMAP_PTS * 2 MiB of window, filled with
+ * 4 KiB pages because neither loader guarantees a 2 MiB-aligned physical base
+ * (PHYS_BASE is 1 MiB; Limine is only 4 KiB-aligned). Must stay in step with
+ * KERNEL_MAP_PTS in x86_entry.S, which reserves and wires the same array. */
+#define X64_KMAP_PTS 32
+extern u64 x64_pt_kernel[X64_KMAP_PTS][512];
 extern u64 x64_pdpt_direct[512];
+/* Direct-map page directories: 4 x 512 x 2 MiB covering phys 0 .. 4 GiB.
+ * Deliberately 2 MiB, not 1 GiB: some hypervisors (VirtualBox) hide the
+ * PDPE1GB CPUID bit, and a 1 GiB page there faults with a reserved-bit
+ * #PF on first touch. 2 MiB pages work everywhere long mode does. */
+extern u64 x64_pd_direct[4][512];
 
 void x64_paging_init(void);
 void x64_paging_dump(void);

@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Syscalls y comandos — NEWOS</title>
+<meta name="theme-color" content="#ffffff">
+<meta name="description" content="Referencia de syscalls 0–21 y toolbox /bin de NEWOS, con sesión real de ejemplo.">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<script>(function(){var t;try{t=localStorage.getItem("newos-theme")}catch(e){}if(!t)t=matchMedia("(prefers-color-scheme:dark)").matches?"dark":"light";document.documentElement.setAttribute("data-theme",t)})()</script>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<nav><div class="nav-in">
+  <a class="brand" href="index.html" style="text-decoration:none"><svg class="mark" viewBox="0 0 1000 1000" aria-hidden="true"><defs><mask id="p"><rect x="150" y="150" width="700" height="700" rx="150" fill="#fff"/><path d="M330 370l170 130-170 130" fill="none" stroke="#000" stroke-width="95" stroke-linejoin="round" stroke-linecap="round"/></mask></defs><rect x="150" y="150" width="700" height="700" rx="150" fill="currentColor" mask="url(#p)"/><rect x="540" y="595" width="150" height="95" rx="8" fill="currentColor"/></svg><span class="logo">NEWOS</span> <small>v0.2.0-pre-alpha</small></a>
+  <button class="hamb" aria-label="Abrir menú">☰</button>
+  <div class="links"><a href="index.html">Inicio</a><a href="docs.html">Documentación</a><a href="api.html" class="active">Syscalls y comandos</a><a href="packages.html">Paquetes .new</a><a href="downloads.html">Descargas</a><a href="changelog.html">Changelog</a><a href="https://github.com/CRISTOP-bot/NEWOS" target="_blank" rel="noopener">GitHub ↗</a><button class="theme-btn" id="themeBtn" aria-label="Cambiar tema"></button></div>
+</div></nav>
+<div class="wrap"><section>
+<div class="kicker">Referencia API</div>
+<h1>Syscalls 0–21 y toolbox /bin</h1>
+<p class="sub">Mecanismo: <span class="mono">int $0x80</span> (trap gate DPL3). <span class="mono">rax</span> = número, <span class="mono">rdi rsi rdx r10 r8 r9</span> = args (SysV), retorno en <span class="mono">rax</span> (≥0 ok, &lt;0 error −1). <span class="mono">rcx/r11</span> clobbered, resto preservados. Punteros validados con <span class="mono">copy_from/to_user</span>. Bounce estático 512 B. Usa el buscador para filtrar.</p>
+<input class="search" id="q-sys" placeholder="Filtrar syscalls… (ej. spawn, fb, open)">
+<div class="tbl-wrap"><table id="t-sys"><thead><tr><th>#</th><th>Nombre</th><th>Firma</th><th>Notas</th></tr></thead><tbody>
+<tr><td class="mono">0</td><td class="mono">SYS_READ</td><td class="mono">read(fd, buf, len)</td><td>fd 0 bloquea en consola; resto VFS. Short counts. Máx 512 B.</td></tr>
+<tr><td class="mono">1</td><td class="mono">SYS_WRITE</td><td class="mono">write(fd, buf, len)</td><td>Escribe al file del fd. Máx 512 B.</td></tr>
+<tr><td class="mono">2</td><td class="mono">SYS_EXIT</td><td class="mono">exit(code) noreturn</td><td>Termina el proceso.</td></tr>
+<tr><td class="mono">3</td><td class="mono">SYS_GETPID</td><td class="mono">getpid()</td><td>PID del llamante.</td></tr>
+<tr><td class="mono">4</td><td class="mono">SYS_SLEEP</td><td class="mono">sleep(ms)</td><td>Deadline persistente que sobrevive re-traps; cede a peers.</td></tr>
+<tr><td class="mono">5</td><td class="mono">SYS_SPAWN</td><td class="mono">spawn(path, name)</td><td>Legacy sin argv.</td></tr>
+<tr><td class="mono">6</td><td class="mono">SYS_WAITPID</td><td class="mono">waitpid(pid)</td><td>Exit code del hijo; PIDs desconocidos fallan, nunca cuelgan.</td></tr>
+<tr><td class="mono">7</td><td class="mono">SYS_OPEN</td><td class="mono">open(path, flags)</td><td>O_READ=1 O_WRITE=2 O_CREATE=4. Fds por proceso.</td></tr>
+<tr><td class="mono">8</td><td class="mono">SYS_CLOSE</td><td class="mono">close(fd)</td><td>Libera el fd.</td></tr>
+<tr><td class="mono">9</td><td class="mono">SYS_MKDIR</td><td class="mono">mkdir(path)</td><td>Un nivel (<span class="mono">mkdir -p</span> vive en userland).</td></tr>
+<tr><td class="mono">10</td><td class="mono">SYS_READDIR</td><td class="mono">readdir(path, buf, bytes)</td><td>Cuenta hijos capada por buffer (<span class="mono">nsh_dirent name[64] mode size</span>).</td></tr>
+<tr><td class="mono">11</td><td class="mono">SYS_CHDIR</td><td class="mono">chdir(path)</td><td>cwd por proceso.</td></tr>
+<tr><td class="mono">12</td><td class="mono">SYS_GETCWD</td><td class="mono">getcwd(buf, size)</td><td>Falla si el buffer es pequeño.</td></tr>
+<tr><td class="mono">13</td><td class="mono">SYS_UNLINK</td><td class="mono">unlink(path)</td><td>Ficheros y dirs vacíos; rehúsa no-vacíos.</td></tr>
+<tr><td class="mono">14</td><td class="mono">SYS_SPAWN2</td><td class="mono">spawn2(path, argv, argc)</td><td>argv real 16×128. Lo que usa nsh.</td></tr>
+<tr><td class="mono">15</td><td class="mono">SYS_PS</td><td class="mono">ps(buf, bytes)</td><td>Tabla (<span class="mono">nsh_proc pid ppid state name[32]</span>).</td></tr>
+<tr><td class="mono">16</td><td class="mono">SYS_KILL</td><td class="mono">kill(pid)</td><td>Rehúsa pid 0/1 (init sagrado). Señal base+9.</td></tr>
+<tr><td class="mono">17</td><td class="mono">SYS_UNAME</td><td class="mono">uname(&amp;u)</td><td><span class="mono">NEWOS 0.2.0-pre-alpha x86_64</span> (sysname/release/machine).</td></tr>
+<tr><td class="mono">18</td><td class="mono">SYS_GETTIME</td><td class="mono">gettime(&amp;t)</td><td>CMOS real 24 h (year mon day hour min sec).</td></tr>
+<tr><td class="mono">19</td><td class="mono">SYS_SYSINFO</td><td class="mono">sysinfo(&amp;si)</td><td>frames total/free, uptime, hz.</td></tr>
+<tr><td class="mono">20</td><td class="mono">SYS_FBINFO</td><td class="mono">fbinfo(&amp;fi)</td><td>Geometría (present width height pitch bpp); 0 sin Limine.</td></tr>
+<tr><td class="mono">21</td><td class="mono">SYS_FBWRITE</td><td class="mono">fbwrite(&amp;rq)</td><td>Blit XRGB8888 (x,y,w,h,pixels,pixlen), por filas, bounds-checked.</td></tr>
+</tbody></table></div>
+<div class="note"><b>No implementados:</b> lseek / stat / truncate / rename · mmap / sbrk · sockets · señales. Fallan como syscall desconocida. Structs compartidos en <span class="mono">abi/syscall_abi.h</span> (<span class="mono">NSH_MAX_ARGS=16 ARGLEN=128 PATH=256</span>).</div>
+
+<h3 class="sec">Toolbox /bin (30 + hello + init)</h3>
+<input class="search" id="q-cmd" placeholder="Filtrar comandos… (ej. ps, img, pkg)">
+<div class="tbl-wrap"><table id="t-cmd"><thead><tr><th>Comando</th><th>Qué hace</th></tr></thead><tbody>
+<tr><td class="mono">ls / cat / echo</td><td>Lista (perms d/rwx), dump en bucles de 512 B, echo con -n.</td></tr>
+<tr><td class="mono">mkdir [-p] / rmdir / rm / touch</td><td>Un nivel + mkdir -p userland; rm con fix de rutas anidadas.</td></tr>
+<tr><td class="mono">pwd / cd / clear</td><td>cd es builtin; clear = 25 \n.</td></tr>
+<tr><td class="mono">uname [-srm] / hostname / whoami / id</td><td>hostname lee/escribe /etc/hostname; whoami/id parsean /etc/passwd real.</td></tr>
+<tr><td class="mono">date / uptime / sleep / free / df</td><td>CMOS, sysinfo (total/free/uptime/hz); df en bytes, free en KB.</td></tr>
+<tr><td class="mono">ps / kill [-9]</td><td>Tabla ps; kill protege init.</td></tr>
+<tr><td class="mono">wc / head / grep -i / sort</td><td>Filtros de texto clásicos.</td></tr>
+<tr><td class="mono">about / newfetch</td><td>about: uname+sysinfo+/etc/version/hostname+MIT. newfetch: logo + root@host, OS/Kernel/Uptime/Memory/Shell/Display/Packages.</td></tr>
+<tr><td class="mono">ltest</td><td>Self-test de libc (string/stdio/heap). Exit 0 solo si todo PASS.</td></tr>
+<tr><td class="mono">img &lt;bmp|ppm&gt;</td><td>Visor BMP 24/32 + PPM P6 sobre framebuffer. JPEG/PNG rechazados con mensaje.</td></tr>
+<tr><td class="mono">vid</td><td>Animación procedural 60 frames ~15 fps (bola + plasma).</td></tr>
+<tr><td class="mono">desktop</td><td>Compositor: ventanas solapadas draggables, close boxes, cursor con backing store, barra de memoria, readout /dev/mouse.</td></tr>
+<tr><td class="mono">newpkg</td><td>Gestor .new: info verify install remove list files. <a href="packages.html">Ver página de paquetes →</a></td></tr>
+<tr><td class="mono">hello / init (nsh)</td><td>hello: entry propia sin nshlib/libc ("Hello from ring 3!"). init: la shell.</td></tr>
+</tbody></table></div>
+<div class="ok-box">Añadir un comando: crea <span class="mono">user/programs/&lt;cmd&gt;/&lt;cmd&gt;_main.c</span> con <span class="mono">main(argc, argv)</span> y regístralo en <span class="mono">PROG_NAMES</span> (Makefile) + <span class="mono">bin_table</span> (initramfs.c). Ojo: <span class="mono">OBJS :=</span> es expansión inmediata — el <span class="mono">*_EMBED</span> va antes de <span class="mono">OBJS</span>.</div>
+
+<h3 class="sec">Sesión real de ejemplo <span class="tag">log serie QEMU</span></h3>
+<p class="sub">Transcripción literal de una sesión en el NEWOS real (ISO Limine, teclado PS/2 inyectado por el monitor de QEMU). Así se ve y se siente <span class="mono">nsh</span>:</p>
+<pre class="block">root@newos:/# newfetch
+ █▄ █ █▀▀ █░ █░ █▀█ █▀▀   root@newos
+ █ ▀█ █▀▀ █▄▀█ █▄█ ▀▀█   OS: NEWOS 0.2.0-pre-alpha
+ ▀  ▀ ▀▀▀ ▀ ▀▀ ▀ ▀▀ ▀▀▀   Kernel: 0.2.0-pre-alpha (x86_64)
+                          Uptime: 0h 0m 10s
+                          Memory: 11 / 126 MiB
+                          Shell: nsh (/init)
+                          Display: 1280x800 x32
+                          Packages: 33 (/bin)
+root@newos:/# desktop
+proc: desktop pid=6 entry=0x402020 segments=7 stack [7fffffefe000, 7fffffffe000)
+desktop: close every window to quit</pre>
+
+<h3 class="sec">libc propia (libc.a)</h3>
+<p class="sub">Freestanding: <span class="mono">string</span> (mem*/str*), <span class="mono">stdlib</span> (abs/atoi/rand/exit), <span class="mono">stdio</span> sin buffer (<span class="mono">putchar puts printf %s %d %u %x %X %p %c %%</span>), <span class="mono">malloc/free/calloc/realloc</span> con arena 256 KiB. Sin floats/locale/threads/FPU. Solo <span class="mono">ltest</span> la linka. nshlib (<span class="mono">user/lib/nshlib</span> + <span class="mono">start.S</span> + <span class="mono">app.ld</span>): wrappers <span class="mono">int $0x80</span> con macros SYSC0-3 + helper <span class="mono">fail()</span>.</p>
+</section></div>
+<footer><div class="wrap foot"><div><b style="color:var(--txt)">NEWOS</b> · ABI en <span class="mono">abi/syscall_abi.h</span> · <span class="mono">docs/abi.md</span></div><div><a href="docs.html">Documentación</a> · <a href="downloads.html">Descargas</a> · <a href="changelog.html">Changelog</a></div></div></footer>
+<button class="backtop" id="backtop" aria-label="Volver arriba">↑</button>
+<script src="app.js"></script>
+</body>
+</html>

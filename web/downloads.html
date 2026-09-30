@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Descargas — NEWOS</title>
+<meta name="theme-color" content="#ffffff">
+<meta name="description" content="Descargas de NEWOS: kernels ELF, ISOs GRUB y Limine, paquetes .new. Hashes SHA256 y matriz de validación.">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<script>(function(){var t;try{t=localStorage.getItem("newos-theme")}catch(e){}if(!t)t=matchMedia("(prefers-color-scheme:dark)").matches?"dark":"light";document.documentElement.setAttribute("data-theme",t)})()</script>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<nav><div class="nav-in">
+  <a class="brand" href="index.html" style="text-decoration:none"><svg class="mark" viewBox="0 0 1000 1000" aria-hidden="true"><defs><mask id="p"><rect x="150" y="150" width="700" height="700" rx="150" fill="#fff"/><path d="M330 370l170 130-170 130" fill="none" stroke="#000" stroke-width="95" stroke-linejoin="round" stroke-linecap="round"/></mask></defs><rect x="150" y="150" width="700" height="700" rx="150" fill="currentColor" mask="url(#p)"/><rect x="540" y="595" width="150" height="95" rx="8" fill="currentColor"/></svg><span class="logo">NEWOS</span> <small>v0.2.0-pre-alpha</small></a>
+  <button class="hamb" aria-label="Abrir menú">☰</button>
+  <div class="links"><a href="index.html">Inicio</a><a href="docs.html">Documentación</a><a href="api.html">Syscalls y comandos</a><a href="packages.html">Paquetes .new</a><a href="downloads.html" class="active">Descargas</a><a href="changelog.html">Changelog</a><a href="https://github.com/CRISTOP-bot/NEWOS" target="_blank" rel="noopener">GitHub ↗</a><button class="theme-btn" id="themeBtn" aria-label="Cambiar tema"></button></div>
+</div></nav>
+<div class="wrap"><section>
+<div class="kicker">Descargas</div>
+<h1>Binarios, ISOs y paquetes</h1>
+<p class="sub">Descargas reales de la compilación actual (<b>2026-09-25</b>, rama <span class="mono">main</span>). El OS está en desarrollo: estos binarios salen de <span class="mono">build/</span> tal cual, sin release oficial todavía. Verifica siempre el SHA256 después de descargar.</p>
+
+<h3 class="sec">Descargar ahora</h3>
+<div class="dl-cards">
+<div class="dl-card hero-dl"><h3><span class="fname">newos-x86_64-limine.iso</span> <span class="tag">recomendada</span></h3>
+<p>ISO híbrida BIOS+UEFI con framebuffer. La forma más completa de probar NEWOS: gráficos, <span class="mono">desktop</span>, <span class="mono">img</span>, <span class="mono">newfetch</span>. Grábala en USB o ábrela en QEMU/VirtualBox.</p>
+<div class="dl-meta"><span>5.0 MiB</span><span title="9fab12fe24c55918f900d5e1f8e84c1b43d7db16c601e2d601c0774d7a4f64ee">sha256: 9fab12fe…7a4f64ee</span></div>
+<a class="dl-btn" href="dl/newos-x86_64-limine.iso" download>⬇ Descargar ISO Limine</a></div>
+<div class="dl-card"><h3><span class="fname">newos-x86_64.elf</span> <span class="tag">kernel PVH+MB2</span></h3>
+<p>Kernel para desarrollo: arranque directo con <span class="mono">qemu -kernel</span> por consola serie. Ideal para <span class="mono">make qemu-test</span>.</p>
+<div class="dl-meta"><span>944 KiB</span><span title="f2d8857a54fd63c1b363d00af241fdb2d27eeb23b9646585ec56dfdda1228833">sha256: f2d8857a…dfdda1228833</span></div>
+<a class="dl-btn sec" href="dl/newos-x86_64.elf" download>⬇ Descargar kernel</a></div>
+<div class="dl-card"><h3><span class="fname">newos-x86_64-limine.elf</span> <span class="tag">kernel Limine</span></h3>
+<p>Variante del kernel para el protocolo Limine (la que va dentro de la ISO híbrida). Para bootloaders Limine manuales.</p>
+<div class="dl-meta"><span>954 KiB</span><span title="883836b2bf3567c5426cd0cf198aef0b75cee96185de061f3e3e4c9f4b5aba90">sha256: 883836b2…f4b5aba90</span></div>
+<a class="dl-btn sec" href="dl/newos-x86_64-limine.elf" download>⬇ Descargar kernel Limine</a></div>
+<div class="dl-card"><h3><span class="fname">hello-new-1.0.0-x86_64.new</span> <span class="tag">paquete .new</span></h3>
+<p>Paquete de ejemplo: instala <span class="mono">/bin/hello-new</span> con <span class="mono">newpkg install</span>. Prueba el gestor nativo en el NEWOS vivo.</p>
+<div class="dl-meta"><span>1.6 KiB</span><span title="ea2df312a43f7d7c14f9fe343f08fb5d3eaf5e54430d13bcf53acb1af617d0c1">sha256: ea2df312…1af617d0c1</span></div>
+<a class="dl-btn sec" href="dl/hello-new-1.0.0-x86_64.new" download>⬇ Descargar paquete</a></div>
+</div>
+
+<h3 class="sec">Pendientes de compilar</h3>
+<div class="tbl-wrap"><table><thead><tr><th>Artefacto</th><th>Cómo generarlo</th><th>Estado</th></tr></thead><tbody>
+<tr><td class="mono">newos-x86_64.iso<br><span class="tag">GRUB multiboot2</span></td><td class="mono">make iso</td><td><span class="badge">pendiente · requiere rebuild</span></td></tr>
+<tr><td class="mono">newos-x86_64.img<br><span class="tag">disco raw 64 MiB</span></td><td class="mono">make qemu-disk (vía dd)</td><td><span class="badge">pendiente · requiere rebuild</span></td></tr>
+</tbody></table></div>
+
+<h3 class="sec">Matriz de validación</h3>
+<div class="tbl-wrap"><table><thead><tr><th>Plataforma</th><th>Vía</th><th>Resultado</th></tr></thead><tbody>
+<tr><td class="mono">QEMU (dev)</td><td class="mono">PVH · qemu -kernel + test_mode=1</td><td><span class="badge ok">QEMU=PASS · 14/14 · exit 1</span></td></tr>
+<tr><td class="mono">QEMU SeaBIOS</td><td class="mono">ISO GRUB multiboot2</td><td><span class="badge ok">BOOT=PASS</span></td></tr>
+<tr><td class="mono">QEMU OVMF/UEFI</td><td class="mono">ISO Limine híbrida</td><td><span class="badge ok">BOOT=PASS</span></td></tr>
+<tr><td class="mono">QEMU Limine</td><td class="mono">ISO Limine (framebuffer 1280×800 x32)</td><td><span class="badge ok">BOOT=PASS · capturas de esta web</span></td></tr>
+<tr><td class="mono">VirtualBox</td><td class="mono">ISO como CD · BIOS legacy · Other 64-bit</td><td><span class="badge ok">BOOT=PASS (VGA 80×25)</span></td></tr>
+<tr><td class="mono">Reproducibilidad</td><td class="mono">make clean &amp;&amp; make all / iso (×2)</td><td><span class="badge ok">REPRO · byte-idéntico</span></td></tr>
+</tbody></table></div>
+
+<h3 class="sec">Verificar integridad</h3>
+<pre class="block">cd web/dl
+sha256sum newos-x86_64-limine.iso
+# 9fab12fe24c55918f900d5e1f8e84c1b43d7db16c601e2d601c0774d7a4f64ee
+sha256sum newos-x86_64.elf newos-x86_64-limine.elf hello-new-1.0.0-x86_64.new
+# f2d8857a54fd63c1b363d00af241fdb2d27eeb23b9646585ec56dfdda1228833
+# 883836b2bf3567c5426cd0cf198aef0b75cee96185de061f3e3e4c9f4b5aba90
+# ea2df312a43f7d7c14f9fe343f08fb5d3eaf5e54430d13bcf53acb1af617d0c1</pre>
+
+<h3 class="sec">Instalar la ISO descargada</h3>
+<div class="steps">
+<div class="stp"><b>QEMU (recomendado).</b> <span class="mono">qemu-system-x86_64 -cdrom web/dl/newos-x86_64-limine.iso -boot order=d -m 128M -serial stdio</span> — verás el mismo arranque de las capturas.</div>
+<div class="stp"><b>USB real.</b> <span class="mono">sudo dd if=newos-x86_64-limine.iso of=/dev/sdX bs=4M status=progress && sync</span> (revisa bien el <span class="mono">of=</span>: borra el disco entero).</div>
+<div class="stp"><b>VirtualBox.</b> Crea máquina <i>Linux Other 64-bit</i> ≥128 MB, monta la ISO como CD/DVD, BIOS legacy (no EFI) y arranca.</div>
+</div>
+
+<h3 class="sec">Probar sin instalar nada</h3>
+<div class="grid g2">
+<div><pre class="block"># interactivo (serie)
+make qemu
+# ISO Limine con gráficos
+make qemu-limine
+# suite automatizada → exit 1 = PASS
+make qemu-test
+make qemu-limine-test</pre></div>
+<div><pre class="block"># UEFI (OVMF)
+qemu-system-x86_64 -cdrom build/images/newos-x86_64-limine.iso \
+  -boot order=d -m 128M -serial stdio -display none \
+  -drive file=/usr/share/ovmf/x64/OVMF_CODE.4m.fd,if=pflash,format=raw,unit=0,readonly=on \
+  -drive file=/tmp/ovmf_vars.fd,if=pflash,format=raw,unit=1
+# captura de pantalla:
+# -monitor unix:/tmp/mon,server,nowait → screendump /tmp/s.ppm</pre></div>
+</div>
+
+<h3 class="sec">VirtualBox / hardware</h3>
+<p class="sub">Adjunta la ISO como CD/DVD · máquina <i>Linux Other 64-bit</i> · ≥128 MB · BIOS legacy (no EFI) · GRUB en serie 115200 8N1 · el kernel siempre espeja en VGA 80×25. Detalle: <span class="mono">docs/virtualbox-and-hardware.md</span>.</p>
+
+<h3 class="sec">Toolchain cruzada (opcional)</h3>
+<pre class="block">bash toolchain/build.sh --jobs 2   # binutils 2.44 + GCC 16.1.0 C-only → toolchain/out/ (~20-40 min)
+export PATH="$PWD/toolchain/out/bin:$PATH"
+make CROSS_PREFIX=x86_64-elf- all
+make CROSS_PREFIX=x86_64-elf- qemu-test   # debe dar QEMU exit status: 1
+bash toolchain/test.sh</pre>
+
+<h3 class="sec">Publicar esta web</h3>
+<pre class="block"># opción A: servir local
+cd web &amp;&amp; python3 -m http.server 8080
+# → http://localhost:8080
+
+# opción B: GitHub Pages
+# repo: https://github.com/CRISTOP-bot/NEWOS
+# Settings → Pages → Deploy from branch → main → carpeta /web
+# URL: https://CRISTOP-bot.github.io/NEWOS/
+
+# opción C: Releases (recomendado para binarios)
+# gh release create v0.2.0-pre-alpha web/dl/*
+# Los binarios ya están en web/dl/ listos para subir.</pre>
+</section></div>
+<footer><div class="wrap foot"><div><b style="color:var(--txt)">NEWOS</b> v0.2.0-pre-alpha · MIT · <a href="https://github.com/CRISTOP-bot/NEWOS/blob/main/LICENSE">LICENSE</a> · <a href="changelog.html">CHANGELOG</a> · <a href="https://github.com/CRISTOP-bot/NEWOS">GitHub</a></div><div><a href="index.html">Inicio</a> · <a href="docs.html">Documentación</a></div></div></footer>
+<button class="backtop" id="backtop" aria-label="Volver arriba">↑</button>
+<script src="app.js"></script>
+</body>
+</html>

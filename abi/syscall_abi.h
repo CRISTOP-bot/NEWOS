@@ -1,31 +1,16 @@
-#ifndef UAPI_SYSCALL_H
-#define UAPI_SYSCALL_H
-
-/* User/kernel shared syscall ABI.
+/* Forwarding shim.
  *
- * System calls are triggered with `int $0x80` (trap gate, DPL 3):
- *     rax = syscall number
- *     rdi, rsi, rdx, r10, r8, r9 = arguments (SysV order)
- *     rax = return value (>= 0 on success, negative errno-ish on error)
- *
- * The only registers preserved guarantees: all GPRs except rax are restored
- * (rcx and r11 are clobbered by the instruction, matching the SysV ABI).
+ * The single source of truth for the user/kernel syscall ABI is
+ * include/abi/syscall_abi.h. Kernel code reaches it as
+ * <abi/syscall_abi.h> (via -Iinclude); userland (libc/, user/lib/) has
+ * historically reached it by relative path, which lands here. Keeping a
+ * second copy of the definitions is what let kernel and userland drift
+ * apart, so this file only forwards.
  */
 
-#define SYS_WRITE   1
-#define SYS_EXIT    2
-#define SYS_GETPID  3
-#define SYS_SLEEP   4
-#define SYS_SPAWN   5
-#define SYS_WAITPID 6
-#define SYS_READ    0
+#ifndef ABI_SYSCALL_ABI_FORWARD_H
+#define ABI_SYSCALL_ABI_FORWARD_H
 
-/* Conventional file descriptors. */
-#define STDIN_FILENO  0
-#define STDOUT_FILENO 1
-#define STDERR_FILENO 2
-
-/* Negative return values are errors (simple -1 for now). */
-#define SYSCALL_RET_ERROR (-1)
+#include "../include/abi/syscall_abi.h"
 
 #endif

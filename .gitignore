@@ -1,6 +1,10 @@
 # Build output (generated only)
 build/
 
+# Cross toolchain install + sources (survives `make clean` by design;
+# rebuilding it costs ~40 min, so it lives outside build/)
+toolchain/out/
+
 # Compiler / linker artifacts
 *.o
 *.d

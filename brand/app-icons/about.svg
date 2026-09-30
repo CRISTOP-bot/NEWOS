@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" width="1000" height="1000" role="img" aria-label="about">
+<title>about</title>
+<defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0" stop-color="#4A4DC8"/><stop offset="1" stop-color="#29305D"/></linearGradient></defs>
+<path d="M150 150H850V680L680 850H150Z" fill="url(#g)"/>
+<path d="M455 250h90v90h-90Z" fill="#DC8621"/><path d="M455 390h90v360h-90Z" fill="#FFFFFF"/>
+</svg>

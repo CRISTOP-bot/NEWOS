@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(*)",
+      "WebFetch(*)",
+      "Bash(curl -sL --max-time 20 https://churroslinux.org -o /tmp/churros.html; echo \"size: $\\(wc -c < /tmp/churros.html\\)\"; grep -oE 'href=\"[^\"]*\\\\.css[^\"]*\"|rel=\"stylesheet\"' /tmp/churros.html | head; grep -oE 'font-family:[^;}]*' /tmp/churros.html | head)",
+      "Bash(curl -sL --max-time 20 https://churroslinux.org/css/custom.css -o /tmp/churros-custom.css; wc -c /tmp/churros-custom.css; head -c 4000 /tmp/churros-custom.css)",
+      "Bash(python3 - <<'EOF'\nimport re\nhtml = open\\('/tmp/churros.html'\\).read\\(\\)\n# strip scripts/styles\nhtml = re.sub\\(r'<\\(script|style\\)[^>]*>.*?</\\\\1>', '', html, flags=re.S\\)\n# print tag skeleton with classes for structure\nfor m in re.finditer\\(r'<\\(body|h1|h2|h3|nav|header|footer|section|a|button|img|p\\)\\\\b\\([^>]*\\)>', html\\):\n    attrs = m.group\\(2\\)\n    cls = re.search\\(r'class=\"\\([^\"]*\\)\"', attrs\\)\n    src = re.search\\(r'src=\"\\([^\"]*\\)\"', attrs\\)\n    href = re.search\\(r'href=\"\\([^\"]*\\)\"', attrs\\)\n    print\\(m.group\\(1\\), '|', \\(cls.group\\(1\\) if cls else ''\\)[:90], '|', \\(href or src\\).group\\(1\\) if \\(href or src\\) else ''\\)\nEOF)",
+      "Bash(python3 - <<'EOF'\nimport re\nhtml = open\\('/tmp/churros.html'\\).read\\(\\)\n# hero h1 and nearby text\nfor tag in ['h1','h2','h3','title']:\n    for m in re.finditer\\(r'<%s\\\\b[^>]*>\\(.*?\\)</%s>' % \\(tag,tag\\), html, flags=re.S\\):\n        txt = re.sub\\(r'<[^>]+>','',m.group\\(1\\)\\).strip\\(\\)\n        if txt: print\\(tag.upper\\(\\),':',txt[:160]\\)\nEOF)",
+      "Bash(curl -sL --max-time 20 https://churroslinux.org/css/tailwind.css | grep -oE '\\\\-\\\\-\\(color|font\\)[a-z-]*:[^;]*' | sort -u | head -60; echo ---; grep -oE 'font-family:[^;}]*' /tmp/churros-custom.css | sort -u; grep -oE \"font[A-Za-z]*:[^;\\\\\"']*\" /tmp/churros.html | head)",
+      "Bash(head -30 /home/cristopher/newos/web/docs.html; echo ===; grep -c 'class=\"card\"' /home/cristopher/newos/web/*.html; echo ===; ls /home/cristopher/newos/web/assets /home/cristopher/newos/web/dl)",
+      "Bash(cd /home/cristopher/newos/web && for f in docs.html api.html packages.html changelog.html; do echo \"=== $f ===\"; grep -n 'theme-color\\\\|<h1\\\\|class=\"kicker\"\\\\|<nav\\\\|<footer\\\\|hardcode\\\\|hero\\\\|<body' \"$f\" | head -20; echo \"lines: $\\(wc -l < $f\\)\"; done)",
+      "Bash(pgrep -f 'python3? -m http[.]server' | while read p; do kill \"$p\"; done; sleep 0.5; pgrep -af 'http[.]server' || echo \"server stopped\")"
+    ]
+  }
+}

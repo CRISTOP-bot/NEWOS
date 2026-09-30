@@ -52,9 +52,8 @@ align 4
 [GLOBAL x64_pd]
 [GLOBAL x64_pd_kernel]
 [GLOBAL x64_pt_kernel]
-[GLOBAL x64_pt_kernel1]
-[GLOBAL x64_pt_kernel2]
 [GLOBAL x64_pdpt_direct]
+[GLOBAL x64_pd_direct]
 [EXTERN arch_main]
 section .early_text
 
@@ -133,15 +132,22 @@ long_mode_entry:
 ; ============================================================================
 ; Layout:
 ;   x64_pml4[0]           -> x64_pdpt_low     (identity, low 1 GiB)
-;   x64_pml4[508]         -> x64_pdpt_direct  (direct phys map, 1 GiB pages)
+;   x64_pml4[508]         -> x64_pdpt_direct  (direct phys map, 2 MiB pages)
+;   x64_pdpt_direct[i]    -> x64_pd_direct[i] (1 GiB covered per PD)
 ;   x64_pml4[511]         -> x64_pdpt_high    (high-half kernel map)
 ;   x64_pdpt_low[0]       -> x64_pd           (identity 2 MiB huge pages)
 ;   x64_pdpt_high[510]    -> x64_pd_kernel    (VA 0xffffffff80000000)
-;   x64_pd_kernel[0]      -> x64_pt_kernel    (4 KiB pages)
-;   x64_pt_kernel[i]      = phys (0x100000 + i * 4 KiB)
+;   x64_pd_kernel[i]      = phys 0x100000 + i * 2 MiB  (2 MiB huge pages)
 ;   x64_pd[i]             = i * 2 MiB          (2 MiB huge pages, R/W)
-;   x64_pdpt_direct[i]    = i * 1 GiB          (1 GiB huge pages, R/W)
+;   x64_pdpt_direct[i]    = i * 1 GiB          (via x64_pd_direct[i])
 ; ============================================================================
+
+; Early high-half window: KERNEL_MAP_PTS page tables of 4 KiB pages, so the
+; whole kernel image plus .bss is addressable before x64_paging_init rebuilds
+; the tables. 4 KiB rather than 2 MiB huge pages because PHYS_BASE is 1 MiB:
+; a huge page ignores its low 21 bits, so aliasing an unaligned base shifts
+; the whole window by 1 MiB and every fetch faults.
+%define KERNEL_MAP_PTS 32          ; 32 * 2 MiB = 64 MiB of window
 
 [BITS 32]
 x64_page_tables_setup:
@@ -150,7 +156,11 @@ x64_page_tables_setup:
     ; Zero the tables (early bss is zeroed by nasm, but be explicit).
     cld
     mov edi, x64_pml4
-    mov ecx, (4096 * 9) / 4
+    mov ecx, (4096 * 11) / 4
+    xor eax, eax
+    rep stosd
+    mov ecx, (4096 * KERNEL_MAP_PTS) / 4
+    mov edi, x64_pt_kernel
     xor eax, eax
     rep stosd
 
@@ -173,37 +183,32 @@ x64_page_tables_setup:
     or  eax, 0x3
     mov [x64_pdpt_high + 510 * 8], eax  ; index 510 -> VA 0xffffffff80000000
 
-    ; High-half page directory: three 4 KiB page tables that alias the
-    ; kernel's physical base (PHYS_BASE), covering VA KERNEL_BASE .. + 6 MiB.
-    ; The kernel's text/data/bss LMAs lie at PHYS_BASE + off, so the early
-    ; high-half view maps them 1:1 while these tables are installed.
+    ; High-half page directory: KERNEL_MAP_PTS page tables aliasing the
+    ; kernel's physical base (PHYS_BASE). The kernel's text/data/bss LMAs lie
+    ; at PHYS_BASE + off, so this early view maps them 1:1 until
+    ; x64_paging_init installs the real tables. The image is not small: the
+    ; embedded /bin toolbox and any staged `.new` archive live in .rodata, and
+    ; a three-table (6 MiB) window silently triple-faults the boot as soon as
+    ; .bss grows past it.
+    mov edi, x64_pd_kernel
     mov eax, x64_pt_kernel
     or  eax, 0x3
-    mov [x64_pd_kernel + 0 * 8], eax
-    mov eax, x64_pt_kernel1
-    or  eax, 0x3
-    mov [x64_pd_kernel + 1 * 8], eax
-    mov eax, x64_pt_kernel2
-    or  eax, 0x3
-    mov [x64_pd_kernel + 2 * 8], eax
-
-    ; Fill each high-half page table: 512 x 4 KiB pages.
-    mov edi, x64_pt_kernel
-    mov ecx, 3
-    mov eax, 0x100000             ; PHYS_BASE
-.fill_kernel_pt:
-    or  eax, 0x3                  ; present | writable
-    push eax
-    push ecx
-    mov ecx, 512
-.fill_pt:
+    mov ecx, KERNEL_MAP_PTS
+.fill_kernel_pd:
     mov [edi], eax
     add edi, 8
-    add eax, 4096
-    loop .fill_pt
-    pop ecx
-    pop eax
-    add eax, 0x200000             ; next 2 MiB PT region
+    add eax, 0x1000               ; next page table is contiguous
+    loop .fill_kernel_pd
+
+    mov edi, x64_pt_kernel
+    mov ebx, 0x100000             ; PHYS_BASE
+    mov ecx, 512 * KERNEL_MAP_PTS
+.fill_kernel_pt:
+    mov eax, ebx
+    or  eax, 0x3                  ; present | writable
+    mov [edi], eax
+    add edi, 8
+    add ebx, 0x1000               ; next 4 KiB page
     loop .fill_kernel_pt
 
     ; Identity page directory: 512 x 2 MiB huge pages covering 0 .. 1 GiB.
@@ -220,19 +225,34 @@ x64_page_tables_setup:
     inc eax
     loop .fill_pd
 
-    ; Direct-map PDPT: 4 x 1 GiB huge pages covering physical 0 .. 4 GiB.
+    ; Direct-map PDPT: 4 entries -> 4 page directories (1 GiB each).
+    ; Filled with 2 MiB pages, NOT 1 GiB pages: some hypervisors
+    ; (VirtualBox) hide PDPE1GB from CPUID, turning every 1 GiB page
+    ; into a reserved-bit #PF on first touch.
     mov edi, x64_pdpt_direct
-    mov ecx, 4                     ; DIRECT_MAP_SIZE / 1 GiB
-    xor eax, eax
-.fill_direct:
-    ; entry = (i << 30) | present | writable | huge
+    mov esi, x64_pd_direct
+    mov ecx, 4
+.fill_direct_pdpt:
+    mov eax, esi
+    or  eax, 0x3                  ; present | writable
+    mov [edi], eax
+    add edi, 8
+    add esi, 4096
+    loop .fill_direct_pdpt
+
+    ; Fill the 4 direct-map PDs: 2048 x 2 MiB pages covering 0 .. 4 GiB.
+    mov edi, x64_pd_direct
+    mov ecx, 2048
+    xor eax, eax                  ; 2 MiB page index
+.fill_direct_pd:
+    ; entry = (i << 21) | present | writable | huge
     mov ebx, eax
-    shl ebx, 30
+    shl ebx, 21
     or  ebx, 0x83
     mov [edi], ebx
     add edi, 8
     inc eax
-    loop .fill_direct
+    loop .fill_direct_pd
 
     popad
     ret
@@ -253,14 +273,17 @@ x64_pd:
     resb 4096
 x64_pd_kernel:
     resb 4096
-x64_pt_kernel:
-    resb 4096
-x64_pt_kernel1:
-    resb 4096
-x64_pt_kernel2:
-    resb 4096
 x64_pdpt_direct:
     resb 4096
+x64_pd_direct:
+    resb 16384
+
+; Kernel-image page tables, shared by both boot paths. The Limine path cannot
+; use huge pages either: Limine loads the image 4 KiB-aligned, not 2 MiB, and
+; a huge page with an unaligned base faults on its reserved bits.
+align 4096
+x64_pt_kernel:
+    resb 4096 * KERNEL_MAP_PTS
 
 align 16
 mbi_magic:

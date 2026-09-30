@@ -22,11 +22,16 @@ typedef s64                ssize_t;
 
 typedef u64                ulong;
 typedef u64                uword_t;
+#if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 202311L
+#include <stdbool.h>
+#else
 typedef int                bool;
-
 #define true  1
 #define false 0
+#endif
+#ifndef NULL
 #define NULL  ((void *)0)
+#endif
 
 typedef u64                pid_t;
 typedef u64                uid_t;

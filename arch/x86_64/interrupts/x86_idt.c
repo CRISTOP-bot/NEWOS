@@ -37,14 +37,14 @@ static struct idt_ptr g_idt_ptr;
 extern void *isr_stubs_all[IDT_ENTRIES];
 extern void isr128(void);   /* int $0x80 syscall gate */
 
-static void idt_set_gate_raw(int vec, void (*handler)(void), u8 dpl)
+static void idt_set_gate_raw(int vec, void (*handler)(void), u8 dpl, u8 type)
 {
     u64 offset = (u64)(uintptr_t)handler;
 
     g_idt[vec].offset_low  = (u16)(offset & 0xFFFF);
     g_idt[vec].selector    = GDT_KERNEL_CODE;
     g_idt[vec].ist         = 0;
-    g_idt[vec].type_attr   = 0x8E | (dpl << 5);
+    g_idt[vec].type_attr   = (u8)(0x80 | (dpl << 5) | (type & 0xF));
     g_idt[vec].offset_mid  = (u16)((offset >> 16) & 0xFFFF);
     g_idt[vec].offset_high = (u32)((offset >> 32) & 0xFFFFFFFF);
     g_idt[vec].zero        = 0;
@@ -52,7 +52,7 @@ static void idt_set_gate_raw(int vec, void (*handler)(void), u8 dpl)
 
 void x64_idt_set_gate(int vec, void (*handler)(void), u8 dpl)
 {
-    idt_set_gate_raw(vec, handler, dpl);
+    idt_set_gate_raw(vec, handler, dpl, IDT_TYPE_INTERRUPT);
 }
 
 void x64_idt_reload(void)
@@ -65,10 +65,14 @@ void x64_idt_init(void)
     memset(g_idt, 0, sizeof(g_idt));
 
     for (int i = 0; i < IDT_ENTRIES; i++)
-        idt_set_gate_raw(i, isr_stubs_all[i], 0);
+        idt_set_gate_raw(i, isr_stubs_all[i], 0, IDT_TYPE_INTERRUPT);
 
-    /* int $0x80 syscall gate: DPL 3 so user mode can enter it. */
-    idt_set_gate_raw(0x80, isr128, 3);
+    /* int $0x80 syscall gate: DPL 3 so user mode can enter it. An
+     * INTERRUPT gate (IF cleared on entry) keeps the stub pushes and the
+     * return epilogue atomic; the C handler below re-enables IF
+     * explicitly for the syscall body so the PIT time base and the
+     * scheduler's yield points keep flowing while a thread waits. */
+    idt_set_gate_raw(0x80, isr128, 3, IDT_TYPE_INTERRUPT);
 
     g_idt_ptr.limit = sizeof(g_idt) - 1;
     g_idt_ptr.base  = (u64)(uintptr_t)g_idt;
@@ -129,8 +133,11 @@ void isr_handler(struct x64_iframe *f)
     int vec = (int)f->vec;
     int from_user = (f->cs & 3) == 3;
 
-    /* int $0x80 syscall from ring 3. */
+    /* int $0x80 syscall from ring 3. The interrupt gate entered with IF
+     * clear; re-enable it for the body (time base + scheduler yields),
+     * the return epilogue closes it again before touching stacks. */
     if (vec == 0x80 && from_user) {
+        cpu_sti();
         f->rax = (u64)syscall_dispatch(f);   /* SYS_EXIT never returns */
         return;
     }

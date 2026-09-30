@@ -34,6 +34,7 @@ int  serial_rx_ready(u16 port);
 void serial_rx_irq_enable(u16 port);
 int  serial_rx_available(u16 port);
 int  serial_rx_pop(u16 port);
+int  serial_rx_peek(u16 port);          /* -1 when ring empty */
 
 /* Default console port used by printk. */
 void early_console_init(void);

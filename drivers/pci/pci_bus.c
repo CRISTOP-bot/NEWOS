@@ -144,6 +144,11 @@ static void pci_scan_bus(u8 bus, unsigned depth)
             if (vendor == PCI_VENDOR_INVALID || vendor == PCI_DEVICE_NONE)
                 continue;
 
+            /* Header type must be read per-function: bridges exposing
+             * multifunction backends report a different header on func!=0,
+             * and reusing func0's value misclassifies them. */
+            u8 fn_header = pci_config_read8(bus, dev, func, PCI_REG_HEADER);
+
             struct pci_dev_info *inf = kzalloc(sizeof(*inf));
             if (!inf) {
                 pr_warn("PCI: no memory (bus %u dev %u func %u)\n",
@@ -161,7 +166,7 @@ static void pci_scan_bus(u8 bus, unsigned depth)
                                                PCI_REG_SUBCLASS);
             inf->prog_if    = pci_config_read8(bus, dev, func,
                                                PCI_REG_PROG_IF);
-            inf->header_type = header & ~PCI_HEADER_MULTIFUNC;
+            inf->header_type = fn_header & ~PCI_HEADER_MULTIFUNC;
 
             for (unsigned i = 0; i < 6; i++)
                 inf->bars[i] = pci_config_read32(bus, dev, func,

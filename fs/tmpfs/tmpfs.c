@@ -55,6 +55,11 @@ static int tmpfs_write(struct vfs_file *f, const void *buf, size_t len,
     }
 
     memcpy(d->data + f->offset, buf, len);
+    if (f->offset > f->inode->size) {
+        /* Seek-past-EOF gap: zero it so reads never expose stale heap. */
+        memset(d->data + f->inode->size, 0,
+               (size_t)(f->offset - f->inode->size));
+    }
     f->inode->size = MAX(f->inode->size, end);
     *wrote = len;
     return 0;
@@ -65,8 +70,21 @@ static int tmpfs_truncate(struct vfs_inode *inode, size_t size)
     struct tmpfs_data *d = (struct tmpfs_data *)inode->private;
     if (d && size > d->cap)
         return -1;
+    if (d && size > inode->size)
+        memset(d->data + inode->size, 0, size - inode->size);
     inode->size = size;
     return 0;
+}
+
+static void tmpfs_destroy(struct vfs_inode *inode)
+{
+    struct tmpfs_data *d = (struct tmpfs_data *)inode->private;
+    if (d) {
+        if (d->data)
+            kfree(d->data);
+        kfree(d);
+        inode->private = NULL;
+    }
 }
 
 static struct inode_ops tmpfs_ops = {
@@ -74,6 +92,7 @@ static struct inode_ops tmpfs_ops = {
     .write    = tmpfs_write,
     .readdir  = NULL,
     .truncate = tmpfs_truncate,
+    .destroy  = tmpfs_destroy,
 };
 
 struct vfs_inode *tmpfs_create_node(struct vfs_inode *parent,

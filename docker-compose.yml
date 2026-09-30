@@ -1,0 +1,22 @@
+services:
+  newos:
+    build: .
+    image: newos-build
+    working_dir: /src
+    volumes:
+      - .:/src
+    environment:
+      HOME: /src
+    # Mismo uid/gid que el host: los artefactos de build/ no quedan root-owned.
+    user: "${UID:-1000}:${GID:-1000}"
+    stdin_open: true
+    tty: true
+    entrypoint: make
+    command: ["all"]
+
+    # `make qemu` / `make qemu-test` levantan QEMU con -serial stdio. Si quieres
+    # lanzar contenedores desde dentro (docker-out-of-docker), añade esta linea
+    # a la lista `volumes:` de arriba:
+    #   - /var/run/docker.sock:/var/run/docker.sock
+    # Un contenedor con el socket del daemon equivale a root en esta maquina,
+    # asi que ponla solo mientras lo pruebas y vuelvela a quitar.

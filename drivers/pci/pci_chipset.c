@@ -33,14 +33,26 @@ static const struct device_id chipset_ids[] = {
 
 static int chipset_probe(struct device *dev)
 {
+    /* Beyond binding, perform real config-space I/O: report the live
+     * COMMAND/STATUS registers so the probe proves the function
+     * answers on the bus (not just that its IDs matched a table). */
+    struct pci_dev_info *inf = (struct pci_dev_info *)dev->private;
+    u16 cmd = 0xFFFFu, sts = 0xFFFFu;
+    if (inf) {
+        cmd = pci_config_read16(inf->bus, inf->dev, inf->func,
+                                PCI_REG_COMMAND);
+        sts = pci_config_read16(inf->bus, inf->dev, inf->func,
+                                PCI_REG_STATUS);
+    }
     if (dev->vendor == 0x8086)
-        pr_info("chipset: Intel platform function '%s' bound\n",
-                dev->name);
+        pr_info("chipset: Intel platform function '%s' bound "
+                "(cmd=%04x sts=%04x)\n", dev->name, cmd, sts);
     else if (dev->vendor == 0x1022)
-        pr_info("chipset: AMD platform function '%s' bound\n",
-                dev->name);
+        pr_info("chipset: AMD platform function '%s' bound "
+                "(cmd=%04x sts=%04x)\n", dev->name, cmd, sts);
     else
-        pr_info("chipset: platform function '%s' bound\n", dev->name);
+        pr_info("chipset: platform function '%s' bound "
+                "(cmd=%04x sts=%04x)\n", dev->name, cmd, sts);
     return 0;
 }
 
