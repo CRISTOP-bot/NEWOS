@@ -4,6 +4,10 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 TC_BIN="$ROOT/toolchain/out/bin"
+FPFLAGS=(-mgeneral-regs-only)
+if [ "${NEWOS_FPU:-0}" = "1" ]; then
+    FPFLAGS=()
+fi
 CC="$TC_BIN/x86_64-elf-gcc"
 SDK="$ROOT/build/newos-sdk"
 
@@ -18,7 +22,7 @@ make -s -C "$ROOT" CROSS_PREFIX=x86_64-elf- sdk
 exec "$CC" \
     -ffreestanding -fno-pic -fno-pie -fno-stack-protector \
     -fno-builtin -fno-asynchronous-unwind-tables -fno-unwind-tables \
-    -mgeneral-regs-only -O2 \
+    "${FPFLAGS[@]}" -O2 \
     -isystem "$SDK/usr/include" \
     -nostdlib -static -no-pie \
     -Wl,-T,"$ROOT/user/lib/app.ld" \

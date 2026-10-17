@@ -662,6 +662,15 @@ limine: $(LIMINE_BIN)
 toolchain:
 	$(Q)bash toolchain/build.sh
 
+# Optional userspace port. Requires recursive initialization of the
+# glxgears-newos and TinyGL submodules plus the x86_64-elf toolchain.
+.PHONY: glxgears-newos
+glxgears-newos:
+	$(Q)$(MAKE) -C ports/glxgears-newos \
+	  NEWOS_ROOT=$(CURDIR) \
+	  TINYGL_ROOT=$(CURDIR)/ports/glxgears-newos/vendor/tinygl \
+	  OUT=$(CURDIR)/build/userland/glxgears-newos.elf
+
 qemu-limine: $(LIMINE_ISO)
 	$(E) "Booting NEWOS (Limine) in QEMU ..."
 	$(Q)$(QEMU) -cdrom $(LIMINE_ISO) -boot order=d -serial stdio -no-reboot -m 128M

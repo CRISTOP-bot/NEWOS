@@ -37,6 +37,30 @@ The default build keeps using host `gcc`/`ld` (`CROSS_PREFIX` empty);
 programs opt in via an explicit link rule (see `ltest`). The lint knows
 a `LIBC` class (`ABI` + self only); the kernel never imports it.
 
+## Multi-repository components
+
+NEWOS is the superproject. The optional graphics port and the pinned GCC
+source tree are separate repositories; TinyGL is pinned recursively beneath
+`ports/glxgears-newos`. Initialize the graphics dependency without fetching
+the large GCC history:
+
+```sh
+git submodule update --init --recursive ports/glxgears-newos
+make toolchain
+make glxgears-newos
+```
+
+The executable is written to `build/userland/glxgears-newos.elf`. It uses
+TinyGL software rendering and NEWOS XRGB8888 framebuffer syscalls; this is
+not an X11/GLX server or GLX ABI. `toolchain/upstream-gcc` is a shallow,
+optional source submodule for GCC 16.1.0; initialize it explicitly only if
+you want the toolchain build to use that checkout instead of its verified
+release tarball fallback.
+
+```sh
+git submodule update --init toolchain/upstream-gcc
+```
+
 ## Targets
 
 ```

@@ -92,6 +92,7 @@ echo "=== prefix: $PREFIX jobs: $JOBS"
 
 BINUTILS_TBZ="$SRC/binutils-$BINUTILS_VER.tar.xz"
 GCC_TBZ="$SRC/gcc-$GCC_VER.tar.xz"
+GCC_SUBMODULE="$ROOT/toolchain/upstream-gcc"
 NEWLIB_TGZ="$SRC/newlib-$NEWLIB_VER.tar.gz"
 
 if have_binutils && have_gcc; then
@@ -99,20 +100,25 @@ if have_binutils && have_gcc; then
     "$PREFIX/bin/$TARGET-gcc" --version | head -n 1
 else
     fetch "binutils/binutils-$BINUTILS_VER.tar.xz" "$BINUTILS_TBZ"
-    fetch "gcc/gcc-$GCC_VER/gcc-$GCC_VER.tar.xz" "$GCC_TBZ"
-
-    # Always extract fresh: a run killed mid-tar leaves a partial tree that
-    # a mere "configure exists?" check cannot detect.
-    for a in "$BINUTILS_TBZ" "$GCC_TBZ"; do
-        check_archive "$a"
-    done
-    rm -rf "$SRC/binutils-$BINUTILS_VER" "$SRC/gcc-$GCC_VER"
+    check_archive "$BINUTILS_TBZ"
+    rm -rf "$SRC/binutils-$BINUTILS_VER"
     tar -xf "$BINUTILS_TBZ" -C "$SRC"
-    tar -xf "$GCC_TBZ" -C "$SRC"
     test -x "$SRC/binutils-$BINUTILS_VER/configure" || \
         { echo "ERROR: binutils sources missing" >&2; exit 1; }
-    test -f "$SRC/gcc-$GCC_VER/move-if-change" || \
-        { echo "ERROR: gcc sources incomplete" >&2; exit 1; }
+
+    if [ -x "$GCC_SUBMODULE/configure" ] && \
+       [ "$(tr -d '\r\n' < "$GCC_SUBMODULE/gcc/BASE-VER")" = "$GCC_VER" ]; then
+        GCC_SOURCE="$GCC_SUBMODULE"
+        echo "=== using pinned GCC $GCC_VER submodule"
+    else
+        fetch "gcc/gcc-$GCC_VER/gcc-$GCC_VER.tar.xz" "$GCC_TBZ"
+        check_archive "$GCC_TBZ"
+        rm -rf "$SRC/gcc-$GCC_VER"
+        tar -xf "$GCC_TBZ" -C "$SRC"
+        GCC_SOURCE="$SRC/gcc-$GCC_VER"
+    fi
+    test -f "$GCC_SOURCE/move-if-change" || \
+        { echo "ERROR: GCC $GCC_VER sources incomplete" >&2; exit 1; }
     rm -rf "$SRC/build-binutils" "$SRC/build-gcc"
     mkdir -p "$SRC/build-binutils" "$SRC/build-gcc"
 
@@ -134,7 +140,7 @@ export PATH="$PREFIX/bin:$PATH"
 if ! have_gcc; then
     echo "=== gcc (c + target libgcc)"
     cd "$SRC/build-gcc"
-    "$SRC/gcc-$GCC_VER/configure" \
+    "$GCC_SOURCE/configure" \
         --target="$TARGET" --prefix="$PREFIX" \
         --disable-nls --disable-docs --disable-multilib \
         --without-headers --with-newlib \
