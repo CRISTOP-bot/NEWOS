@@ -574,15 +574,23 @@ lint-layers:
 #     host against a syscall jail): install/remove/list/files, conflicts,
 #     deps incl. circular, corrupt/truncated/arch-mismatch packages.
 check-newpkg: $(NEWPKG_SAMPLE_NEW) | dirs
-	$(Q)gcc -DNEWPKG_HOST -Wall -Wextra -Werror \
+	$(Q)set -eu; \
+	created_abi_link=0; \
+	if [ ! -e userland/abi ] && [ ! -L userland/abi ]; then \
+	  ln -s ../abi userland/abi; \
+	  created_abi_link=1; \
+	fi; \
+	cleanup() { if [ "$$created_abi_link" -eq 1 ]; then rm userland/abi; fi; }; \
+	trap cleanup EXIT; \
+	gcc -DNEWPKG_HOST -Wall -Wextra -Werror \
 	  -o $(BUILD_DIR)/newpkg-host-test \
-	  user/programs/newpkg/newpkg_format.c tools/newpkg/host-test.c
-	$(Q)$(BUILD_DIR)/newpkg-host-test
-	$(Q)gcc -DNEWPKG_HOST -Wall -Wextra -Werror \
+	  user/programs/newpkg/newpkg_format.c tools/newpkg/host-test.c; \
+	$(BUILD_DIR)/newpkg-host-test; \
+	gcc -DNEWPKG_HOST -Wall -Wextra -Werror \
 	  -o $(BUILD_DIR)/newpkg-host \
 	  user/programs/newpkg/newpkg_format.c \
-	  user/programs/newpkg/newpkg_main.c tools/newpkg/posix-shim.c
-	$(Q)NEWPKG_HOST_BIN=$(BUILD_DIR)/newpkg-host \
+	  user/programs/newpkg/newpkg_main.c tools/newpkg/posix-shim.c; \
+	NEWPKG_HOST_BIN=$(BUILD_DIR)/newpkg-host \
 	  python3 tools/newpkg/tests/test_newpkg.py
 
 $(BUILD_DIR)/obj/%.o: %.c | dirs
