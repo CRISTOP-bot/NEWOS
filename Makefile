@@ -448,10 +448,10 @@ $(LIBC_A): $(LIBC_OBJS) | dirs
 
 # C application SDK: cross compiler users link against NEWOS libc and the
 # syscall/startup shim, never the host/newlib syscall layer.
-$(SDK_HEADERS): $(LIBC_HEADERS) abi/syscall_abi.h
+$(SDK_HEADERS): $(LIBC_HEADERS) include/abi/syscall_abi.h
 	$(Q)mkdir -p $(SDK_ROOT)/usr/include/newos
 	$(Q)cp -R libc/include/. $(SDK_ROOT)/usr/include/
-	$(Q)cp abi/syscall_abi.h $(SDK_ROOT)/usr/include/newos/syscall_abi.h
+	$(Q)cp include/abi/syscall_abi.h $(SDK_ROOT)/usr/include/newos/syscall_abi.h
 	$(Q)touch $@
 
 $(SDK_LIBC): $(LIBC_A)
