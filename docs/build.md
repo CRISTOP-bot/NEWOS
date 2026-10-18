@@ -5,27 +5,40 @@ configuration is one file per platform/flavor under `configs/`.
 
 ## Prerequisites
 
-- gcc, binutils (ld), nasm, qemu-system-x86_64, python3
-- grub-mkrescue/xorriso for `make iso`; xorriso for the Limine ISO
-- network once: `scripts/fetch-limine.sh` (bootloader binaries) and
-  `scripts/fetch-font.sh` (fbcon font) cache under `build/`
+For the full default build: `git`, `gcc`, `g++`, `make`, `binutils`, `nasm`,
+`curl`, `python3`, GMP/MPFR/MPC development headers, `flex`, `bison`, and
+`texinfo`. `xorriso` is needed for the Limine ISO; `qemu-system-x86_64` and
+OVMF are needed for boot tests. The build fetches pinned Git submodules and
+boot assets over the network; host packages are not installed automatically.
 
-## Cross toolchain (opt-in)
+## Full build and cross toolchain
 
-`toolchain/build.sh` builds binutils 2.44 + GCC 16.1.0 (C only) for
-`x86_64-elf` under `toolchain/out/` (~20-40 min, needs GMP/MPFR/MPC
-headers). GCC 16.x is required: older sources miscompile under a gcc-16
-host (`libcody` char8_t errors, no `--disable-libcody` switch).
+`make` (or `make all`) is the single complete superproject entry point. It first
+synchronizes and initializes every recursive submodule at the exact commits
+pinned by NEWOS, then builds binutils 2.44 + GCC 16.1.0 + newlib for
+`x86_64-elf` under `toolchain/out/`, builds the standalone kernel and Limine
+system ISO with that cross toolchain, and builds the software-rendered TinyGL
+demo. The first full build may take roughly 20-40 minutes and needs
+GMP/MPFR/MPC development
+headers, a host C/C++ toolchain, and the other prerequisites below. GCC 16.x
+is used for the pinned target compiler.
 
 ```
-bash toolchain/build.sh --jobs 2   # or: make toolchain
-export PATH="$PWD/toolchain/out/bin:$PATH"
-make CROSS_PREFIX=x86_64-elf- all
+git clone https://github.com/CRISTOP-bot/NEWOS.git
+cd NEWOS
+make                 # sources + cross toolchain + system ISO + TinyGL demo
 ```
 
-The default build keeps using host `gcc`/`ld` (`CROSS_PREFIX` empty);
-`nasm` is always the host one. Validate a cross build with
-`make CROSS_PREFIX=x86_64-elf- qemu-test` before relying on it.
+All submodule checkouts stay inside this repository; build outputs and
+third-party source archives stay under `build/` and `toolchain/out/`. The
+build does not install the cross toolchain into the host system. Host
+packages are prerequisites and are not installed automatically.
+
+For a quicker kernel/system-image iteration after the modules have been
+bootstrapped, use `make fast`. It deliberately uses host `gcc`/`ld` and skips
+the cross-toolchain build and TinyGL demo. `make bootstrap` only fetches the
+pinned recursive source modules; `make toolchain` bootstraps sources and
+builds the cross compiler by itself.
 
 ## Userland libc
 
@@ -41,44 +54,37 @@ a `LIBC` class (`ABI` + self only); the kernel never imports it.
 
 NEWOS is the superproject. Its required first-party modules are `kernel/`, `userland/`, `toolchain/`, and `ports/`. Top-level symlink shims (`abi/`, `arch/`, `core/`, `crypto/`, `drivers/`, `fs/`, `include/`, `ipc/`, `lib/`, `mm/`, `net/`, `process/`, `sys/`, `syscall/`, `user/`, and `libc/`) preserve the existing source paths used by the Makefile and C includes. The ports stage payload is stored compressed in `NEWOS-ports` and expanded automatically before packaging.
 
-Fresh checkout and ordinary build (deliberately does not recursively fetch optional third-party modules or the GCC source tree):
+Fresh checkout and full build require no manual submodule commands:
 
 ```sh
 git clone https://github.com/CRISTOP-bot/NEWOS.git
 cd NEWOS
-git submodule update --init kernel userland toolchain ports
-make check-newpkg
-make all
+make                 # recursively fetches pinned sources and builds them
+make check-newpkg    # optional test suite
 ```
 
-`toolchain/upstream-gcc` is a shallow, optional GCC 16.1.0 source checkout; the normal cross-toolchain script can use its verified release-tarball fallback. Fetch it only if needed:
+`make bootstrap` can be run alone to fetch all first-party and nested source
+modules without compiling. This includes the pinned GCC source checkout,
+Nova, glxgears-newos, and TinyGL; submodules are checked out at recorded SHAs,
+not updated to floating branch heads.
 
-```sh
-git -C toolchain submodule update --init --depth 1 upstream-gcc
-make toolchain
-```
-
-The intended future desktop/compositor source is Nova, pinned as `ports/nova`; it is **not yet a NEWOS port**. The upstream compositor assumes BoredOS's SDK and Linux-like framebuffer/VT, UNIX-socket, shared-memory, process, and threading interfaces. See [`nova-porting.md`](nova-porting.md) for the audited ABI gaps and reuse plan. NEWOS's existing `user/programs/desktop` remains the current built-in desktop; `glxgears-newos` is only an optional software-rendering graphics application/demo, not a desktop or GLX server. Keep these roles separate.
-
-To inspect the Nova source without implying it is runnable, initialize only that nested module:
-
-```sh
-git -C ports submodule update --init nova
-```
-
-The optional TinyGL demo is independently initialized when you explicitly build it:
-
-```sh
-git -C ports submodule update --init --recursive glxgears-newos
-make glxgears-newos
-```
-
-TinyGL rendering is software rendering to NEWOS's framebuffer, not GLX/X11. The demo is not part of the booted desktop.
+Nova is pinned as `ports/nova`; full `make` fetches that source but
+intentionally does not compile the upstream compositor until its BoredOS-specific
+SDK, framebuffer/VT, UNIX-socket, shared-memory, process, and threading interfaces
+have real NEWOS adapters. The active desktop incorporates only the small NTK
+color-rendering slice described in [`nova-porting.md`](nova-porting.md); Nova's
+compositor, widgets, and window manager remain unported. Full `make` also
+compiles `glxgears-newos` with its pinned TinyGL source to
+`build/userland/glxgears-newos.elf`. That software-rendered framebuffer demo is
+not GLX/X11 and is not part of the booted desktop.
 
 ## Targets
 
 ```
-make all            build the kernel       -> build/images/newos-x86_64.elf
+make / make all     fetch recursive modules, build x86_64-elf toolchain,
+                    standalone kernel + Limine ISO and TinyGL demo
+make bootstrap      fetch all pinned source modules into this checkout
+make fast           host-tool system ISO only (skips cross toolchain and demo)
 make limine         Limine-flavour kernel  -> build/images/newos-x86_64-limine.elf
 make build/images/newos-x86_64-limine.iso  BIOS+UEFI Limine ISO (complete system)
 make iso            bootable multiboot2 ISO-> build/images/newos-x86_64.iso (needs grub)
@@ -104,8 +110,8 @@ make all       # full gcc/ld/nasm command lines
 make all V=0   # short tags only
 ```
 
-`make all` starts with a configuration banner (ARCH, CONFIG, toolchain,
-git hash/tree state). Failed recipes delete their half-written targets
+The system-image phase prints a configuration banner (ARCH, CONFIG,
+toolchain, git hash/tree state). Failed recipes delete their half-written targets
 (`.DELETE_ON_ERROR`), so a rerun never picks up corrupt artifacts.
 
 Every `make all` first runs `scripts/ci/lint_layering.sh`.
@@ -117,7 +123,7 @@ Every `make all` first runs `scripts/ci/lint_layering.sh`.
 ```
 build/
   obj/            per-source .o and .d (mirror of the source tree under build/obj)
-  userland/       compiled userland objects/binaries before embedding
+  userland/       compiled userland objects/binaries before embedding, including glxgears-newos.elf
   images/         final artifacts: newos-x86_64.elf, -limine.elf, -limine.iso, .iso, .img
   limine-bins/    fetched Limine binaries + host `limine` tool (cached)
   limine-root/    ISO staging tree (kernel, limine.conf, EFI files)
@@ -126,8 +132,12 @@ build/
   test.ppm    generated test picture (scripts/gen-images.py)
 ```
 
-`make clean` deletes all of it; the source tree is then untouched
-(`git status --porcelain` empty).
+The cross-toolchain build is kept separately under `toolchain/out/` (inside
+the `toolchain` submodule); `make clean` removes `build/` but deliberately
+keeps the downloaded toolchain and source modules for reuse.
+
+`make clean` deletes the build tree; with generated paths ignored, the source
+checkout remains unchanged (`git status --porcelain` empty).
 
 ## Source ledger
 

@@ -126,7 +126,7 @@ while IFS= read -r f; do
     done < <(sed -nE 's/^[[:space:]]*#include[[:space:]]+([<"][^>"]+[>"]).*$/\1/p' "$f")
 done < <(find -L . -type d \( -path './build' -o -path './.git' \
                          -o -path './kernel' -o -path './userland' \
-                         -o -path './toolchain/out' -o -path './ports/build' \) \
+                         -o -path './toolchain' -o -path './ports' \) \
          -prune -o \
          -type f \( -name '*.c' -o -name '*.h' \) -print | sort)
 

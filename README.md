@@ -35,23 +35,33 @@ The x86_64 kernel reaches `BUILD=PASS`, `BOOT=PASS`, and `QEMU=PASS`:
 
 ## Build & run
 
-For a fresh clone, initialize the four required first-party component submodules before building:
+For a fresh clone, `make` bootstraps every pinned recursive source submodule
+and builds the cross toolchain, NEWOS kernel/system ISO, and TinyGL demo from
+the original repository:
 
 ```sh
 git clone https://github.com/CRISTOP-bot/NEWOS.git
 cd NEWOS
-git submodule update --init kernel userland toolchain ports
-make check-newpkg
-make all
+make
 ```
 
-The target graphical environment is Nova from BoredOS, pinned under `ports/nova` as source for a future port. Nova currently targets a BoredOS SDK and Linux-like framebuffer/VT, socket, shared-memory, process, and thread interfaces; it does not yet build or run on NEWOS. NEWOS's existing `user/programs/desktop` remains the current built-in desktop, while `glxgears-newos` is only an optional software-rendering demo. Compatibility and port work are documented in [`docs/nova-porting.md`](docs/nova-porting.md).
+All source checkouts stay inside this repository; generated files stay in
+`build/` and `toolchain/out/`. The first full build may take 20-40 minutes.
+Use `make fast` for a host-compiler system build that skips the toolchain and
+graphics demo, or `make bootstrap` to fetch sources without compiling.
 
-Requirements: `gcc`, `make`, `nasm`, `ld`, `qemu-system-x86_64`, `python3`
-(plus `grub-mkrescue`/`xorriso` for the ISOs).
+Nova from BoredOS is the intended graphical direction and is pinned under `ports/nova`. The active NEWOS desktop now reuses one small GPL-3.0-only, integer-based NTK color-rendering slice for panel and window-title gradients; the Nova compositor, widget tree, and window-manager runtime are not yet operational. Compatibility and port work are documented in [`docs/nova-porting.md`](docs/nova-porting.md). `glxgears-newos` is a separately built software-rendering demo, not part of the booted desktop.
+
+Requirements for the full build: `gcc`, `g++`, `make`, `binutils`, `nasm`,
+`git`, `curl`, `python3`, `libgmp-dev`, `libmpfr-dev`, `libmpc-dev`, `flex`,
+`bison`, and `texinfo`; `xorriso` is required for the Limine ISO. QEMU and
+OVMF are required only for the boot tests. NEWOS does not install host
+packages automatically.
 
 ```sh
-make all            # build build/images/newos-x86_64.elf  (BUILD=PASS)
+make all            # build kernel + Limine ISO + build/userland/glxgears-newos.elf
+make fast           # host-compiler system ISO only (no toolchain or demo)
+make bootstrap      # fetch all pinned first-party and nested submodules
 make qemu           # boot in QEMU (serial console)  (BOOT=PASS)
 make qemu-test      # boot, run self-tests, exit with a machine-checkable code
 make qemu-limine-test  # suite through the Limine ISO (graphics path)
@@ -61,8 +71,8 @@ make clean
 ```
 
 Every push to `main` runs the build, package-manager tests, and QEMU boot
-tests. Passing commits publish a GitHub prerelease with the kernel and ISO
-images, and update the build environment at
+tests. Passing commits publish a GitHub prerelease with the kernel, ISO images, and
+compiled TinyGL demo, and update the build environment at
 `ghcr.io/cristop-bot/newos-build` (`latest` and `sha-*` tags). Pull requests
 run the same checks without publishing. Pull and run the published build
 environment with `docker compose pull newos` followed by
