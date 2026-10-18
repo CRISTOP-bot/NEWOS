@@ -9,5 +9,7 @@ build = "make glxgears-newos"
 newos-min = "0.3.0"
 depends = ""
 
+# Preserve TinyGL's required copyright and permission notice with the binary.
 files:
   build/userland/glxgears-newos.elf /bin/glxgears-newos 0755
+  ports/glxgears-newos/vendor/tinygl/LICENSE /usr/share/licenses/glxgears-newos/TinyGL-LICENSE 0644

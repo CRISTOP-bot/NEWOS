@@ -3,15 +3,19 @@
 # A complete, layered build system for the NEWOS operating system.
 #
 # Primary targets (full list: make help):
-#   make all          - build the kernel
-#   make limine       - Limine-flavour kernel (BIOS+UEFI graphics path)
-#   make iso          - GRUB multiboot2 ISO
-#   make qemu         - boot the kernel in QEMU (serial console)
-#   make qemu-test    - automated test suite in QEMU (exit 1 = PASS)
-#   make qemu-limine-test - suite through the Limine ISO
-#   make check-newpkg - package system tests (no QEMU needed)
-#   make toolchain    - build the x86_64-elf cross toolchain
-#   make clean        - remove all build artifacts
+#   make / make all  - fetch pinned submodules, build x86_64-elf toolchain,
+#                      Limine system ISO, and the NEWOS TinyGL demo
+#   make bootstrap   - fetch all pinned component and nested source submodules
+#   make fast        - build only the system ISO with host tools (no GCC build)
+#   make limine      - Limine-flavour kernel (BIOS+UEFI graphics path)
+#   make iso         - GRUB multiboot2 ISO
+#   make qemu-test   - automated test suite in QEMU (exit 1 = PASS)
+#   make toolchain   - build the x86_64-elf cross toolchain under toolchain/out
+#   make clean       - remove build/ artifacts (not source modules or toolchain)
+#
+# All source checkouts and generated files stay under this repository.
+# Nova is downloaded as a pinned source, but is not built until its NEWOS port
+# is implemented. Host packages listed in docs/build.md remain prerequisites.
 #
 # Options: V=0 (short log), V=1 (full commands, default),
 #   ARCH=x86_64, CROSS_PREFIX=x86_64-elf-, CONFIG=path/to/config
@@ -25,10 +29,9 @@ SUPPORTED_ARCHES := x86_64
 ifeq ($(filter $(ARCH),$(SUPPORTED_ARCHES)),)
 $(error ARCH='$(ARCH)' is not implemented yet; supported architecture: x86_64 (see docs/porting-roadmap.md))
 endif
-# Cross toolchain prefix (empty = host gcc/ld). Build it once with
-#   toolchain/build.sh
-# then use: make CROSS_PREFIX=x86_64-elf- all
-# (needs toolchain/out/bin on PATH).
+# Cross toolchain prefix for direct/low-level targets (empty = host gcc/ld).
+# The complete `make all` pipeline builds and uses x86_64-elf- automatically;
+# `make fast` deliberately uses the host compiler for a quicker system build.
 CROSS_PREFIX    ?=
 BUILD_DIR       := build
 KERNEL_BIN      := $(BUILD_DIR)/images/newos-$(ARCH).elf
@@ -195,6 +198,12 @@ NANO_EMBED      := $(BUILD_DIR)/obj/userland/nano.bin.o
 # (shared with the host test driver). Linked explicitly like ltest+libc.
 NEWPKG_FORMAT_OBJ := $(BUILD_DIR)/userland/newpkg_format.o
 
+# Nova-derived, integer-only NTK color component used by NEWOS desktop.
+NOVA_COLOR_SRC := user/programs/desktop/nova/ntk_color.c
+NOVA_COLOR_OBJ := $(BUILD_DIR)/userland/nova_ntk_color.o
+NOVA_COLOR_HEADERS := user/programs/desktop/nova/ntk_color.h \
+                      user/programs/desktop/nova/ntk_types.h
+
 # Sample `.new` package embedded for live QEMU exercises (/tmp/*.new).
 # Built from the already-linked hello ELF through the host builder script.
 NEWPKG_SAMPLE_NEWSPEC := packages/hello-new.newspec
@@ -354,6 +363,22 @@ $(BUILD_DIR)/userland/$(1).o: user/programs/$(1)/$(1)_main.c user/lib/nshlib.h
 endef
 $(foreach p,$(PROG_NAMES),$(eval $(call PROG_COMPILE_RULE,$(p))))
 
+# NTK color is compiled separately and linked only into the desktop program.
+$(BUILD_DIR)/userland/desktop.o: $(NOVA_COLOR_HEADERS)
+
+$(NOVA_COLOR_OBJ): $(NOVA_COLOR_SRC) $(NOVA_COLOR_HEADERS)
+	$(Q)mkdir -p $(dir $@)
+	$(E) "  UCC $< (Nova NTK color)"
+	$(Q)$(CC) $(USER_CFLAGS) -Iuser/programs/desktop/nova -o $@ $<
+
+$(BUILD_DIR)/userland/desktop.elf: $(BUILD_DIR)/userland/desktop.o \
+    $(NOVA_COLOR_OBJ) $(NSHLIB_OBJ) $(START_OBJ) $(APP_LD)
+	$(Q)mkdir -p $(dir $@)
+	$(E) "  ULD $@ +Nova NTK color"
+	$(Q)$(LD) -n -static -nostdlib -T $(APP_LD) -o $@ \
+	  $(BUILD_DIR)/userland/desktop.o $(NOVA_COLOR_OBJ) \
+	  $(NSHLIB_OBJ) $(START_OBJ)
+
 $(BUILD_DIR)/obj/userland/%.bin.o: $(BUILD_DIR)/userland/%.elf
 	$(Q)mkdir -p $(dir $@)
 	$(Q)cp $< $(BUILD_DIR)/$*.elf
@@ -423,10 +448,10 @@ $(LIBC_A): $(LIBC_OBJS) | dirs
 
 # C application SDK: cross compiler users link against NEWOS libc and the
 # syscall/startup shim, never the host/newlib syscall layer.
-$(SDK_HEADERS): $(LIBC_HEADERS) abi/syscall_abi.h
+$(SDK_HEADERS): $(LIBC_HEADERS) include/abi/syscall_abi.h
 	$(Q)mkdir -p $(SDK_ROOT)/usr/include/newos
 	$(Q)cp -R libc/include/. $(SDK_ROOT)/usr/include/
-	$(Q)cp abi/syscall_abi.h $(SDK_ROOT)/usr/include/newos/syscall_abi.h
+	$(Q)cp include/abi/syscall_abi.h $(SDK_ROOT)/usr/include/newos/syscall_abi.h
 	$(Q)touch $@
 
 $(SDK_LIBC): $(LIBC_A)
@@ -514,9 +539,9 @@ $(BUILD_DIR)/obj/drivers/graphics/fb.o: $(FONT_HDR)
 # ---------------------------------------------------------------------------
 # Rules
 # ---------------------------------------------------------------------------
-.PHONY: all clean qemu qemu-debug qemu-test qemu-network qemu-disk iso \
+.PHONY: all bootstrap fast clean qemu qemu-debug qemu-test qemu-network qemu-disk iso \
         qemu-limine qemu-limine-test limine toolchain sdk check-config dirs ports-assets \
-        lint-layers check-newpkg build-info help \
+        lint-layers check-newpkg check-nova build-info help system-image-build \
         vbox vbox-setup vbox-test FORCE
 
 .DEFAULT_GOAL := all
@@ -524,9 +549,30 @@ $(BUILD_DIR)/obj/drivers/graphics/fb.o: $(FONT_HDR)
 # Delete half-written targets when a recipe fails (no corrupt artifacts).
 .DELETE_ON_ERROR:
 
-# Default build: the Limine ISO only. The kernel ELF lives inside the ISO
-# (boot/newos-limine.elf); no standalone OS ELF is produced by `make all`.
-all: build-info $(LIMINE_ISO)
+# `make` is the complete superproject entry point. Bootstrap is a separate
+# prerequisite with no source-file prerequisites, so it runs before a nested
+# make expands the source ledger from the initialized component submodules.
+# `git submodule update` checks out only the commits pinned by this repo.
+all: bootstrap
+	$(Q)$(MAKE) --no-print-directory toolchain
+	$(Q)PATH="$(CURDIR)/toolchain/out/bin:$$PATH" $(MAKE) --no-print-directory CROSS_PREFIX=x86_64-elf- system-image-build
+	$(Q)PATH="$(CURDIR)/toolchain/out/bin:$$PATH" $(MAKE) --no-print-directory CROSS_PREFIX=x86_64-elf- glxgears-newos
+	$(Q)echo "Nova source is pinned under ports/nova; build is deferred until its NEWOS port is implemented."
+
+# Initialize every first-party and nested source repository at its pinned SHA.
+# Build products are kept in build/ and toolchain/out/ inside this checkout.
+bootstrap:
+	$(Q)git -C "$(CURDIR)" rev-parse --show-toplevel >/dev/null 2>&1 || { echo "ERROR: run make from a Git checkout of NEWOS" >&2; exit 1; }
+	$(Q)git submodule sync --recursive
+	$(Q)git submodule update --init --recursive
+
+# Fast local alternative: bootstrap sources, then build the Limine system ISO
+# with host gcc/ld. It deliberately skips the cross toolchain and optional demo.
+fast: bootstrap
+	$(Q)$(MAKE) --no-print-directory CROSS_PREFIX= system-image-build
+
+# Actual system image rules are reached through recursive make after bootstrap.
+system-image-build: build-info $(KERNEL_BIN) $(LIMINE_ISO)
 
 # One-line build configuration banner (always printed for `all`).
 build-info:
@@ -536,7 +582,9 @@ build-info:
 
 help:
 	@echo "NEWOS build targets:"
-	@echo "  make all               Limine ISO -> build/images/newos-x86_64-limine.iso"
+	@echo "  make / make all        bootstrap sources, build x86_64-elf, kernel + ISO + TinyGL demo"
+	@echo "  make bootstrap         fetch all pinned recursive submodules into this checkout"
+	@echo "  make fast              host-compiler system ISO only (skips toolchain and demo)"
 	@echo "  make build/images/newos-x86_64.elf          standalone PVH/multiboot2 kernel"
 	@echo "  make limine            Limine-flavour kernel"
 	@echo "  make iso               GRUB multiboot2 ISO"
@@ -550,8 +598,9 @@ help:
 	@echo "  make qemu-network      boot with user-mode networking"
 	@echo "  make qemu-disk         boot from a 64 MiB raw disk image"
 	@echo "  make check-newpkg      package system tests (no QEMU needed)"
+	@echo "  make check-nova        Nova NTK color component host tests"
 	@echo "  make lint-layers       layering contract check only"
-	@echo "  make toolchain         build x86_64-elf cross toolchain"
+	@echo "  make toolchain         bootstrap sources and build x86_64-elf under toolchain/out"
 	@echo "  make CROSS_PREFIX=x86_64-elf- sdk  stage the NEWOS C SDK"
 	@echo "  make clean             remove build/ entirely"
 	@echo "Options: V=0 (short log), V=1 (full commands, default),"
@@ -584,6 +633,15 @@ check-newpkg: $(NEWPKG_SAMPLE_NEW) | dirs
 	  user/programs/newpkg/newpkg_main.c tools/newpkg/posix-shim.c
 	$(Q)NEWPKG_HOST_BIN=$(BUILD_DIR)/newpkg-host \
 	  python3 tools/newpkg/tests/test_newpkg.py
+
+# Exercise the adapted Nova NTK color API on the host. This complements, but
+# does not replace, the cross-compiled desktop build in `make all`.
+check-nova: | dirs
+	$(Q)gcc -std=c11 -Wall -Wextra -Werror \
+	  -o $(BUILD_DIR)/nova-ntk-color-test \
+	  user/programs/desktop/nova/ntk_color.c \
+	  user/programs/desktop/nova/tests/ntk_color_test.c
+	$(Q)$(BUILD_DIR)/nova-ntk-color-test
 
 $(BUILD_DIR)/obj/%.o: %.c | dirs
 	$(Q)mkdir -p $(dir $@)
@@ -662,16 +720,15 @@ $(LIMINE_ISO): $(LIMINE_BIN) $(LIMINE_ROOT)/limine.conf \
 
 limine: $(LIMINE_BIN)
 
-# Cross toolchain (opt-in): builds binutils+GCC for x86_64-elf under
-# toolchain/out/. Use with `make CROSS_PREFIX=x86_64-elf- ...`
-# after exporting toolchain/out/bin on PATH.
-toolchain:
+# Cross toolchain component: builds binutils+GCC+newlib for x86_64-elf under
+# toolchain/out/. The full `make all` pipeline uses this toolchain by default.
+toolchain: bootstrap
 	$(Q)bash toolchain/build.sh
 
-# Optional userspace port. Requires recursive initialization of the
-# glxgears-newos and TinyGL submodules plus the x86_64-elf toolchain.
+# Optional userspace graphics demo. Its nested TinyGL source is initialized
+# by bootstrap; the target builds into this repository's build/ directory.
 .PHONY: glxgears-newos
-glxgears-newos:
+glxgears-newos: bootstrap toolchain
 	$(Q)$(MAKE) -C ports/glxgears-newos \
 	  NEWOS_ROOT=$(CURDIR) \
 	  TINYGL_ROOT=$(CURDIR)/ports/glxgears-newos/vendor/tinygl \
