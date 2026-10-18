@@ -1,0 +1,135 @@
+name: Auto-merge passing PRs
+
+on:
+  workflow_run:
+    types: [completed]
+
+permissions:
+  checks: read
+  contents: write
+  pull-requests: write
+  statuses: read
+
+jobs:
+  merge:
+    if: github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Merge only a fully green PR with landed submodule pins
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const run = context.payload.workflow_run;
+            const { owner, repo } = context.repo;
+            const fullName = `${owner}/${repo}`.toLowerCase();
+            const moduleRepos = {
+              kernel: "NEWOS-kernel",
+              userland: "NEWOS-userland",
+              toolchain: "NEWOS-toolchain",
+              ports: "NEWOS-ports"
+            };
+
+            async function reachableFromDefault(moduleOwner, moduleRepo, sha, label) {
+              try {
+                const { data: metadata } = await github.rest.repos.get({ owner: moduleOwner, repo: moduleRepo });
+                const response = await github.request(
+                  "GET /repos/{owner}/{repo}/compare/{basehead}",
+                  { owner: moduleOwner, repo: moduleRepo, basehead: `${metadata.default_branch}...${sha}` }
+                );
+                if (response.data.ahead_by === 0) return true;
+                core.info(`${label} (${sha}) is not yet reachable from ${moduleOwner}/${moduleRepo}:${metadata.default_branch}.`);
+                return false;
+              } catch (error) {
+                core.info(`Cannot verify ${label} (${sha}) against ${moduleOwner}/${moduleRepo}: ${error.message}`);
+                return false;
+              }
+            }
+
+            async function pinsAreLanded(pr) {
+              const files = await github.paginate(github.rest.pulls.listFiles, {
+                owner, repo, pull_number: pr.number, per_page: 100
+              });
+              const changed = files.map(file => file.filename).filter(path => Object.hasOwn(moduleRepos, path));
+              for (const path of changed) {
+                const moduleOwner = owner;
+                const moduleRepo = moduleRepos[path];
+                const { data: entry } = await github.rest.repos.getContent({
+                  owner, repo, path, ref: pr.head.sha
+                });
+                if (entry.type !== "submodule" || !entry.sha) {
+                  core.info(`Cannot verify changed submodule path ${path}; refusing to merge.`);
+                  return false;
+                }
+                if (!await reachableFromDefault(moduleOwner, moduleRepo, entry.sha, path)) return false;
+
+                // NEWOS-ports contains the glxgears submodule. Ensure that pin is
+                // also on its repository's default branch before merging NEWOS.
+                if (path === "ports") {
+                  const { data: nested } = await github.rest.repos.getContent({
+                    owner, repo: "NEWOS-ports", path: "glxgears-newos", ref: entry.sha
+                  });
+                  if (nested.type !== "submodule" || !nested.sha ||
+                      !await reachableFromDefault(owner, "glxgears-newos", nested.sha, "ports/glxgears-newos")) {
+                    return false;
+                  }
+                }
+              }
+              return true;
+            }
+
+            let numbers = [...new Set((run.pull_requests || []).map(pr => pr.number).filter(Number.isInteger))];
+            if (numbers.length === 0) {
+              const open = await github.paginate(github.rest.pulls.list, {
+                owner, repo, state: "open", head: `${owner}:${run.head_branch}`, per_page: 100
+              });
+              numbers = open.filter(pr => pr.head.sha === run.head_sha).map(pr => pr.number);
+            }
+            if (numbers.length === 0) {
+              core.info("No open PR is associated with this successful workflow run.");
+              return;
+            }
+
+            for (const number of numbers) {
+              const { data: pr } = await github.rest.pulls.get({ owner, repo, pull_number: number });
+              if (pr.state !== "open" || pr.draft) continue;
+              if (!pr.head.repo || `${pr.head.repo.full_name}`.toLowerCase() !== fullName) continue;
+              if (pr.head.sha !== run.head_sha) {
+                core.info(`Skipping #${number}: this CI run is for a stale head.`);
+                continue;
+              }
+
+              const checks = await github.paginate(github.rest.checks.listForRef, {
+                owner, repo, ref: pr.head.sha, per_page: 100
+              });
+              if (checks.length === 0) {
+                core.info(`Skipping #${number}: no completed check-runs are available for ${pr.head.sha}.`);
+                continue;
+              }
+              const newestByName = new Map();
+              for (const check of checks.sort((a, b) =>
+                Date.parse(a.started_at || a.created_at) - Date.parse(b.started_at || b.created_at))) {
+                newestByName.set(check.name, check);
+              }
+              const allowed = new Set(["success", "neutral", "skipped"]);
+              const notGreen = [...newestByName.values()].filter(check =>
+                check.status !== "completed" || !allowed.has(check.conclusion));
+              const combined = await github.rest.repos.getCombinedStatusForRef({ owner, repo, ref: pr.head.sha });
+              if (notGreen.length || (combined.data.total_count > 0 && combined.data.state !== "success")) {
+                core.info(`Skipping #${number}: not all checks/statuses for ${pr.head.sha} are green.`);
+                continue;
+              }
+              if (!await pinsAreLanded(pr)) {
+                core.info(`Skipping #${number}: one or more pinned component commits are not on their default branches.`);
+                continue;
+              }
+
+              try {
+                const merged = await github.rest.pulls.merge({
+                  owner, repo, pull_number: number, merge_method: "merge"
+                });
+                if (merged.data.merged) core.notice(`Merged #${number} after CI passed and all component pins were reachable.`);
+                else core.warning(`GitHub did not merge #${number}: ${merged.data.message || "no message"}`);
+              } catch (error) {
+                core.warning(`Could not merge #${number}; branch protection, review, or conflicts may still block it: ${error.message}`);
+              }
+            }
