@@ -565,7 +565,7 @@ check-config:
 	  echo "ERROR: config $(CONFIG) not found"; exit 1; }
 
 lint-layers:
-	$(Q)scripts/ci/lint_layering.sh
+	$(Q)bash scripts/ci/lint_layering.sh
 
 # check-newpkg: native package system tests (no QEMU needed).
 #  1. C unit driver for the portable format core (CRC, header, metadata,
