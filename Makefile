@@ -233,7 +233,7 @@ GNU_PKG_EMBED   := $(BUILD_DIR)/obj/userland/gnu_coreutils.bin.o
 # Package the checked-in staged tools directly; `make gnu` refreshes this
 # same stage from upstream. They install under /usr/bin, preserving native
 # NEWOS commands under /bin.
-$(GNU_PKG): $(GNU_STAGE_INPUTS) scripts/pack-gnu.sh tools/newpkg/newpkg-build.py | dirs
+$(GNU_PKG): $(GNU_STAGE_INPUTS) scripts/pack-gnu.sh tools/newpkg/newpkg-build.py | dirs ports-assets
 	$(Q)bash scripts/pack-gnu.sh $(GNU_STAGE) $@ $(GNU_PKG_VERSION)
 
 # The blob symbol is derived from the operand name: gnu-coreutils.new ->
@@ -243,7 +243,7 @@ $(GNU_PKG_EMBED): $(GNU_PKG)
 	$(E) "  GEMB $(notdir $<)"
 	$(Q)cd $(BUILD_DIR) && $(LD) -r -b binary -o obj/userland/gnu_coreutils.bin.o gnu-coreutils.new
 
-gnu: | dirs
+gnu: | dirs ports-assets
 	$(E) "Building GNU tools with musl (Docker) ..."
 	$(Q)bash scripts/build-gnu.sh stage ports/stage
 	$(Q)rm -f $(GNU_PKG)
@@ -251,7 +251,13 @@ gnu: | dirs
 gnu-pkg: $(GNU_PKG)
 	$(Q)ls -la $(GNU_PKG)
 
-.PHONY: gnu gnu-pkg
+.PHONY: gnu gnu-pkg ports-assets
+
+# Expand the compact binary payload kept in NEWOS-ports before packaging.
+# This is a no-op when the staged marker and pinned source archive are present.
+ports-assets:
+	$(Q)test -x ports/scripts/restore-assets.sh || { echo "ports submodule is missing; run: git submodule update --init ports" >&2; exit 1; }
+	$(Q)test -f ports/stage/.built -a -f ports/distfiles/coreutils-9.7.tar.xz || bash ports/scripts/restore-assets.sh
 
 # Keep the linked tool ELFs: they chain into embeds through a pattern rule
 # and make would otherwise delete them as intermediates after every build.
@@ -279,7 +285,7 @@ INCLUDE         := -Iinclude -I. -Ilib/kernel -Iarch/$(ARCH)/include \
 USER_CFLAGS     := -c -O2 -ffreestanding -nostdlib -fno-pic -fno-pie \
                    -fno-stack-protector -fno-builtin -fno-asynchronous-unwind-tables \
                    -fno-exceptions -mgeneral-regs-only -Wall -Wextra -Werror \
-                   -Ilibc/include
+                   -Ilibc/include -Iuserland/user
 
 $(HELLO_OBJ): $(HELLO_DIR)/hello_main.c
 	$(Q)mkdir -p $(dir $@)
@@ -509,7 +515,7 @@ $(BUILD_DIR)/obj/drivers/graphics/fb.o: $(FONT_HDR)
 # Rules
 # ---------------------------------------------------------------------------
 .PHONY: all clean qemu qemu-debug qemu-test qemu-network qemu-disk iso \
-        qemu-limine qemu-limine-test limine toolchain sdk check-config dirs \
+        qemu-limine qemu-limine-test limine toolchain sdk check-config dirs ports-assets \
         lint-layers check-newpkg build-info help \
         vbox vbox-setup vbox-test FORCE
 
@@ -559,7 +565,7 @@ check-config:
 	  echo "ERROR: config $(CONFIG) not found"; exit 1; }
 
 lint-layers:
-	$(Q)scripts/ci/lint_layering.sh
+	$(Q)bash scripts/ci/lint_layering.sh
 
 # check-newpkg: native package system tests (no QEMU needed).
 #  1. C unit driver for the portable format core (CRC, header, metadata,
@@ -572,7 +578,7 @@ check-newpkg: $(NEWPKG_SAMPLE_NEW) | dirs
 	  -o $(BUILD_DIR)/newpkg-host-test \
 	  user/programs/newpkg/newpkg_format.c tools/newpkg/host-test.c
 	$(Q)$(BUILD_DIR)/newpkg-host-test
-	$(Q)gcc -DNEWPKG_HOST -Wall -Wextra -Werror \
+	$(Q)gcc -DNEWPKG_HOST -Wall -Wextra -Werror -Iuserland/user \
 	  -o $(BUILD_DIR)/newpkg-host \
 	  user/programs/newpkg/newpkg_format.c \
 	  user/programs/newpkg/newpkg_main.c tools/newpkg/posix-shim.c
@@ -661,6 +667,15 @@ limine: $(LIMINE_BIN)
 # after exporting toolchain/out/bin on PATH.
 toolchain:
 	$(Q)bash toolchain/build.sh
+
+# Optional userspace port. Requires recursive initialization of the
+# glxgears-newos and TinyGL submodules plus the x86_64-elf toolchain.
+.PHONY: glxgears-newos
+glxgears-newos:
+	$(Q)$(MAKE) -C ports/glxgears-newos \
+	  NEWOS_ROOT=$(CURDIR) \
+	  TINYGL_ROOT=$(CURDIR)/ports/glxgears-newos/vendor/tinygl \
+	  OUT=$(CURDIR)/build/userland/glxgears-newos.elf
 
 qemu-limine: $(LIMINE_ISO)
 	$(E) "Booting NEWOS (Limine) in QEMU ..."

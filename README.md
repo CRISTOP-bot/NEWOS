@@ -35,6 +35,18 @@ The x86_64 kernel reaches `BUILD=PASS`, `BOOT=PASS`, and `QEMU=PASS`:
 
 ## Build & run
 
+For a fresh clone, initialize the four required first-party component submodules before building:
+
+```sh
+git clone https://github.com/CRISTOP-bot/NEWOS.git
+cd NEWOS
+git submodule update --init kernel userland toolchain ports
+make check-newpkg
+make all
+```
+
+The target graphical environment is Nova from BoredOS, pinned under `ports/nova` as source for a future port. Nova currently targets a BoredOS SDK and Linux-like framebuffer/VT, socket, shared-memory, process, and thread interfaces; it does not yet build or run on NEWOS. NEWOS's existing `user/programs/desktop` remains the current built-in desktop, while `glxgears-newos` is only an optional software-rendering demo. Compatibility and port work are documented in [`docs/nova-porting.md`](docs/nova-porting.md).
+
 Requirements: `gcc`, `make`, `nasm`, `ld`, `qemu-system-x86_64`, `python3`
 (plus `grub-mkrescue`/`xorriso` for the ISOs).
 

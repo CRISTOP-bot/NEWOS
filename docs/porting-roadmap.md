@@ -20,10 +20,14 @@ with the port and distributed in a way compatible with that license.
 ### GCC
 
 `toolchain/` builds a host-executed `x86_64-elf` cross compiler for kernel
-development. It is not an executable that runs in NEWOS. A native GCC port
-needs a hosted target toolchain and substantial OS support: reliable process
-creation and `exec`, large per-process virtual address spaces, `mmap`, signals,
-filesystem operations, terminal support, and a usable hosted libc. NEWOS is
+development. It is not an executable that runs in NEWOS. Its GCC source is
+pinned as the optional, shallow `toolchain/upstream-gcc` submodule at the GCC
+16.1.0 release commit; `toolchain/build.sh` uses it when initialized and
+version-matched, otherwise it retains the release-tarball fallback. A native
+GCC port needs a hosted target toolchain and substantial OS support:
+reliable process creation and `exec`, large per-process virtual address spaces,
+`mmap`, signals, filesystem operations, terminal support, and a usable hosted
+libc. NEWOS is
 missing several of these pieces. The practical bootstrap order is:
 
 1. Complete process and virtual-memory interfaces and broaden the libc.

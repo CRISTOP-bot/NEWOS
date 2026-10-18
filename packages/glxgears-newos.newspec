@@ -1,0 +1,13 @@
+# Build on the host with the NEWOS cross toolchain and recursive submodules.
+name = "glxgears-newos"
+version = "0.1.0"
+arch = "x86_64"
+desc = "TinyGL software-rendered gears demo for the NEWOS framebuffer"
+license = "MIT"
+maintainer = "NEWOS"
+build = "make glxgears-newos"
+newos-min = "0.3.0"
+depends = ""
+
+files:
+  build/userland/glxgears-newos.elf /bin/glxgears-newos 0755
