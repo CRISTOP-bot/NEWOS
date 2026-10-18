@@ -2,6 +2,7 @@ name: Auto-merge passing PRs
 
 on:
   workflow_run:
+    workflows: ["CI and publish"]
     types: [completed]
 
 permissions:
