@@ -54,6 +54,9 @@ jobs:
       - name: Test package manager
         run: make check-newpkg
 
+      - name: Test Nova NTK color component
+        run: make check-nova
+
       - name: Build standalone kernel and Limine ISO
         run: |
           make build/images/newos-x86_64.elf

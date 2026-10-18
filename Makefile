@@ -195,6 +195,12 @@ NANO_EMBED      := $(BUILD_DIR)/obj/userland/nano.bin.o
 # (shared with the host test driver). Linked explicitly like ltest+libc.
 NEWPKG_FORMAT_OBJ := $(BUILD_DIR)/userland/newpkg_format.o
 
+# Nova-derived, integer-only NTK color component used by NEWOS desktop.
+NOVA_COLOR_SRC := user/programs/desktop/nova/ntk_color.c
+NOVA_COLOR_OBJ := $(BUILD_DIR)/userland/nova_ntk_color.o
+NOVA_COLOR_HEADERS := user/programs/desktop/nova/ntk_color.h \
+                      user/programs/desktop/nova/ntk_types.h
+
 # Sample `.new` package embedded for live QEMU exercises (/tmp/*.new).
 # Built from the already-linked hello ELF through the host builder script.
 NEWPKG_SAMPLE_NEWSPEC := packages/hello-new.newspec
@@ -353,6 +359,22 @@ $(BUILD_DIR)/userland/$(1).o: user/programs/$(1)/$(1)_main.c user/lib/nshlib.h
 	$(Q)$$(CC) $$(USER_CFLAGS) -o $$@ $$<
 endef
 $(foreach p,$(PROG_NAMES),$(eval $(call PROG_COMPILE_RULE,$(p))))
+
+# NTK color is a separate source file and is linked only into desktop.
+$(BUILD_DIR)/userland/desktop.o: $(NOVA_COLOR_HEADERS)
+
+$(NOVA_COLOR_OBJ): $(NOVA_COLOR_SRC) $(NOVA_COLOR_HEADERS)
+	$(Q)mkdir -p $(dir $@)
+	$(E) "  UCC $< (Nova NTK color)"
+	$(Q)$(CC) $(USER_CFLAGS) -Iuser/programs/desktop/nova -o $@ $<
+
+$(BUILD_DIR)/userland/desktop.elf: $(BUILD_DIR)/userland/desktop.o \
+    $(NOVA_COLOR_OBJ) $(NSHLIB_OBJ) $(START_OBJ) $(APP_LD)
+	$(Q)mkdir -p $(dir $@)
+	$(E) "  ULD $@ +Nova NTK color"
+	$(Q)$(LD) -n -static -nostdlib -T $(APP_LD) -o $@ \
+	  $(BUILD_DIR)/userland/desktop.o $(NOVA_COLOR_OBJ) \
+	  $(NSHLIB_OBJ) $(START_OBJ)
 
 $(BUILD_DIR)/obj/userland/%.bin.o: $(BUILD_DIR)/userland/%.elf
 	$(Q)mkdir -p $(dir $@)
@@ -516,7 +538,7 @@ $(BUILD_DIR)/obj/drivers/graphics/fb.o: $(FONT_HDR)
 # ---------------------------------------------------------------------------
 .PHONY: all clean qemu qemu-debug qemu-test qemu-network qemu-disk iso \
         qemu-limine qemu-limine-test limine toolchain sdk check-config dirs ports-assets \
-        lint-layers check-newpkg build-info help \
+        lint-layers check-newpkg check-nova build-info help \
         vbox vbox-setup vbox-test FORCE
 
 .DEFAULT_GOAL := all
@@ -550,6 +572,7 @@ help:
 	@echo "  make qemu-network      boot with user-mode networking"
 	@echo "  make qemu-disk         boot from a 64 MiB raw disk image"
 	@echo "  make check-newpkg      package system tests (no QEMU needed)"
+	@echo "  make check-nova        Nova NTK color component host tests"
 	@echo "  make lint-layers       layering contract check only"
 	@echo "  make toolchain         build x86_64-elf cross toolchain"
 	@echo "  make CROSS_PREFIX=x86_64-elf- sdk  stage the NEWOS C SDK"
@@ -584,6 +607,15 @@ check-newpkg: $(NEWPKG_SAMPLE_NEW) | dirs
 	  user/programs/newpkg/newpkg_main.c tools/newpkg/posix-shim.c
 	$(Q)NEWPKG_HOST_BIN=$(BUILD_DIR)/newpkg-host \
 	  python3 tools/newpkg/tests/test_newpkg.py
+
+# Exercise Nova's adapted NTK color math with the host compiler; this does not
+# replace the freestanding desktop build exercised by `make all`.
+check-nova: | dirs
+	$(Q)gcc -std=c11 -Wall -Wextra -Werror \
+	  -o $(BUILD_DIR)/nova-ntk-color-test \
+	  user/programs/desktop/nova/ntk_color.c \
+	  user/programs/desktop/nova/tests/ntk_color_test.c
+	$(Q)$(BUILD_DIR)/nova-ntk-color-test
 
 $(BUILD_DIR)/obj/%.o: %.c | dirs
 	$(Q)mkdir -p $(dir $@)
