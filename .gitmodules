@@ -1,8 +1,12 @@
-[submodule "ports/glxgears-newos"]
-	path = ports/glxgears-newos
-	url = https://github.com/CRISTOP-bot/glxgears-newos.git
-	branch = main
-[submodule "toolchain/upstream-gcc"]
-	path = toolchain/upstream-gcc
-	url = https://github.com/gcc-mirror/gcc.git
-	shallow = true
+[submodule "kernel"]
+	path = kernel
+	url = https://github.com/CRISTOP-bot/NEWOS-kernel.git
+[submodule "userland"]
+	path = userland
+	url = https://github.com/CRISTOP-bot/NEWOS-userland.git
+[submodule "toolchain"]
+	path = toolchain
+	url = https://github.com/CRISTOP-bot/NEWOS-toolchain.git
+[submodule "ports"]
+	path = ports
+	url = https://github.com/CRISTOP-bot/NEWOS-ports.git

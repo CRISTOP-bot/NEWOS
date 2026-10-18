@@ -23,6 +23,9 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Initialize required first-party component submodules
+        run: git submodule update --init kernel userland toolchain ports
+
       - name: Check whitespace in changed files
         env:
           GITHUB_EVENT_BEFORE: ${{ github.event.before }}

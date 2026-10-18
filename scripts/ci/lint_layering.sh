@@ -124,7 +124,8 @@ while IFS= read -r f; do
             violations=$((violations + 1))
         fi
     done < <(sed -nE 's/^[[:space:]]*#include[[:space:]]+([<"][^>"]+[>"]).*$/\1/p' "$f")
-done < <(find . -type d \( -path './build' -o -path './.git' \
+done < <(find -L . -type d \( -path './build' -o -path './.git' \
+                         -o -path './kernel' -o -path './userland' \
                          -o -path './toolchain/out' -o -path './ports/build' \) \
          -prune -o \
          -type f \( -name '*.c' -o -name '*.h' \) -print | sort)

@@ -1,4 +1,0 @@
-# /etc/nsh.rc - make the bundled GNU utilities available in /usr/bin.
-# The package manager verifies the manifest and every payload checksum before
-# installing. NEWOS native commands remain in /bin and take precedence.
-newpkg install /tmp/gnu-coreutils.new
