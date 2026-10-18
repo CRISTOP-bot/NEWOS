@@ -17,14 +17,15 @@ jobs:
   test:
     name: Build and test NEWOS
     runs-on: ubuntu-latest
+    timeout-minutes: 90
     steps:
       - name: Check out source
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
-      - name: Initialize required first-party component submodules
-        run: git submodule update --init kernel userland toolchain ports
+      - name: Bootstrap all pinned recursive source modules
+        run: make bootstrap
 
       - name: Check whitespace in changed files
         env:
@@ -44,7 +45,8 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            gcc make nasm binutils python3 curl unzip \
+            build-essential gcc g++ make nasm binutils python3 curl unzip \
+            libgmp-dev libmpfr-dev libmpc-dev flex bison texinfo \
             qemu-system-x86 grub-common grub-pc-bin grub-efi-amd64-bin \
             xorriso mtools ovmf
 
@@ -54,10 +56,8 @@ jobs:
       - name: Test package manager
         run: make check-newpkg
 
-      - name: Build standalone kernel and Limine ISO
-        run: |
-          make build/images/newos-x86_64.elf
-          make all
+      - name: Build the full superproject (cross toolchain, OS, and TinyGL port)
+        run: make all
 
       - name: Validate Multiboot2 kernel
         run: grub-file --is-x86-multiboot2 build/images/newos-x86_64.elf
@@ -117,6 +117,7 @@ jobs:
             build/images/newos-x86_64.iso
             build/images/newos-x86_64-limine.elf
             build/images/newos-x86_64-limine.iso
+            build/userland/glxgears-newos.elf
 
   release:
     name: Create GitHub prerelease
