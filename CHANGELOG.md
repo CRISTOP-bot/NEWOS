@@ -48,7 +48,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   PPM decoder test image), the website serves the brand mark as favicon,
   header and footer logo (mono variant, so it follows the site theme), and
   `README.md` opens with `brand/newos.svg`. The per-tool icons under
-  `brand/app-icons/` and `brand/newos-1024.png` still have no consumer.
+  `brand/app-icons/` and `brand/newos-1024.png` are consumed by the website.
+- Self-healing pull requests (`.github/workflows/pr-self-heal.yml`,
+  `scripts/ci/self-heal.sh`, `scripts/ci/fix_whitespace.py`): failing CI runs
+  are repaired deterministically (whitespace and base-branch integration) and
+  otherwise handed to the free CodeRabbit OSS GitHub App
+  (`@coderabbitai fix-ci commit`); conflicting branches are merged and
+  generated-asset conflicts are resolved automatically, with source conflicts
+  handed to `@coderabbitai resolve merge conflict`. Repairs are pushed with
+  `GITHUB_TOKEN`, CI is dispatched explicitly, and `auto-merge.yml` then
+  merges the green result. No external API key is required; see
+  `docs/self-healing.md` and `.coderabbit.yaml`.
 
 ### Fixed
 - `desktop` microfont glyph rows were read least-significant-bit first while
@@ -92,6 +102,33 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   BIOS path) and under OVMF/UEFI; PVH still passes the automated suite.
 - `REPRO`     - `make clean && make iso` twice is byte-for-byte identical
   (ISO `6c84433a...`; ELF `d60467ba...`).
+
+### Changed
+- `VERSION` is now the single source of truth for the system version. The
+  Makefile injects `NEWOS_VERSION`/`NEWOS_VERSION_ID` into every kernel and
+  userland translation unit, and the boot banner, `/etc/os-release`, MOTD,
+  `uname` release and the nsh banner all use it instead of five independent
+  hard-coded strings.
+- `scripts/iso/fixup_iso.py` is invoked by `make iso`; the reproducibility
+  claim in the changelog was previously not wired to the build.
+- `packages/glxgears-newos.newspec` now has a `make glxgears-pkg` target and
+  `make all` produces the native package after building the demo.
+- `scripts/qemu-shell.py` and `scripts/gen-brand.py` have `make qemu-shell`
+  and `make brand` targets. `make brand` also refreshes the website copies.
+- The static site has a real gate: `make check-web` (also in CI) validates
+  every local link and rejects unreferenced files under `web/assets` and
+  `web/dl`; `make web` serves it locally.
+
+### Removed
+- Dead scaffolding that no build target consumed: the `net/` stub tree
+  (ARP/DNS/ICMP/IPv4/TCP/UDP/socket; none of it was compiled or callable),
+  the unused duplicate `drivers/net/ip.c` (included a nonexistent header)
+  and `drivers/console/kconsole.c` (superseded by `vga_text_console.c`).
+- The stale `bc/` build cache: prebuilt GNU binaries, Limine trees, duplicate
+  splash/PPM images and sample packages. `bc/font8x8_basic.h` - the font
+  source consumed by `scripts/fetch-font.sh` - is the only file kept.
+- `brand/app-icons/lua.svg` (no `lua` program exists) and IDE-local `.qoder/`
+  settings.
 
 ## [0.2.0-pre-alpha] - 2026-09-10
 

@@ -25,6 +25,10 @@
 # ---------------------------------------------------------------------------
 ARCH            ?= x86_64
 CONFIG          ?= configs/$(ARCH)/debug.config
+# Single source of truth for the version string embedded in the kernel and
+# userland (see VERSION). NEWOS_VERSION_ID drops the development suffix.
+NEWOS_VERSION    := $(shell cat VERSION)
+NEWOS_VERSION_ID := $(firstword $(subst -, ,$(NEWOS_VERSION)))
 SUPPORTED_ARCHES := x86_64
 ifeq ($(filter $(ARCH),$(SUPPORTED_ARCHES)),)
 $(error ARCH='$(ARCH)' is not implemented yet; supported architecture: x86_64 (see docs/porting-roadmap.md))
@@ -69,6 +73,8 @@ CFLAGS          := -c -Wall -Wextra -Werror -Wno-unused-parameter -ffreestanding
                    -mno-sse -mno-mmx -fno-builtin -fno-exceptions \
                    -fno-asynchronous-unwind-tables -mgeneral-regs-only \
                    -mcmodel=kernel \
+                   -DNEWOS_VERSION='"$(NEWOS_VERSION)"' \
+                   -DNEWOS_VERSION_ID='"$(NEWOS_VERSION_ID)"' \
                    -O2 -g -MMD
 
 ASFLAGS         := -f elf64
@@ -294,6 +300,8 @@ INCLUDE         := -Iinclude -I. -Ilib/kernel -Iarch/$(ARCH)/include \
 USER_CFLAGS     := -c -O2 -ffreestanding -nostdlib -fno-pic -fno-pie \
                    -fno-stack-protector -fno-builtin -fno-asynchronous-unwind-tables \
                    -fno-exceptions -mgeneral-regs-only -Wall -Wextra -Werror \
+                   -DNEWOS_VERSION='"$(NEWOS_VERSION)"' \
+                   -DNEWOS_VERSION_ID='"$(NEWOS_VERSION_ID)"' \
                    -Ilibc/include -Iuserland/user
 
 $(HELLO_OBJ): $(HELLO_DIR)/hello_main.c
@@ -539,9 +547,10 @@ $(BUILD_DIR)/obj/drivers/graphics/fb.o: $(FONT_HDR)
 # ---------------------------------------------------------------------------
 # Rules
 # ---------------------------------------------------------------------------
-.PHONY: all bootstrap fast clean qemu qemu-debug qemu-test qemu-network qemu-disk iso \
+.PHONY: all bootstrap bootstrap-fast fast clean qemu qemu-debug qemu-test qemu-network qemu-disk iso \
         qemu-limine qemu-limine-test limine toolchain sdk check-config dirs ports-assets \
-        lint-layers check-newpkg check-nova build-info help system-image-build \
+        lint-layers check-newpkg check-nova check-web web brand qemu-shell \
+        build-info help system-image-build \
         vbox vbox-setup vbox-test FORCE
 
 .DEFAULT_GOAL := all
@@ -556,7 +565,7 @@ $(BUILD_DIR)/obj/drivers/graphics/fb.o: $(FONT_HDR)
 all: bootstrap
 	$(Q)$(MAKE) --no-print-directory toolchain
 	$(Q)PATH="$(CURDIR)/toolchain/out/bin:$$PATH" $(MAKE) --no-print-directory CROSS_PREFIX=x86_64-elf- system-image-build
-	$(Q)PATH="$(CURDIR)/toolchain/out/bin:$$PATH" $(MAKE) --no-print-directory CROSS_PREFIX=x86_64-elf- glxgears-newos
+	$(Q)PATH="$(CURDIR)/toolchain/out/bin:$$PATH" $(MAKE) --no-print-directory CROSS_PREFIX=x86_64-elf- glxgears-newos glxgears-pkg
 	$(Q)echo "Nova source is pinned under ports/nova; build is deferred until its NEWOS port is implemented."
 
 # Initialize every first-party and nested source repository at its pinned SHA.
@@ -566,9 +575,16 @@ bootstrap:
 	$(Q)git submodule sync --recursive
 	$(Q)git submodule update --init --recursive
 
-# Fast local alternative: bootstrap sources, then build the Limine system ISO
-# with host gcc/ld. It deliberately skips the cross toolchain and optional demo.
-fast: bootstrap
+# Fast local alternative: bootstrap only the sources the system image uses,
+# then build the Limine ISO with host gcc/ld. It deliberately skips the cross
+# toolchain (including toolchain/upstream-gcc, whose repository is gigabytes)
+# and the optional graphics demo.
+bootstrap-fast:
+	$(Q)git -C "$(CURDIR)" rev-parse --show-toplevel >/dev/null 2>&1 || { echo "ERROR: run make from a Git checkout of NEWOS" >&2; exit 1; }
+	$(Q)git submodule sync --recursive -- kernel userland ports
+	$(Q)git submodule update --init --recursive -- kernel userland ports
+
+fast: bootstrap-fast
 	$(Q)$(MAKE) --no-print-directory CROSS_PREFIX= system-image-build
 
 # Actual system image rules are reached through recursive make after bootstrap.
@@ -585,6 +601,7 @@ help:
 	@echo "  make / make all        bootstrap sources, build x86_64-elf, kernel + ISO + TinyGL demo"
 	@echo "  make bootstrap         fetch all pinned recursive submodules into this checkout"
 	@echo "  make fast              host-compiler system ISO only (skips toolchain and demo)"
+	@echo "  make bootstrap-fast    fetch only kernel/userland/ports (no GCC sources)"
 	@echo "  make build/images/newos-x86_64.elf          standalone PVH/multiboot2 kernel"
 	@echo "  make limine            Limine-flavour kernel"
 	@echo "  make iso               GRUB multiboot2 ISO"
@@ -598,7 +615,12 @@ help:
 	@echo "  make qemu-network      boot with user-mode networking"
 	@echo "  make qemu-disk         boot from a 64 MiB raw disk image"
 	@echo "  make check-newpkg      package system tests (no QEMU needed)"
+	@echo "  make glxgears-pkg      package the TinyGL demo as a native .new"
 	@echo "  make check-nova        Nova NTK color component host tests"
+	@echo "  make check-web         validate website links and assets"
+	@echo "  make web               serve web/ at http://localhost:8000"
+	@echo "  make brand             regenerate the brand/ SVG family"
+	@echo "  make qemu-shell        run a scripted nsh session (CMDS=file)"
 	@echo "  make lint-layers       layering contract check only"
 	@echo "  make toolchain         bootstrap sources and build x86_64-elf under toolchain/out"
 	@echo "  make CROSS_PREFIX=x86_64-elf- sdk  stage the NEWOS C SDK"
@@ -643,6 +665,24 @@ check-nova: | dirs
 	  user/programs/desktop/nova/tests/ntk_color_test.c
 	$(Q)$(BUILD_DIR)/nova-ntk-color-test
 
+# The static site has no build step; this validates every local link/asset
+# and catches unreferenced files under web/assets.
+check-web:
+	$(Q)python3 scripts/check-web.py
+
+web: check-web
+	$(E) "Serving the NEWOS site at http://localhost:8000 (Ctrl+C to stop)"
+	$(Q)cd web && python3 -m http.server 8000
+
+# Regenerate the whole brand SVG family from its single source script and
+# refresh the copies the static website serves.
+brand:
+	$(Q)python3 scripts/gen-brand.py
+	$(Q)mkdir -p web/assets/app-icons
+	$(Q)cp brand/app-icons/*.svg web/assets/app-icons/
+	$(Q)cp brand/newos-1024.png web/assets/newos-1024.png
+	$(E) "Regenerated brand/ and refreshed web/assets"
+
 $(BUILD_DIR)/obj/%.o: %.c | dirs
 	$(Q)mkdir -p $(dir $@)
 	$(E) "  CC  $<"
@@ -666,11 +706,12 @@ iso: $(KERNEL_BIN)
 	$(Q)cp $(KERNEL_BIN) $(BUILD_DIR)/iso/boot/newos.elf
 	$(Q)printf 'set timeout=0\nset default=0\nserial --unit=0 --speed=115200 --stop=1\nterminal_input serial\nterminal_output serial\nmenuentry "NEWOS" {\n  multiboot2 /boot/newos.elf\n  boot\n}\nmenuentry "NEWOS (test mode)" {\n  multiboot2 /boot/newos.elf test_mode=1\n  boot\n}\n' \
 	  > $(BUILD_DIR)/iso/boot/grub/grub.cfg
-	$(Q)grub-mkrescue -o $(ISO_IMG) $(BUILD_DIR)/iso 2>/dev/null || \
+	$(Q)grub-mkrescue --arcs-boot -o $(ISO_IMG) $(BUILD_DIR)/iso 2>/dev/null || \
 	  xorriso -as mkisofs -b boot/grub/eltorito.img -no-emul-boot \
 	  -boot-load-size 4 -boot-info-table --grub2-boot-info \
 	  --grub2-mbr /usr/lib/grub/i386-pc/boot.img \
 	  -o $(ISO_IMG) $(BUILD_DIR)/iso
+	$(Q)python3 scripts/iso/fixup_iso.py $(ISO_IMG)
 	$(E) "ISO created: $(ISO_IMG)"
 
 # Limine bootloader binaries (bios + uefi CD boot images), cached under
@@ -727,12 +768,21 @@ toolchain: bootstrap
 
 # Optional userspace graphics demo. Its nested TinyGL source is initialized
 # by bootstrap; the target builds into this repository's build/ directory.
-.PHONY: glxgears-newos
+.PHONY: glxgears-newos glxgears-pkg
 glxgears-newos: bootstrap toolchain
 	$(Q)$(MAKE) -C ports/glxgears-newos \
 	  NEWOS_ROOT=$(CURDIR) \
 	  TINYGL_ROOT=$(CURDIR)/ports/glxgears-newos/vendor/tinygl \
 	  OUT=$(CURDIR)/build/userland/glxgears-newos.elf
+
+# The demo ships as a native .new package too, so the spec under packages/
+# has a real build target instead of sitting unused.
+GLXGEARS_PKG := $(BUILD_DIR)/packages/glxgears-newos-0.1.0-x86_64.new
+glxgears-pkg: glxgears-newos
+	$(Q)mkdir -p $(dir $(GLXGEARS_PKG))
+	$(E) "  NEWPKG $(GLXGEARS_PKG)"
+	$(Q)python3 tools/newpkg/newpkg-build.py \
+	  packages/glxgears-newos.newspec -o $(GLXGEARS_PKG) --root .
 
 qemu-limine: $(LIMINE_ISO)
 	$(E) "Booting NEWOS (Limine) in QEMU ..."
@@ -837,6 +887,14 @@ qemu-rc: $(KERNEL_BIN)
 	if [ "$$status" -ne 0 ] && [ "$$status" -ne 124 ]; then \
 	  echo "qemu-rc: FAIL (QEMU exit $$status)"; exit 1; \
 	fi
+
+# Drive a scripted nsh session over the serial console. CMDS is a file with
+# one command per line ('#' comments); the harness waits for each prompt.
+CMDS ?= user/rootfs/nsh.rc
+MEM  ?= 512
+qemu-shell: $(KERNEL_BIN)
+	$(E) "Driving nsh from $(CMDS) over the serial console ..."
+	$(Q)python3 scripts/qemu-shell.py $(KERNEL_BIN) $(CMDS) --mem $(MEM)
 
 qemu-network: all
 	$(E) "Booting NEWOS with user-mode networking ..."

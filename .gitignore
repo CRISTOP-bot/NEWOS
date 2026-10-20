@@ -30,3 +30,6 @@ toolchain/out/
 # Build system / tooling caches
 compile_commands.json
 *.log
+# Python bytecode
+__pycache__/
+*.py[cod]

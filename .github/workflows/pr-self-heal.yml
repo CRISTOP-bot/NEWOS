@@ -1,0 +1,246 @@
+name: Self-heal pull requests
+
+# Free, no-API-key repair path for pull requests:
+#   * deterministic whitespace repair and branch integration with GITHUB_TOKEN;
+#   * generated-asset conflict resolution;
+#   * handoff to CodeRabbit's free OSS GitHub App for CI fixes and code
+#     conflicts (see .coderabbit.yaml and docs/self-healing.md).
+#
+# Pushes made with GITHUB_TOKEN do not trigger other workflows.  After every
+# successful repair the script explicitly dispatches "CI and publish" on the
+# PR branch, and the auto-merge workflow handles the green result.
+
+on:
+  workflow_run:
+    workflows: ["CI and publish"]
+    types: [completed]
+  pull_request_target:
+    types: [opened, reopened, synchronize, ready_for_review]
+  push:
+    branches: [main]
+  schedule:
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  checks: read
+  contents: write
+  issues: write
+  pull-requests: write
+  statuses: read
+
+jobs:
+  heal-ci:
+    name: Repair failed CI
+    if: >
+      github.event_name == 'workflow_run' &&
+      (github.event.workflow_run.event == 'pull_request' ||
+       github.event.workflow_run.event == 'workflow_dispatch') &&
+      github.event.workflow_run.conclusion == 'failure' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    concurrency:
+      group: self-heal-${{ github.event.workflow_run.head_branch }}
+      cancel-in-progress: false
+    steps:
+      - name: Find the pull request
+        id: pr
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const run = context.payload.workflow_run;
+            let number = (run.pull_requests || [])
+              .find(pr => Number.isInteger(pr.number))?.number;
+            if (!number) {
+              const open = await github.paginate(github.rest.pulls.list, {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                state: "open",
+                head: `${context.repo.owner}:${run.head_branch}`,
+                per_page: 100,
+              });
+              number = open.find(pr => pr.head.sha === run.head_sha)?.number;
+            }
+            if (!number) {
+              core.info("No open pull request matches this failed run.");
+              core.setOutput("number", "");
+              return;
+            }
+            core.setOutput("number", String(number));
+
+      - name: Check out trusted automation
+        if: steps.pr.outputs.number != ''
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: trusted
+          persist-credentials: false
+
+      - name: Check out the pull request head
+        if: steps.pr.outputs.number != ''
+        uses: actions/checkout@v6
+        with:
+          repository: ${{ github.repository }}
+          ref: ${{ github.event.workflow_run.head_sha }}
+          path: pr
+          fetch-depth: 0
+          token: ${{ github.token }}
+
+      - name: Heal the failure
+        if: steps.pr.outputs.number != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ steps.pr.outputs.number }}
+          PR_DIR: ${{ github.workspace }}/pr
+          TRUSTED_DIR: ${{ github.workspace }}/trusted
+          EXPECTED_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          RUN_URL: ${{ github.event.workflow_run.html_url }}
+          WORKFLOW_NAME: ${{ github.event.workflow_run.name }}
+        run: bash "$TRUSTED_DIR/scripts/ci/self-heal.sh" ci
+
+  heal-conflict:
+    name: Resolve conflicts
+    if: >
+      github.event_name == 'pull_request_target' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.draft == false &&
+      !contains(github.event.pull_request.user.login, '[bot]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    concurrency:
+      group: self-heal-${{ github.event.pull_request.head.ref }}
+      cancel-in-progress: false
+    steps:
+      - name: Check out trusted automation
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: trusted
+          persist-credentials: false
+
+      - name: Check out the pull request head
+        uses: actions/checkout@v6
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: pr
+          fetch-depth: 0
+          token: ${{ github.token }}
+
+      - name: Heal conflicts
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_DIR: ${{ github.workspace }}/pr
+          TRUSTED_DIR: ${{ github.workspace }}/trusted
+          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: bash "$TRUSTED_DIR/scripts/ci/self-heal.sh" conflict
+
+  list-conflicts:
+    name: List open pull requests
+    if: >
+      github.event_name == 'push' ||
+      github.event_name == 'schedule' ||
+      github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      prs: ${{ steps.list.outputs.prs }}
+      count: ${{ steps.list.outputs.count }}
+    steps:
+      - name: List same-repository pull requests
+        id: list
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const repoName = `${context.repo.owner}/${context.repo.repo}`.toLowerCase();
+            const blocked = new Set([
+              "self-heal/stop",
+              "self-heal/needs-human",
+              "self-heal/ci-needs-human",
+              "self-heal/conflict-needs-human",
+            ]);
+            const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
+            const prs = await github.paginate(github.rest.pulls.list, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: "open",
+              per_page: 100,
+            });
+            const candidates = prs.filter(pr =>
+              !pr.draft &&
+              pr.head.repo &&
+              pr.head.repo.full_name.toLowerCase() === repoName &&
+              !pr.user.login.includes("[bot]") &&
+              Date.parse(pr.updated_at) >= cutoff &&
+              !(pr.labels || []).some(label => blocked.has(label.name))
+            );
+
+            const selected = [];
+            for (const pr of candidates.slice(0, 20)) {
+              const { data } = await github.rest.pulls.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: pr.number,
+              });
+              // Include unknown mergeability as well: GitHub computes it
+              // asynchronously and the script polls before doing any work.
+              if (data.mergeable === false ||
+                  data.mergeable === null ||
+                  data.mergeable_state === "dirty") {
+                selected.push({
+                  number: pr.number,
+                  head_ref: pr.head.ref,
+                  head_sha: pr.head.sha,
+                  base_ref: pr.base.ref,
+                });
+              }
+            }
+            core.info(`Found ${selected.length} conflicting candidate(s) out of ${candidates.length} open pull request(s).`);
+            core.setOutput("prs", JSON.stringify(selected));
+            core.setOutput("count", String(selected.length));
+
+  heal-open-conflicts:
+    name: Heal PR #${{ matrix.pr.number }}
+    needs: list-conflicts
+    if: needs.list-conflicts.outputs.count != '0'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    concurrency:
+      group: self-heal-${{ matrix.pr.head_ref }}
+      cancel-in-progress: false
+    strategy:
+      fail-fast: false
+      matrix:
+        pr: ${{ fromJSON(needs.list-conflicts.outputs.prs) }}
+    steps:
+      - name: Check out trusted automation
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: trusted
+          persist-credentials: false
+
+      - name: Check out the pull request head
+        uses: actions/checkout@v6
+        with:
+          repository: ${{ github.repository }}
+          ref: ${{ matrix.pr.head_sha }}
+          path: pr
+          fetch-depth: 0
+          token: ${{ github.token }}
+
+      - name: Heal conflicts
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ matrix.pr.number }}
+          PR_DIR: ${{ github.workspace }}/pr
+          TRUSTED_DIR: ${{ github.workspace }}/trusted
+          EXPECTED_HEAD_SHA: ${{ matrix.pr.head_sha }}
+        run: bash "$TRUSTED_DIR/scripts/ci/self-heal.sh" conflict

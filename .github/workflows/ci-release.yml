@@ -59,6 +59,9 @@ jobs:
       - name: Test Nova NTK color component
         run: make check-nova
 
+      - name: Validate the static website
+        run: make check-web
+
       - name: Build the full superproject (cross toolchain, OS, and TinyGL port)
         run: make all
 

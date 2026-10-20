@@ -130,12 +130,14 @@ inventory and the actual Nano, native compiler, and ARM64 prerequisites.
 
 ## Continuous integration
 
-- `.github/workflows/build.yml` — build all targets, validate the multiboot2
-  header, run the package system tests (`make check-newpkg`).
-- `.github/workflows/qemu-test.yml` — `BUILD=PASS`, `QEMU=PASS`,
-  multiboot2-ISO `BOOT=PASS`.
-- `.github/workflows/static-analysis.yml` — warnings-as-errors build,
-  layering contract, and whitespace checks.
+- `.github/workflows/ci-release.yml` — build all targets, validate the
+  multiboot2 header, run the package and kernel tests, boot both ISOs in QEMU,
+  and publish the tested assets.
+- `.github/workflows/auto-merge.yml` — merge a PR once all checks are green
+  and every pinned submodule commit is reachable from its default branch.
+- `.github/workflows/pr-self-heal.yml` — repair failing PRs and merge
+  conflicts with deterministic fixes and the free CodeRabbit OSS bot; see
+  [`docs/self-healing.md`](docs/self-healing.md).
 
 ## License
 

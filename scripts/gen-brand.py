@@ -20,16 +20,12 @@ INDIGO = "#37417E"
 DEEP = "#29305D"
 MID = "#666C92"
 PERI = "#A1A5BB"
-LIGHT = "#D7D9E5"
-CARBON = "#12131C"
 INK = "#0B0B0B"
 WHITE = "#FFFFFF"
 AMBER = "#DC8621"
 
 PLATE = "M150 150H850V680L680 850H150Z"      # square, bottom-right chamfered
-CHEVRON = "M330 370l170 130-170 130"
-CURSOR = "M540 595h150v95H540Z"
-PROMPT = CHEVRON + " M540 595h150v95H540Z"
+
 
 
 def head(w=1000, h=1000, label="NEWOS"):
@@ -48,11 +44,6 @@ def grad(gid, a, b, angle=135):
             f'<stop offset="1" stop-color="{b}"/></linearGradient>')
 
 
-def stroke(d, color, w=95):
-    return (f'<path d="{d}" fill="none" stroke="{color}"'
-            f' stroke-width="{w}" stroke-linecap="square" stroke-linejoin="miter"/>')
-
-
 def write(path, body):
     with open(path, "w") as f:
         f.write(body)
@@ -60,28 +51,48 @@ def write(path, body):
 
 
 def master():
-    return head() + (
-        f'<defs>{grad("g", BRIGHT, DEEP)}</defs>\n'
-        f'<path d="{PLATE}" fill="url(#g)"/>\n'
-        f'{stroke(CHEVRON, WHITE)}\n'
-        f'<path d="{CURSOR}" fill="{AMBER}"/>\n</svg>\n')
+    """Primary mark: rounded indigo tile, white prompt, amber cursor."""
+    return (
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">\n'
+        '  <title id="title">NEWOS</title>\n'
+        '  <desc id="desc">A terminal prompt inside a rounded indigo system tile.</desc>\n'
+        '  <defs>\n'
+        '    <linearGradient id="shell" x1="48" y1="40" x2="464" y2="472" gradientUnits="userSpaceOnUse">\n'
+        '      <stop stop-color="#6868F5"/><stop offset="1" stop-color="#292C68"/>\n'
+        '    </linearGradient>\n'
+        '    <linearGradient id="shine" x1="90" y1="72" x2="410" y2="440" gradientUnits="userSpaceOnUse">\n'
+        '      <stop stop-color="#FFF" stop-opacity=".18"/><stop offset=".58" stop-color="#FFF" stop-opacity="0"/>\n'
+        '    </linearGradient>\n'
+        '  </defs>\n'
+        '  <rect x="36" y="36" width="440" height="440" rx="104" fill="url(#shell)"/>\n'
+        '  <path d="M140 187 218 256l-78 69" fill="none" stroke="#FFF" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/>\n'
+        '  <path d="M255 329h112" fill="none" stroke="#F0A23A" stroke-width="34" stroke-linecap="round"/>\n'
+        '  <path d="M140 80h250a54 54 0 0 1 54 54v115c-75 57-173 91-278 91-47 0-92-7-134-20V134a54 54 0 0 1 54-54Z" fill="url(#shine)"/>\n'
+        '</svg>\n')
 
 
 def mono():
-    return head(label="NEWOS (mono)") + (
-        f'<defs><mask id="m"><rect width="1000" height="1000" fill="{WHITE}"/>'
-        f'<path d="{PROMPT}" fill="{INK}" stroke="{INK}" stroke-width="95"'
-        f' stroke-linejoin="miter"/></mask></defs>\n'
-        f'<path d="{PLATE}" fill="currentColor" mask="url(#m)"/>\n</svg>\n')
+    """Theme-following mark used inline by the website."""
+    return (
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title">\n'
+        '  <title id="title">NEWOS monochrome mark</title>\n'
+        '  <rect x="36" y="36" width="440" height="440" rx="104" fill="currentColor"/>\n'
+        '  <path d="M140 187 218 256l-78 69" fill="none" stroke="#fff" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/>\n'
+        '  <path d="M255 329h112" fill="none" stroke="#fff" stroke-width="34" stroke-linecap="round"/>\n'
+        '</svg>\n')
 
 
 def boot():
-    """For the black boot framebuffer: pale plate, dark mark."""
-    return head(label="NEWOS (boot)") + (
-        f'<defs>{grad("g", LIGHT, PERI)}</defs>\n'
-        f'<path d="{PLATE}" fill="url(#g)"/>\n'
-        f'{stroke(CHEVRON, INK)}\n'
-        f'<path d="{CURSOR}" fill="{AMBER}"/>\n</svg>\n')
+    """For the black boot framebuffer: dark tile, bright prompt, amber cursor."""
+    return (
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">\n'
+        '  <title id="title">NEWOS boot mark</title>\n'
+        '  <desc id="desc">A bright terminal prompt and amber cursor on a dark background.</desc>\n'
+        '  <rect x="36" y="36" width="440" height="440" rx="104" fill="#171923"/>\n'
+        '  <path d="M140 187 218 256l-78 69" fill="none" stroke="#F4F5FA" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/>\n'
+        '  <path d="M255 329h112" fill="none" stroke="#F0A23A" stroke-width="34" stroke-linecap="round"/>\n'
+        '  <path d="M90 134a44 44 0 0 1 44-44h244" fill="none" stroke="#6868F5" stroke-width="12" stroke-linecap="round" opacity=".9"/>\n'
+        '</svg>\n')
 
 
 # --- app icons: shared plate, one white glyph each, one amber accent -------
@@ -93,7 +104,6 @@ def icon(name, glyph, plate=INDIGO):
         f'{glyph}\n</svg>\n')
 
 
-S = stroke
 F = lambda d, c: f'<path d="{d}" fill="{c}"/>'
 
 GLYPHS = {
@@ -119,8 +129,6 @@ GLYPHS = {
             + F("M230 230h190v55H285v140h-55Z", AMBER)),
     "kilo": F("M280 260h440v50H280Zm0 130h320v50H280Zm0 130h400v50H280Z", WHITE)
         + F("M700 500h70v150H700Z", AMBER),
-    "lua": (F("M560 200a300 300 0 1 0 0 600 340 340 0 0 1 0-600Z", WHITE)
-            + F("M660 320h110v110H660Z", AMBER)),
     "newpkg": (F("M500 200l300 150v300l-300 150-300-150V350Z", WHITE)
                + F("M500 200l300 150-300 150-300-150Z", MID)
                + F("M470 350h60v400h-60Z", AMBER)),

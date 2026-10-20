@@ -13,7 +13,13 @@ permissions:
 
 jobs:
   merge:
-    if: github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.conclusion == 'success'
+    # Pull-request runs are the normal path.  workflow_dispatch runs are
+    # started by the self-heal workflow after it pushes a repair with
+    # GITHUB_TOKEN; those pushes do not trigger workflows on their own.
+    if: >
+      github.event.workflow_run.conclusion == 'success' &&
+      (github.event.workflow_run.event == 'pull_request' ||
+       github.event.workflow_run.event == 'workflow_dispatch')
     runs-on: ubuntu-latest
     steps:
       - name: Merge only a fully green PR with landed submodule pins
@@ -94,6 +100,22 @@ jobs:
               const { data: pr } = await github.rest.pulls.get({ owner, repo, pull_number: number });
               if (pr.state !== "open" || pr.draft) continue;
               if (!pr.head.repo || `${pr.head.repo.full_name}`.toLowerCase() !== fullName) continue;
+
+              const labels = new Set((pr.labels || []).map(label => label.name));
+              const blocked = [
+                "self-heal/stop",
+                "self-heal/needs-human",
+                "self-heal/ci-needs-human",
+                "self-heal/conflict-needs-human",
+              ];
+              if (blocked.some(label => labels.has(label))) {
+                core.info(`Skipping #${number}: a self-heal label requests human intervention.`);
+                continue;
+              }
+              if (pr.mergeable === false) {
+                core.info(`Skipping #${number}: GitHub reports that the branch cannot be merged cleanly.`);
+                continue;
+              }
               if (pr.head.sha !== run.head_sha) {
                 core.info(`Skipping #${number}: this CI run is for a stale head.`);
                 continue;

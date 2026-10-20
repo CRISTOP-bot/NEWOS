@@ -52,7 +52,7 @@ a `LIBC` class (`ABI` + self only); the kernel never imports it.
 
 ## Repository components and bootstrap
 
-NEWOS is the superproject. Its required first-party modules are `kernel/`, `userland/`, `toolchain/`, and `ports/`. Top-level symlink shims (`abi/`, `arch/`, `core/`, `crypto/`, `drivers/`, `fs/`, `include/`, `ipc/`, `lib/`, `mm/`, `net/`, `process/`, `sys/`, `syscall/`, `user/`, and `libc/`) preserve the existing source paths used by the Makefile and C includes. The ports stage payload is stored compressed in `NEWOS-ports` and expanded automatically before packaging.
+NEWOS is the superproject. Its required first-party modules are `kernel/`, `userland/`, `toolchain/`, and `ports/`. Top-level symlink shims (`abi/`, `arch/`, `core/`, `crypto/`, `drivers/`, `fs/`, `include/`, `ipc/`, `lib/`, `mm/`, `process/`, `sys/`, `syscall/`, `user/`, and `libc/`) preserve the existing source paths used by the Makefile and C includes. The ports stage payload is stored compressed in `NEWOS-ports` and expanded automatically before packaging.
 
 Fresh checkout and full build require no manual submodule commands:
 

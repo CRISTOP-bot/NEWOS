@@ -1,0 +1,38 @@
+# CodeRabbit configuration for NEWOS.
+#
+# CodeRabbit is free for public repositories (OSS plan) and runs as a GitHub
+# App, so the finishing touches below need no API key.  The self-heal workflow
+# posts the matching commands when CI fails or a branch conflicts:
+#
+#   @coderabbitai fix-ci commit
+#   @coderabbitai resolve merge conflict
+#
+# For fully hands-off repairs, enable CodeRabbit Triage's "Auto-fix PRs" rule
+# for this repository (it can repair failing CI and review feedback for up to
+# three rounds).  See docs/self-healing.md.
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+
+language: "en-US"
+
+reviews:
+  profile: "chill"
+
+  auto_review:
+    enabled: true
+    drafts: false
+    auto_incremental_review: true
+    ignore_usernames:
+      - "coderabbitai[bot]"
+      - "dependabot[bot]"
+      - "renovate[bot]"
+
+  finishing_touches:
+    autofix:
+      enabled: true
+    fix_ci:
+      enabled: true
+    resolve_merge_conflict:
+      enabled: true
+
+chat:
+  auto_reply: true
