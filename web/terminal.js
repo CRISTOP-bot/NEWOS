@@ -8,8 +8,8 @@
   const TOOLS = "ls cat echo mkdir rmdir rm touch pwd clear uname hostname whoami id date uptime ps kill sleep free df wc head grep sort img vid ltest about newfetch desktop newpkg hello sh".split(" ");
   const FILES = {
     "/etc/hostname": "newos",
-    "/etc/version": "NEWOS 0.2.0-pre-alpha",
-    "/etc/motd": "NEWOS 0.2.0-pre-alpha (x86_64) - nsh shell\nType 'help' for commands. Spanish keyboard ready.",
+    "/etc/version": "NEWOS 0.3.0-gui",
+    "/etc/motd": "NEWOS 0.3.0-gui (x86_64) - nsh shell\nType 'help' for commands. Spanish keyboard ready.",
     "/etc/passwd": "root:x:0:0:root:/root:/init\nuser:x:1000:1000:user:/home/user:/init",
     "/root/README": "Welcome to NEWOS. Type 'help'.",
     "/home/user/README": "Your home. Try: ls /bin",
@@ -26,8 +26,8 @@
   }
   function newfetch() {
     return [" █▄ █ █▀▀ █░ █░ █▀█ █▀▀   root@newos",
-      " █ ▀█ █▀▀ █▄▀█ █▄█ ▀▀█   OS: NEWOS 0.2.0-pre-alpha",
-      " ▀  ▀ ▀▀▀ ▀ ▀▀ ▀ ▀▀ ▀▀▀   Kernel: 0.2.0-pre-alpha (x86_64)",
+      " █ ▀█ █▀▀ █▄▀█ █▄█ ▀▀█   OS: NEWOS 0.3.0-gui",
+      " ▀  ▀ ▀▀▀ ▀ ▀▀ ▀ ▀▀ ▀▀▀   Kernel: 0.3.0-gui (x86_64)",
       "                          " + uptime(),
       "                          Memory: 11 / 126 MiB",
       "                          Shell: nsh (/init)",
@@ -55,7 +55,7 @@
     whoami: () => "root",
     id: () => "uid=0(root) gid=0(root)",
     hostname: (a) => a[0] ? (FILES["/etc/hostname"] = a[0], "") : FILES["/etc/hostname"],
-    uname: (a) => a.includes("-r") ? "0.2.0-pre-alpha" : a.includes("-m") ? "x86_64" : a.includes("-s") ? "NEWOS" : "NEWOS 0.2.0-pre-alpha x86_64",
+    uname: (a) => a.includes("-r") ? "0.3.0-gui" : a.includes("-m") ? "x86_64" : a.includes("-s") ? "NEWOS" : "NEWOS 0.3.0-gui x86_64",
     date: () => new Date().toString(),
     uptime: () => uptime(),
     ps: () => "PID  PPID STATE NAME\n1    0    run   /init\n4    1    run   nsh (demo)",
@@ -64,7 +64,7 @@
     free: () => "total: 129024 KiB   free: 117760 KiB",
     df: () => "tmpfs  132120576 bytes total, 120586240 free (RAM, volátil)",
     pwd2: () => cwd,
-    about: () => "NEWOS - a from-scratch x86_64 operating system\nversion: NEWOS 0.2.0-pre-alpha\nhost: newos\nmemory: 126 MiB total / 115 MiB free\n" + uptime() + "\nlicense: MIT",
+    about: () => "NEWOS - a from-scratch x86_64 operating system\nversion: NEWOS 0.3.0-gui\nhost: newos\nmemory: 126 MiB total / 115 MiB free\n" + uptime() + "\nlicense: MIT",
     newfetch: () => newfetch(),
     hello: () => "Hello from ring 3! (demo)",
     ltest: () => "libc self-test: string PASS, stdio PASS, heap PASS → exit 0",
@@ -92,7 +92,7 @@
     const r = fn(args, l);
     if (r) print(r);
   }
-  print("NEWOS 0.2.0-pre-alpha (demo en navegador) - nsh shell");
+  print("NEWOS 0.3.0-gui (demo en navegador) - nsh shell");
   print("Escribe 'help'. El sistema real arranca con: make qemu-limine");
   print(ps1() + "newfetch");
   print(newfetch());

@@ -6,6 +6,21 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- Read-only `procfs` mounted at `/proc`: `version`, `uptime`, `meminfo`
+  (live PMM counters), `filesystems`, `mounts` and `cmdline`, with
+  offset-aware reads and a phase-1 kernel test.
+- Read-only `sysfs` mounted at `/sys`: kernel `ostype`/`osrelease`/`version`
+  plus `bus/pci/devices/<bdf>/{vendor,device,class}` built from the device
+  model, with a phase-1 kernel test.
+- `free`, `df` and `uptime` now read `/proc` (with the existing syscall
+  path as fallback), and `nshlib` gained `/proc` parsing helpers.
+- The VFS now keeps synthetic trees read-only: unlink/rename only operate
+  on tmpfs files and VFS core directories, so `/proc` and `/sys` cannot be
+  torn down by `rm` or `mv`.
+- `qemu-shell.py` tolerates nsh's ANSI prompt redraw and waits for the
+  newline that submits a command, eliminating flaky/lost shell commands.
+- The boot command line is copied into kernel-owned storage instead of
+  retaining a pointer into loader memory that the PMM may reuse.
 - Native `/bin/find` command with recursive directory traversal, basename
   wildcard matching, file/directory filters and depth bounds; `/bin` and
   shell help now expose it. The userland library also exports `sys_stat()`.
@@ -61,6 +76,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `docs/self-healing.md` and `.coderabbit.yaml`.
 
 ### Fixed
+- `/etc/version` still contained a hard-coded `0.2.0-pre-alpha` banner even
+  though `VERSION` and every other release string had moved on. It now uses
+  `NEWOS_VERSION`, so the image cannot report two different versions.
 - `desktop` microfont glyph rows were read least-significant-bit first while
   the embedded glyphs are stored most-significant-bit first, mirroring text.
   The corrected table has unique character mappings and a `?` fallback;
@@ -120,6 +138,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `web/dl`; `make web` serves it locally.
 
 ### Removed
+- The fake IPv4 socket syscall block (`SYS_SOCKET` through `SYS_RECV`) that
+  allocated state but returned dummy data and carried `TODO: actual network
+  transmit`, together with its ABI numbers and per-process socket record.
+  There is no network stack, so the ABI no longer advertises calls it cannot
+  honor. The non-building `user/programs/ping` scaffold that depended on it
+  was deleted as well.
 - Dead scaffolding that no build target consumed: the `net/` stub tree
   (ARP/DNS/ICMP/IPv4/TCP/UDP/socket; none of it was compiled or callable),
   the unused duplicate `drivers/net/ip.c` (included a nonexistent header)

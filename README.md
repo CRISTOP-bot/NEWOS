@@ -25,13 +25,16 @@ The x86_64 kernel reaches `BUILD=PASS`, `BOOT=PASS`, and `QEMU=PASS`:
   - **Limine** (BIOS+UEFI ISO, the only path with a framebuffer).
 - Early long-mode setup: identity + high-half paging, GDT/TSS, IDT, PIC
   remap, serial console, PMM (bitmap + buddy over all usable RAM ranges),
-  kheap, VFS with tmpfs / devfs, initramfs, device-model core, PCI +
-  PCnet / serial / PS/2 / PIT / CMOS drivers, framebuffer console.
+  kheap, VFS with tmpfs / devfs plus read-only procfs and sysfs,
+  initramfs, device-model core, PCI + PCnet / serial / PS/2 / PIT / CMOS
+  drivers, framebuffer console.
 - Interactive `nsh` shell (`/init`) with a native `/bin` toolbox, including
   recursive `find`,
   `.new` package manager (`newpkg`), and a C library (`libc.a`).
-- Self-tests: 7 phase-1 kernel tests + 9 phase-2 userland/ABI tests —
-  all pass (`make qemu-test`, QEMU exit `1` = PASS).
+- Self-tests: 9 phase-1 kernel tests + 9 phase-2 userland/ABI tests —
+  all pass (`make qemu-test`, QEMU exit `1` = PASS). `/proc` exposes
+  version, uptime, meminfo, filesystems, mounts and cmdline; `/sys`
+  exposes kernel identity and the PCI inventory.
 
 ## Build & run
 

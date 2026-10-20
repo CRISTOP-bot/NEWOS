@@ -51,7 +51,7 @@ GCC, and it is not yet integrated into NEWOS.
 | GNU coreutils | Experimental host-built Linux ELF package installs under `/usr/bin`; runtime fails on Linux `syscall`/TLS setup (`#UD` at `syscall`) | Add a real NEWOS libc/runtime port or explicitly implement the required Linux ABI before calling these tools usable |
 | TCC | Not ported | Best first on-device compiler candidate; audit LGPLv2 source and libc/ELF needs |
 | AHCI and ext4 | NEWOS has AHCI and ext4 source trees, but storage is not a complete persistent user-facing system | Finish block-device/VFS integration and persistence before relying on disk-backed toolchains |
-| e1000, RTL8139, VirtIO and lwIP | NEWOS has network protocol/driver scaffolding, not BoredOS-compatible drivers | Port concepts and tests selectively; do not copy kernel code across incompatible driver/VFS APIs |
+| e1000, RTL8139, VirtIO and lwIP | NEWOS has a PCnet driver and loopback self-test, but no IP stack or socket ABI | Port concepts and tests selectively; implement the network stack before promising BoredOS-compatible networking |
 | Nova compositor, desktop apps and games | No direct port identified | Revisit after a stable windowing, input and graphics application ABI exists |
 
 BoredOS is GPL-3.0. Its kernel and userland code must not be copied into the

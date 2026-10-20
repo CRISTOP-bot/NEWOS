@@ -20,7 +20,12 @@ import sys
 import termios
 import time
 
-PROMPT = re.compile(rb"(?:nsh>|root@newos:[^#]*#)\s*$")
+# nsh redraws its prompt and then moves the cursor with CSI "C" sequences.
+# A prompt is only complete when those trailing escapes are accepted too;
+# otherwise the harness may start typing while the shell is still redrawing.
+PROMPT = re.compile(
+    rb"(?:nsh>|root@newos:[^#]*#)\s*(?:\x1b\[[0-9;]*[A-Za-z])*\s*$"
+)
 TIMEOUT = 30
 BOOT_TIMEOUT = 90
 PACE = 0.02
@@ -49,8 +54,16 @@ def run(cmds, kernel, mem="512", extra=()):
     os.close(slave)
     buf = bytearray()
 
-    def drain(until, pattern=PROMPT):
-        """Read until `pattern` matches the tail, or `until` passes."""
+    def drain(until, pattern=PROMPT, after_newline=False):
+        """Read until `pattern` matches the tail, or `until` passes.
+
+        With after_newline, ignore prompts emitted while the line is still
+        being edited. nsh redraws prompt+line on every keystroke and then
+        repaints only the prompt followed by CSI cursor moves, so a redraw
+        is byte-identical to a final prompt. The newline that submits the
+        line is the unambiguous boundary; only text after it can belong to
+        the command result and its final prompt.
+        """
         while time.time() < until:
             if not select.select([master], [], [], 0.05)[0]:
                 continue
@@ -58,8 +71,35 @@ def run(cmds, kernel, mem="512", extra=()):
                 buf.extend(os.read(master, 4096))
             except OSError:
                 return False
-            if pattern.search(bytes(buf)):
-                return True
+
+            view = bytes(buf)
+            if after_newline:
+                nl = view.find(b"\n")
+                if nl < 0:
+                    continue
+                view = view[nl + 1:]
+
+            if pattern.search(view):
+                # nsh paints the prompt twice and then emits cursor-right
+                # escapes. Drain until the line is quiet so the next
+                # command is not typed in the middle of that redraw.
+                quiet = time.time() + 0.05
+                while time.time() < quiet and time.time() < until:
+                    if not select.select([master], [], [], 0.01)[0]:
+                        break
+                    try:
+                        buf.extend(os.read(master, 4096))
+                    except OSError:
+                        return False
+                    quiet = time.time() + 0.05
+
+                final = bytes(buf)
+                if after_newline:
+                    nl = final.find(b"\n")
+                    if nl < 0:
+                        return False
+                    final = final[nl + 1:]
+                return bool(pattern.search(final))
         return False
 
     def type_line(text):
@@ -68,8 +108,10 @@ def run(cmds, kernel, mem="512", extra=()):
         QEMU's stdio chardev drives host stdin and the guest's serial output
         from one loop: while nobody reads the write side of the pty, the
         device model stops servicing RX too and keystrokes vanish silently.
+        The command's newline is sent separately so drain() can ignore the
+        edit-time redraws that precede it.
         """
-        data = text.encode() + b"\n"
+        data = text.encode()
         now = time.time()
         for i, b in enumerate(data):
             at = now + i * PACE
@@ -77,7 +119,12 @@ def run(cmds, kernel, mem="512", extra=()):
                 if select.select([master], [], [], min(0.005, at - time.time()))[0]:
                     buf.extend(os.read(master, 4096))
             os.write(master, bytes([b]))
-        return drain(time.time() + TIMEOUT)
+
+        # Let the last redraw land, then submit and wait for post-submit
+        # output only.
+        time.sleep(PACE)
+        os.write(master, b"\n")
+        return drain(time.time() + TIMEOUT, after_newline=True)
 
     try:
         ok = drain(time.time() + BOOT_TIMEOUT)

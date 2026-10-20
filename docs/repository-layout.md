@@ -4,14 +4,14 @@ The central `CRISTOP-bot/NEWOS` repository is the build/boot/ISO orchestration s
 
 | Repository | Superproject path | Contents |
 |---|---|---|
-| [`NEWOS-kernel`](https://github.com/CRISTOP-bot/NEWOS-kernel) | `kernel/` | ABI, architecture, core, crypto, drivers, filesystems, IPC, kernel library, memory, networking, process, system services, syscalls |
+| [`NEWOS-kernel`](https://github.com/CRISTOP-bot/NEWOS-kernel) | `kernel/` | ABI, architecture, core, crypto, drivers (including the PCnet NIC), filesystems, IPC, kernel library, memory, process, system services, syscalls |
 | [`NEWOS-userland`](https://github.com/CRISTOP-bot/NEWOS-userland) | `userland/` | `user/` programs/runtime/rootfs and `libc/` |
 | [`NEWOS-toolchain`](https://github.com/CRISTOP-bot/NEWOS-toolchain) | `toolchain/` | Cross-toolchain scripts/docs/examples; optional shallow GCC 16.1.0 submodule |
 | [`NEWOS-ports`](https://github.com/CRISTOP-bot/NEWOS-ports) | `ports/` | Port integration, staged assets, pinned nested graphics/desktop source modules |
 
 ## Preserved build paths
 
-The superproject tracks symlinks to the matching directories in `kernel/` and `userland/`: `abi -> kernel/abi`, and `arch`, `core`, `crypto`, `drivers`, `fs`, `include`, `ipc`, `lib`, `mm`, `net`, `process`, `sys`, `syscall` -> `kernel/<same-name>`; `user -> userland/user`; `libc -> userland/libc`. This keeps existing Makefile source lists and include paths unchanged. These shims require a filesystem and Git client that support symbolic links; Linux CI does.
+The superproject tracks symlinks to the matching directories in `kernel/` and `userland/`: `abi -> kernel/abi`, and `arch`, `core`, `crypto`, `drivers`, `fs`, `include`, `ipc`, `lib`, `mm`, `process`, `sys`, `syscall` -> `kernel/<same-name>`; `user -> userland/user`; `libc -> userland/libc`. This keeps existing Makefile source lists and include paths unchanged. These shims require a filesystem and Git client that support symbolic links; Linux CI does.
 
 ## Build from a fresh clone
 

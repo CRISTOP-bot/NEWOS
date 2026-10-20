@@ -45,7 +45,7 @@ Optional serial debugging (VirtualBox legacy BIOS has no UEFI console plumbing):
 | ---- | -------- | ------ |
 | multiboot2 via GRUB ISO | SeaBIOS (QEMU `-boot d`) | `NEWOS: boot complete.` |
 | multiboot2 via GRUB ISO | OVMF/UEFI (QEMU `-bios` + `OVMF.fd`) | `NEWOS: boot complete.` |
-| PVH | QEMU `-kernel` (`run_qemu_test.sh`) | 6 + 8 self-tests pass |
+| PVH | QEMU `-kernel` (`run_qemu_test.sh`) | 9 + 9 self-tests pass |
 
 The GRUB menu is configured for the serial console (`terminal_input
 serial` + `terminal_output serial`, 115200 8N1), so a headless rig with

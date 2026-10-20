@@ -4,7 +4,7 @@
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Syscalls y comandos — NEWOS</title>
 <meta name="theme-color" content="#ffffff">
-<meta name="description" content="Referencia de syscalls 0–21 y toolbox /bin de NEWOS, con sesión real de ejemplo.">
+<meta name="description" content="Referencia del ABI de syscalls POSIX/NEWOS y toolbox /bin, con sesión real de ejemplo.">
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <meta property="og:image" content="assets/newos-1024.png">
 <link rel="apple-touch-icon" href="assets/newos-1024.png">
@@ -13,40 +13,72 @@
 </head>
 <body>
 <nav><div class="nav-in">
-  <a class="brand" href="index.html" style="text-decoration:none"><svg class="mark" viewBox="0 0 1000 1000" aria-hidden="true"><defs><mask id="p"><rect x="150" y="150" width="700" height="700" rx="150" fill="#fff"/><path d="M330 370l170 130-170 130" fill="none" stroke="#000" stroke-width="95" stroke-linejoin="round" stroke-linecap="round"/></mask></defs><rect x="150" y="150" width="700" height="700" rx="150" fill="currentColor" mask="url(#p)"/><rect x="540" y="595" width="150" height="95" rx="8" fill="currentColor"/></svg><span class="logo">NEWOS</span> <small>v0.2.0-pre-alpha</small></a>
+  <a class="brand" href="index.html" style="text-decoration:none"><svg class="mark" viewBox="0 0 1000 1000" aria-hidden="true"><defs><mask id="p"><rect x="150" y="150" width="700" height="700" rx="150" fill="#fff"/><path d="M330 370l170 130-170 130" fill="none" stroke="#000" stroke-width="95" stroke-linejoin="round" stroke-linecap="round"/></mask></defs><rect x="150" y="150" width="700" height="700" rx="150" fill="currentColor" mask="url(#p)"/><rect x="540" y="595" width="150" height="95" rx="8" fill="currentColor"/></svg><span class="logo">NEWOS</span> <small>v0.3.0-gui</small></a>
   <button class="hamb" aria-label="Abrir menú">☰</button>
   <div class="links"><a href="index.html">Inicio</a><a href="docs.html">Documentación</a><a href="api.html" class="active">Syscalls y comandos</a><a href="packages.html">Paquetes .new</a><a href="downloads.html">Descargas</a><a href="changelog.html">Changelog</a><a href="https://github.com/CRISTOP-bot/NEWOS" target="_blank" rel="noopener">GitHub ↗</a><button class="theme-btn" id="themeBtn" aria-label="Cambiar tema"></button></div>
 </div></nav>
 <div class="wrap"><section>
 <div class="kicker">Referencia API</div>
-<h1>Syscalls 0–21 y toolbox /bin</h1>
-<p class="sub">Mecanismo: <span class="mono">int $0x80</span> (trap gate DPL3). <span class="mono">rax</span> = número, <span class="mono">rdi rsi rdx r10 r8 r9</span> = args (SysV), retorno en <span class="mono">rax</span> (≥0 ok, &lt;0 error −1). <span class="mono">rcx/r11</span> clobbered, resto preservados. Punteros validados con <span class="mono">copy_from/to_user</span>. Bounce estático 512 B. Usa el buscador para filtrar.</p>
+<h1>Syscalls POSIX + bloque NEWOS y toolbox /bin</h1>
+<p class="sub">Los números 0–318 son los de Linux x86_64 para el subconjunto implementado; las llamadas propias viven en el bloque 450+. Mecanismo: <span class="mono">int $0x80</span> (trap gate DPL3). <span class="mono">rax</span> = número, <span class="mono">rdi rsi rdx r10 r8 r9</span> = args (SysV), retorno en <span class="mono">rax</span> (≥0 ok, &lt;0 error −1). <span class="mono">rcx/r11</span> clobbered, resto preservados. Punteros validados con <span class="mono">copy_from/to_user</span>. Bounce estático 512 B. Usa el buscador para filtrar.</p>
 <input class="search" id="q-sys" placeholder="Filtrar syscalls… (ej. spawn, fb, open)">
 <div class="tbl-wrap"><table id="t-sys"><thead><tr><th>#</th><th>Nombre</th><th>Firma</th><th>Notas</th></tr></thead><tbody>
-<tr><td class="mono">0</td><td class="mono">SYS_READ</td><td class="mono">read(fd, buf, len)</td><td>fd 0 bloquea en consola; resto VFS. Short counts. Máx 512 B.</td></tr>
+<tr><td class="mono">0</td><td class="mono">SYS_READ</td><td class="mono">read(fd, buf, len)</td><td>fd 0 bloquea en consola; resto VFS. Máx 512 B.</td></tr>
 <tr><td class="mono">1</td><td class="mono">SYS_WRITE</td><td class="mono">write(fd, buf, len)</td><td>Escribe al file del fd. Máx 512 B.</td></tr>
-<tr><td class="mono">2</td><td class="mono">SYS_EXIT</td><td class="mono">exit(code) noreturn</td><td>Termina el proceso.</td></tr>
-<tr><td class="mono">3</td><td class="mono">SYS_GETPID</td><td class="mono">getpid()</td><td>PID del llamante.</td></tr>
-<tr><td class="mono">4</td><td class="mono">SYS_SLEEP</td><td class="mono">sleep(ms)</td><td>Deadline persistente que sobrevive re-traps; cede a peers.</td></tr>
-<tr><td class="mono">5</td><td class="mono">SYS_SPAWN</td><td class="mono">spawn(path, name)</td><td>Legacy sin argv.</td></tr>
-<tr><td class="mono">6</td><td class="mono">SYS_WAITPID</td><td class="mono">waitpid(pid)</td><td>Exit code del hijo; PIDs desconocidos fallan, nunca cuelgan.</td></tr>
-<tr><td class="mono">7</td><td class="mono">SYS_OPEN</td><td class="mono">open(path, flags)</td><td>O_READ=1 O_WRITE=2 O_CREATE=4. Fds por proceso.</td></tr>
-<tr><td class="mono">8</td><td class="mono">SYS_CLOSE</td><td class="mono">close(fd)</td><td>Libera el fd.</td></tr>
-<tr><td class="mono">9</td><td class="mono">SYS_MKDIR</td><td class="mono">mkdir(path)</td><td>Un nivel (<span class="mono">mkdir -p</span> vive en userland).</td></tr>
-<tr><td class="mono">10</td><td class="mono">SYS_READDIR</td><td class="mono">readdir(path, buf, bytes)</td><td>Cuenta hijos capada por buffer (<span class="mono">nsh_dirent name[64] mode size</span>).</td></tr>
-<tr><td class="mono">11</td><td class="mono">SYS_CHDIR</td><td class="mono">chdir(path)</td><td>cwd por proceso.</td></tr>
-<tr><td class="mono">12</td><td class="mono">SYS_GETCWD</td><td class="mono">getcwd(buf, size)</td><td>Falla si el buffer es pequeño.</td></tr>
-<tr><td class="mono">13</td><td class="mono">SYS_UNLINK</td><td class="mono">unlink(path)</td><td>Ficheros y dirs vacíos; rehúsa no-vacíos.</td></tr>
-<tr><td class="mono">14</td><td class="mono">SYS_SPAWN2</td><td class="mono">spawn2(path, argv, argc)</td><td>argv real 16×128. Lo que usa nsh.</td></tr>
-<tr><td class="mono">15</td><td class="mono">SYS_PS</td><td class="mono">ps(buf, bytes)</td><td>Tabla (<span class="mono">nsh_proc pid ppid state name[32]</span>).</td></tr>
-<tr><td class="mono">16</td><td class="mono">SYS_KILL</td><td class="mono">kill(pid)</td><td>Rehúsa pid 0/1 (init sagrado). Señal base+9.</td></tr>
-<tr><td class="mono">17</td><td class="mono">SYS_UNAME</td><td class="mono">uname(&amp;u)</td><td><span class="mono">NEWOS 0.2.0-pre-alpha x86_64</span> (sysname/release/machine).</td></tr>
-<tr><td class="mono">18</td><td class="mono">SYS_GETTIME</td><td class="mono">gettime(&amp;t)</td><td>CMOS real 24 h (year mon day hour min sec).</td></tr>
-<tr><td class="mono">19</td><td class="mono">SYS_SYSINFO</td><td class="mono">sysinfo(&amp;si)</td><td>frames total/free, uptime, hz.</td></tr>
-<tr><td class="mono">20</td><td class="mono">SYS_FBINFO</td><td class="mono">fbinfo(&amp;fi)</td><td>Geometría (present width height pitch bpp); 0 sin Limine.</td></tr>
-<tr><td class="mono">21</td><td class="mono">SYS_FBWRITE</td><td class="mono">fbwrite(&amp;rq)</td><td>Blit XRGB8888 (x,y,w,h,pixels,pixlen), por filas, bounds-checked.</td></tr>
+<tr><td class="mono">2</td><td class="mono">SYS_OPEN</td><td class="mono">open(path, flags)</td><td>O_READ=1 O_WRITE=2 O_CREATE=4. Fds por proceso.</td></tr>
+<tr><td class="mono">3</td><td class="mono">SYS_CLOSE</td><td class="mono">close(fd)</td><td>Libera el fd.</td></tr>
+<tr><td class="mono">4</td><td class="mono">SYS_STAT</td><td class="mono">stat(path, &amp;st)</td><td>Metadatos de ruta (<span class="mono">nsh_stat</span>).</td></tr>
+<tr><td class="mono">5</td><td class="mono">SYS_FSTAT</td><td class="mono">fstat(fd, &amp;st)</td><td>Metadatos del fd abierto.</td></tr>
+<tr><td class="mono">6</td><td class="mono">SYS_LSTAT</td><td class="mono">lstat(path, &amp;st)</td><td>Igual que stat; no hay symlinks.</td></tr>
+<tr><td class="mono">7</td><td class="mono">SYS_POLL</td><td class="mono">poll(fds, n, timeout)</td><td>Compatibilidad: solo timeout (0); sin motor de eventos.</td></tr>
+<tr><td class="mono">8</td><td class="mono">SYS_LSEEK</td><td class="mono">lseek(fd, off, whence)</td><td>SEEK_SET/CUR/END.</td></tr>
+<tr><td class="mono">9</td><td class="mono">SYS_MMAP</td><td class="mono">mmap(...)</td><td>Regiones anónimas por proceso.</td></tr>
+<tr><td class="mono">10</td><td class="mono">SYS_MPROTECT</td><td class="mono">mprotect(addr, len, prot)</td><td>Actualiza flags VMM.</td></tr>
+<tr><td class="mono">11</td><td class="mono">SYS_MUNMAP</td><td class="mono">munmap(addr, len)</td><td>Desmapea una región anónima.</td></tr>
+<tr><td class="mono">12</td><td class="mono">SYS_BRK</td><td class="mono">brk(addr)</td><td>Crece/decrece el heap de usuario.</td></tr>
+<tr><td class="mono">16</td><td class="mono">SYS_IOCTL</td><td class="mono">ioctl(fd, req, arg)</td><td>Tamaño/modo de terminal; el resto falla.</td></tr>
+<tr><td class="mono">21</td><td class="mono">SYS_ACCESS</td><td class="mono">access(path, mode)</td><td>Comprueba existencia.</td></tr>
+<tr><td class="mono">22</td><td class="mono">SYS_PIPE</td><td class="mono">pipe(fds)</td><td>Par de fds de tubería.</td></tr>
+<tr><td class="mono">32</td><td class="mono">SYS_DUP</td><td class="mono">dup(fd)</td><td>Duplica al primer fd libre.</td></tr>
+<tr><td class="mono">33</td><td class="mono">SYS_DUP2</td><td class="mono">dup2(from, to)</td><td>Duplica a un fd concreto.</td></tr>
+<tr><td class="mono">35</td><td class="mono">SYS_SLEEP</td><td class="mono">nanosleep(&amp;ts, NULL)</td><td>Deadline persistente que cede a peers.</td></tr>
+<tr><td class="mono">39</td><td class="mono">SYS_GETPID</td><td class="mono">getpid()</td><td>PID del llamante.</td></tr>
+<tr><td class="mono">60</td><td class="mono">SYS_EXIT</td><td class="mono">exit(code) noreturn</td><td>Termina el proceso.</td></tr>
+<tr><td class="mono">61</td><td class="mono">SYS_WAITPID</td><td class="mono">wait4(pid, &amp;status, ...)</td><td>Exit code del hijo; PIDs desconocidos fallan.</td></tr>
+<tr><td class="mono">62</td><td class="mono">SYS_KILL</td><td class="mono">kill(pid, sig)</td><td>Rehúsa pid 0/1; sin entrega de señales.</td></tr>
+<tr><td class="mono">63</td><td class="mono">SYS_UNAME</td><td class="mono">uname(&amp;u)</td><td>NEWOS / NEWOS_VERSION / x86_64.</td></tr>
+<tr><td class="mono">72</td><td class="mono">SYS_FCNTL</td><td class="mono">fcntl(fd, cmd, arg)</td><td>Subconjunto de flags de fd.</td></tr>
+<tr><td class="mono">76</td><td class="mono">SYS_TRUNCATE</td><td class="mono">truncate(path, len)</td><td>Backends con truncate.</td></tr>
+<tr><td class="mono">77</td><td class="mono">SYS_FTRUNCATE</td><td class="mono">ftruncate(fd, len)</td><td>Truncado por fd.</td></tr>
+<tr><td class="mono">79</td><td class="mono">SYS_GETCWD</td><td class="mono">getcwd(buf, size)</td><td>Falla si el buffer es pequeño.</td></tr>
+<tr><td class="mono">80</td><td class="mono">SYS_CHDIR</td><td class="mono">chdir(path)</td><td>cwd por proceso.</td></tr>
+<tr><td class="mono">82</td><td class="mono">SYS_RENAME</td><td class="mono">rename(old, new)</td><td>Solo árboles escribibles en RAM.</td></tr>
+<tr><td class="mono">83</td><td class="mono">SYS_MKDIR</td><td class="mono">mkdir(path)</td><td>Un nivel (<span class="mono">mkdir -p</span> vive en userland).</td></tr>
+<tr><td class="mono">87</td><td class="mono">SYS_UNLINK</td><td class="mono">unlink(path)</td><td>Ficheros y dirs vacíos; rehúsa no-vacíos y árboles sintéticos.</td></tr>
+<tr><td class="mono">95</td><td class="mono">SYS_UMASK</td><td class="mono">umask(mask)</td><td>Aceptado; informa 022 fijo.</td></tr>
+<tr><td class="mono">96</td><td class="mono">SYS_GETTIMEOFDAY</td><td class="mono">gettimeofday(&amp;tv, ...)</td><td>Reloj CMOS real.</td></tr>
+<tr><td class="mono">100</td><td class="mono">SYS_TIMES</td><td class="mono">times(&amp;tms)</td><td>Subconjunto de tiempos de proceso.</td></tr>
+<tr><td class="mono">102/104/107/108</td><td class="mono">SYS_GETUID/GID/EUID/EGID</td><td class="mono">getuid()…</td><td>Modelo de un solo usuario; devuelven 0.</td></tr>
+<tr><td class="mono">110</td><td class="mono">SYS_GETPPID</td><td class="mono">getppid()</td><td>PID del padre.</td></tr>
+<tr><td class="mono">111</td><td class="mono">SYS_GETPGRP</td><td class="mono">getpgrp()</td><td>Informa el pid como grupo.</td></tr>
+<tr><td class="mono">112</td><td class="mono">SYS_SETSID</td><td class="mono">setsid()</td><td>Informa el pid; sin tabla de sesiones.</td></tr>
+<tr><td class="mono">158</td><td class="mono">SYS_ARCH_PRCTL</td><td class="mono">arch_prctl(cmd, addr)</td><td>Base TLS.</td></tr>
+<tr><td class="mono">217</td><td class="mono">SYS_GETDENTS64</td><td class="mono">getdents64(fd, buf, len)</td><td>Entradas de directorio.</td></tr>
+<tr><td class="mono">228</td><td class="mono">SYS_CLOCK_GETTIME</td><td class="mono">clock_gettime(clk, &amp;ts)</td><td>Subconjunto monotónico/realtime.</td></tr>
+<tr><td class="mono">262</td><td class="mono">SYS_NEWFSTATAT</td><td class="mono">newfstatat(dirfd, path, &amp;st, flags)</td><td>Metadatos de ruta.</td></tr>
+<tr><td class="mono">318</td><td class="mono">SYS_GETRANDOM</td><td class="mono">getrandom(buf, len, flags)</td><td>Bytes del PRNG del kernel.</td></tr>
+<tr><td class="mono">450</td><td class="mono">SYS_SPAWN</td><td class="mono">spawn(path, name)</td><td>Legacy sin argv.</td></tr>
+<tr><td class="mono">451</td><td class="mono">SYS_SPAWN2</td><td class="mono">spawn2(path, argv, argc)</td><td>argv real 16×128. Lo que usa nsh.</td></tr>
+<tr><td class="mono">452</td><td class="mono">SYS_SPAWN3</td><td class="mono">spawn3(path, argv, argc, in, out)</td><td>spawn2 + redirección de fds.</td></tr>
+<tr><td class="mono">453</td><td class="mono">SYS_FBINFO</td><td class="mono">fbinfo(&amp;fi)</td><td>Geometría (present width height pitch bpp); 0 sin Limine.</td></tr>
+<tr><td class="mono">454</td><td class="mono">SYS_FBWRITE</td><td class="mono">fbwrite(&amp;rq)</td><td>Blit XRGB8888 por filas, bounds-checked.</td></tr>
+<tr><td class="mono">455</td><td class="mono">SYS_MOUSE_GET</td><td class="mono">mouse_get(&amp;m)</td><td>Estado del puntero PS/2.</td></tr>
+<tr><td class="mono">456</td><td class="mono">SYS_PS</td><td class="mono">ps(buf, bytes)</td><td>Tabla (<span class="mono">nsh_proc pid ppid state name[32]</span>).</td></tr>
+<tr><td class="mono">457</td><td class="mono">SYS_READDIR</td><td class="mono">readdir(path, buf, bytes)</td><td>Forma legacy <span class="mono">nsh_dirent</span>.</td></tr>
+<tr><td class="mono">458</td><td class="mono">SYS_GETTIME</td><td class="mono">gettime(&amp;t)</td><td>CMOS real 24 h (forma legacy).</td></tr>
+<tr><td class="mono">459</td><td class="mono">SYS_SYSINFO</td><td class="mono">sysinfo(&amp;si)</td><td>frames total/free, uptime, hz.</td></tr>
 </tbody></table></div>
-<div class="note"><b>No implementados:</b> lseek / stat / truncate / rename · mmap / sbrk · sockets · señales. Fallan como syscall desconocida. Structs compartidos en <span class="mono">abi/syscall_abi.h</span> (<span class="mono">NSH_MAX_ARGS=16 ARGLEN=128 PATH=256</span>).</div>
+<div class="note"><b>No implementados:</b> fork / execve / readlink · sockets y stack de red · entrega de señales. <span class="mono">poll</span> solo informa timeout. Las llamadas desconocidas fallan con −1. Structs compartidos en <span class="mono">abi/syscall_abi.h</span> (<span class="mono">NSH_MAX_ARGS=16 ARGLEN=128 PATH=256</span>).</div>
 
 <h3 class="sec">Toolbox /bin (30 + hello + init)</h3>
 <input class="search" id="q-cmd" placeholder="Filtrar comandos… (ej. ps, img, pkg)">
@@ -72,8 +104,8 @@
 <p class="sub">Transcripción literal de una sesión en el NEWOS real (ISO Limine, teclado PS/2 inyectado por el monitor de QEMU). Así se ve y se siente <span class="mono">nsh</span>:</p>
 <pre class="block">root@newos:/# newfetch
  █▄ █ █▀▀ █░ █░ █▀█ █▀▀   root@newos
- █ ▀█ █▀▀ █▄▀█ █▄█ ▀▀█   OS: NEWOS 0.2.0-pre-alpha
- ▀  ▀ ▀▀▀ ▀ ▀▀ ▀ ▀▀ ▀▀▀   Kernel: 0.2.0-pre-alpha (x86_64)
+ █ ▀█ █▀▀ █▄▀█ █▄█ ▀▀█   OS: NEWOS 0.3.0-gui
+ ▀  ▀ ▀▀▀ ▀ ▀▀ ▀ ▀▀ ▀▀▀   Kernel: 0.3.0-gui (x86_64)
                           Uptime: 0h 0m 10s
                           Memory: 11 / 126 MiB
                           Shell: nsh (/init)

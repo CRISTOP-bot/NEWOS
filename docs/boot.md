@@ -47,11 +47,12 @@ Runs on the pre-built early stack and boot page tables:
    - kernel image mapped at its link address `0xffffffff80000000`
    - pages marked NX; final `invlpg`/`mov cr3` switches to it.
 6. `mm_heap_init()` — early 4 MiB arena for the kernel heap.
-7. `core_init` — mounts `initramfs` (the `/bin` toolbox + `/init` hierarchy
-   built into the image, plus `/var/lib/newpkg` and a sample `.new` staged
-   under `/tmp`), devfs and tmpfs, sets up processes/threads, registers the
-   syscall table, runs self-tests, and finally launches `/init`
-   (interactive shell) — or `/bin/hello` in `test_mode`.
+7. `kernel_boot_tail` — mounts `initramfs` (the `/bin` toolbox + `/init`
+   hierarchy built into the image, plus `/var/lib/newpkg` and a sample
+   `.new` staged under `/tmp`), devfs, tmpfs, procfs and sysfs; `core_init`
+   then sets up processes/threads, registers the syscall table, runs
+   self-tests, and finally launches `/init` (interactive shell) — or
+   `/bin/hello` in `test_mode`.
 
 ## Terminal boot log
 
@@ -61,8 +62,8 @@ boot: PVH protocol detected ...
 PMM: tracking N frames (M MiB) from physical 100000
 VMM: kernel address space ready (CR3=..., direct map at 0xfffffe0000000000)
 ...
-=== 6 tests, 0 failures ===
-=== 8 tests, 0 failures ===
+=== 9 tests, 0 failures ===
+=== 9 tests, 0 failures ===
 userland: entering init (pid 4) at ring 3
 root@newos:/#
 NEWOS: boot complete.

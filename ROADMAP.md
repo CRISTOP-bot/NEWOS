@@ -3,17 +3,20 @@
 Where NEWOS is going, in what order, and what is explicitly **not** planned.
 This is a living document: completed items move to `CHANGELOG.md`,
 and every milestone must keep `BUILD=PASS`, `BOOT=PASS`, `QEMU=PASS`
-(16/16 self-tests green) or it does not ship.
+(18/18 self-tests green) or it does not ship.
 
 ## Where we are
 
-- **Version:** `0.2.0-pre-alpha` (+ an `Unreleased` stack in `CHANGELOG.md`).
+- **Version:** `0.3.0-gui` (+ an `Unreleased` stack in `CHANGELOG.md`).
 - **Works today:** triple boot (PVH / Multiboot2 / Limine BIOS+UEFI),
-  PMM bitmap+buddy, VMM, VFS (tmpfs/devfs/initramfs), a Linux-numbered
-  syscall ABI with NEWOS extensions,
+  PMM bitmap+buddy, VMM, VFS (tmpfs/devfs/initramfs plus read-only
+  procfs/sysfs), a Linux-numbered syscall ABI with NEWOS extensions,
   `nsh` + native `/bin` toolbox (including recursive `find`), framebuffer
   (`img`, `vid`, `desktop`),
   native `.new` packages with rollback, reproducible ISOs, MIT.
+  `/proc` exposes live identity/uptime/memory/mounts/cmdline, `/sys`
+  exposes kernel identity and the PCI inventory; `free`, `df` and `uptime`
+  consume `/proc` with a syscall fallback.
 - **Honest gaps:** no disk driver (RAM-only FS), no IP stack
   (PCnet loopback only), no `truncate/mmap/sbrk/signals`,
   no USB/AHCI/NVMe/audio, no APIC/ACPI/SMP, JPEG/PNG refused
@@ -63,7 +66,10 @@ Goal: real userspace memory management.
   userland first, kernel keeps it): unblocks vendored `stb_image`
   so `img` opens **JPEG/PNG**, and a real `vid` codec path.
 - Basic signals (`SYS_KILL` exists; add delivery + `signal()` semantics).
-- Live `/proc` (ps/uptime/free read it instead of raw syscalls).
+- Extend the read-only `/proc` that already serves version/uptime/meminfo/
+  mounts/cmdline: add a process provider for `ps` (the FS layer cannot
+  reach `process/` directly), per-process files and live socket stats.
+  `free`/`df`/`uptime` already read `/proc` with a syscall fallback.
 - Acceptance: `img photo.jpg` works; `ltest` heap stress passes;
   no regressions in phase-2 `usercopy`/`address-spaces` tests.
 
@@ -73,8 +79,9 @@ Goal: a minimal, honest IP stack over the existing PCnet driver.
 
 - Full PCnet TX/RX interrupts (today: loopback only), then ARP → IP →
   ICMP → UDP → minimal TCP.
-- Socket syscalls (`SYS_SOCKET/BIND/CONNECT/SEND/RECV`… new numbers
-  from 22 up, documented in `abi/syscall_abi.h` + `docs/abi.md`).
+- Socket syscalls and a matching network stack (`SYS_SOCKET/BIND/CONNECT/
+  SEND/RECV`, vendor-numbered and documented in `abi/syscall_abi.h` +
+  `docs/abi.md`) once frames can actually leave the machine.
 - DHCP client + DNS stub resolver in userland.
 - `make qemu-network` runs a network self-test (ping + UDP echo
   against host user-mode networking).

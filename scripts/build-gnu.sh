@@ -41,6 +41,7 @@ unexpand uniq unlink users wc whoami yes'
 
 cmd="${1:-stage}"
 if [ "$cmd" = list ]; then
+  # shellcheck disable=SC2086  # TOOLS is an intentional whitespace list.
   printf '%s\n' $TOOLS
   exit 0
 fi
@@ -56,6 +57,7 @@ echo "${COREUTILS_SUM}  $DIST/coreutils-${COREUTILS_VER}.tar.xz" \
   | sha256sum --check --status \
   || { echo "build-gnu: distfile checksum mismatch"; exit 1; }
 
+# shellcheck disable=SC2086  # TOOLS is an intentional whitespace list.
 printf '%s\n' $TOOLS > "$PORTS/tools.txt"
 
 # Cache stamp: the container build is ~10 minutes, and nothing about it
@@ -71,6 +73,7 @@ if [ -f "$STAGE/.built" ] && [ "$(cat "$STAGE/.built")" = "$stamp" ] \
   exit 0
 fi
 
+# shellcheck disable=SC2016  # Variables expand inside the container shell.
 "${GNU_CONTAINER:-docker}" run --rm \
   -e FORCE_UNSAFE_CONFIGURE=1 \
   -v "$ROOT":/src -w /src/ports/build \

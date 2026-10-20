@@ -834,12 +834,12 @@ vbox-test: vbox-setup
 	$(Q)rm -f $(VBOX_SERIAL)
 	$(Q)VBoxManage startvm $(VBOX_VM) --type headless >/dev/null
 	$(Q)for i in $$(seq 1 40); do \
-	  grep -q '=== 8 tests, 0 failures ===' $(VBOX_SERIAL) 2>/dev/null && break; \
+	  grep -q '=== 9 tests, 0 failures ===' $(VBOX_SERIAL) 2>/dev/null && break; \
 	  sleep 1; \
 	done; \
 	VBoxManage controlvm $(VBOX_VM) poweroff >/dev/null 2>&1; \
-	if grep -q '=== 8 tests, 0 failures ===' $(VBOX_SERIAL); then \
-	  echo "VBox: boot complete, 8/8 kernel tests PASS"; \
+	if grep -q '=== 9 tests, 0 failures ===' $(VBOX_SERIAL); then \
+	  echo "VBox: boot complete, 9/9 phase-1 kernel tests PASS"; \
 	else \
 	  echo "VBox: FAILED - see $(VBOX_SERIAL)"; exit 1; \
 	fi

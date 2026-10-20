@@ -13,7 +13,7 @@
 </head>
 <body>
 <nav><div class="nav-in">
-  <a class="brand" href="index.html" style="text-decoration:none"><svg class="mark" viewBox="0 0 1000 1000" aria-hidden="true"><defs><mask id="p"><rect x="150" y="150" width="700" height="700" rx="150" fill="#fff"/><path d="M330 370l170 130-170 130" fill="none" stroke="#000" stroke-width="95" stroke-linejoin="round" stroke-linecap="round"/></mask></defs><rect x="150" y="150" width="700" height="700" rx="150" fill="currentColor" mask="url(#p)"/><rect x="540" y="595" width="150" height="95" rx="8" fill="currentColor"/></svg><span class="logo">NEWOS</span> <small>v0.2.0-pre-alpha</small></a>
+  <a class="brand" href="index.html" style="text-decoration:none"><svg class="mark" viewBox="0 0 1000 1000" aria-hidden="true"><defs><mask id="p"><rect x="150" y="150" width="700" height="700" rx="150" fill="#fff"/><path d="M330 370l170 130-170 130" fill="none" stroke="#000" stroke-width="95" stroke-linejoin="round" stroke-linecap="round"/></mask></defs><rect x="150" y="150" width="700" height="700" rx="150" fill="currentColor" mask="url(#p)"/><rect x="540" y="595" width="150" height="95" rx="8" fill="currentColor"/></svg><span class="logo">NEWOS</span> <small>v0.3.0-gui</small></a>
   <button class="hamb" aria-label="Abrir menú">☰</button>
   <div class="links"><a href="index.html">Inicio</a><a href="docs.html">Documentación</a><a href="api.html">Syscalls y comandos</a><a href="packages.html">Paquetes .new</a><a href="downloads.html" class="active">Descargas</a><a href="changelog.html">Changelog</a><a href="https://github.com/CRISTOP-bot/NEWOS" target="_blank" rel="noopener">GitHub ↗</a><button class="theme-btn" id="themeBtn" aria-label="Cambiar tema"></button></div>
 </div></nav>
@@ -50,7 +50,7 @@
 
 <h3 class="sec">Matriz de validación</h3>
 <div class="tbl-wrap"><table><thead><tr><th>Plataforma</th><th>Vía</th><th>Resultado</th></tr></thead><tbody>
-<tr><td class="mono">QEMU (dev)</td><td class="mono">PVH · qemu -kernel + test_mode=1</td><td><span class="badge ok">QEMU=PASS · 14/14 · exit 1</span></td></tr>
+<tr><td class="mono">QEMU (dev)</td><td class="mono">PVH · qemu -kernel + test_mode=1</td><td><span class="badge ok">QEMU=PASS · 18/18 · exit 1</span></td></tr>
 <tr><td class="mono">QEMU SeaBIOS</td><td class="mono">ISO GRUB multiboot2</td><td><span class="badge ok">BOOT=PASS</span></td></tr>
 <tr><td class="mono">QEMU OVMF/UEFI</td><td class="mono">ISO Limine híbrida</td><td><span class="badge ok">BOOT=PASS</span></td></tr>
 <tr><td class="mono">QEMU Limine</td><td class="mono">ISO Limine (framebuffer 1280×800 x32)</td><td><span class="badge ok">BOOT=PASS · capturas de esta web</span></td></tr>
@@ -113,10 +113,10 @@ cd web &amp;&amp; python3 -m http.server 8080
 # URL: https://CRISTOP-bot.github.io/NEWOS/
 
 # opción C: Releases (recomendado para binarios)
-# gh release create v0.2.0-pre-alpha web/dl/*
+# gh release create v0.3.0-gui web/dl/*
 # Los binarios ya están en web/dl/ listos para subir.</pre>
 </section></div>
-<footer><div class="wrap foot"><div><b style="color:var(--txt)">NEWOS</b> v0.2.0-pre-alpha · MIT · <a href="https://github.com/CRISTOP-bot/NEWOS/blob/main/LICENSE">LICENSE</a> · <a href="changelog.html">CHANGELOG</a> · <a href="https://github.com/CRISTOP-bot/NEWOS">GitHub</a></div><div><a href="index.html">Inicio</a> · <a href="docs.html">Documentación</a></div></div></footer>
+<footer><div class="wrap foot"><div><b style="color:var(--txt)">NEWOS</b> v0.3.0-gui · MIT · <a href="https://github.com/CRISTOP-bot/NEWOS/blob/main/LICENSE">LICENSE</a> · <a href="changelog.html">CHANGELOG</a> · <a href="https://github.com/CRISTOP-bot/NEWOS">GitHub</a></div><div><a href="index.html">Inicio</a> · <a href="docs.html">Documentación</a></div></div></footer>
 <button class="backtop" id="backtop" aria-label="Volver arriba">↑</button>
 <script src="app.js"></script>
 </body>

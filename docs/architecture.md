@@ -21,7 +21,7 @@ two names (see `docs/development/layering.md` for the naming rules).
 | `drivers/` | `serial_16550`, `tty_console`, `vga_text_console`, `fb`, `driver_core`, `device_core`, `qemu_debug`, `pci_*`, `pcnet`, `ps2_*`, `pit_timer`, `cmos_rtc` | Hardware-facing services behind the device model: serial/VGA/fb consoles, PCI bus, PCnet NIC, PS/2 input, timers. |
 | `core/` | `core_printk`, `core_panic`, `core_oops`, `core_cmdline`, `core_init`, `core_selftest` | Kernel core: logging, panic/oops, cmdline parsing, boot orchestration, self-tests. |
 | `mm/` | `mm_pmm_{alloc,bitmap,buddy}`, `mm_frame`, `mm_address_space`, `mm_vmm`, `mm_heap`, `mm_kmalloc`, `mm_usercopy`, `mm_debug` | Physical memory manager (bitmap + buddy), 4-level page tables, VMM address spaces, kernel heap, user copy helpers. |
-| `fs/` | `vfs_{core,inode}`, `tmpfs`, `devfs`, `initramfs` | VFS plus in-memory filesystem backends and the built-in root filesystem. |
+| `fs/` | `vfs_{core,inode}`, `tmpfs`, `devfs`, `initramfs`, `procfs`, `sysfs` | VFS plus in-memory filesystem backends, the built-in root filesystem, and read-only kernel/device trees. |
 | `process/` | `proc_process`, `proc_thread`, `elf_loader`, `sched` | Processes, threads (kernel-stack layout, context save/restore), cooperative+tick scheduler, ELF loading into a user address space. |
 | `ipc/` | `ipc_pipe` | Inter-process primitives (pipes). |
 | `syscall/` | `syscall_dispatch` | The `int $0x80` dispatcher switching on `rax` (syscalls 0-21, incl. `FBINFO`/`FBWRITE`). |
@@ -67,10 +67,10 @@ together; they are the exception, not the rule.
    (direct map at `0xfffffe0000000000`).
 4. On Limine boots the panel is mapped uncacheable into a private window
    and the fbcon text backend registers next to serial/VGA text.
-5. `core_init` mounts the root filesystem (initramfs over tmpfs, devfs),
-   initializes processes/threads, registers the syscall table, runs the
-   in-kernel self-tests (7 phase-1 + 9 phase-2) and finally launches
-   `/init` (interactive shell) or `/bin/hello` in `test_mode`.
+5. `core_init` mounts the root filesystem (initramfs over tmpfs, devfs,
+   procfs and sysfs), initializes processes/threads, registers the syscall
+   table, runs the in-kernel self-tests (9 phase-1 + 9 phase-2) and finally
+   launches `/init` (interactive shell) or `/bin/hello` in `test_mode`.
 
 See `docs/boot.md` for details and `docs/abi.md` for the user interface.
 

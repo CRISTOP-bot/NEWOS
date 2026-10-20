@@ -137,6 +137,6 @@ PASS, >= 3 = fallo). Sin `test_mode` arranca `/init` (shell interactiva).
 
 1. Auditar antes de tocar (leer código, no asumir APIs).
 2. Cambios pequeños, compilar (`-Werror`), `lint-layers` en verde.
-3. `make qemu-test` 16/16 + boot ISO BIOS y UEFI + screenshot si hay
+3. `make qemu-test` 18/18 (9 fase-1 + 9 fase-2) + boot ISO BIOS y UEFI + screenshot si hay
    salida visual.
 4. No commits salvo pedido explícito. No `TODO`s como implementación.

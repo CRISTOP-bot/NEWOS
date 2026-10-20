@@ -31,3 +31,25 @@ installable packages under `/usr/bin` instead of aliasing `/bin` to
 `/usr/share/doc/newos/README` gives a brief in-system overview. The initial
 root also includes `/etc/group`, `/etc/shells`, `/etc/issue`, and starter
 `.profile` files under `/etc/skel`, `/home/user`, and `/root`.
+
+## Synthetic kernel trees
+
+`/proc` (procfs) and `/sys` (sysfs) are mounted by the boot tail after the
+initramfs and PCI enumeration. Both are read-only: the VFS refuses unlink
+and rename on synthetic inodes, and their files have no write operation.
+
+`/proc` currently exposes:
+
+| File | Contents |
+| --- | --- |
+| `version` | `NEWOS <version> (x86_64)` |
+| `uptime` | Seconds and centiseconds since boot (a single field; idle time is not tracked yet) |
+| `meminfo` | `MemTotal`, `MemFree`, `MemAvailable`, `MemUsed` in kB from the PMM, plus zero swap/cache fields |
+| `filesystems` | Filesystem backends compiled into this kernel |
+| `mounts` | Current synthetic mount table |
+| `cmdline` | Boot-protocol command line, copied into a kernel-owned buffer |
+
+`/sys` exposes `kernel/ostype`, `kernel/osrelease`, `kernel/version`, and
+`bus/pci/devices/<domain:bus:slot.func>/{vendor,device,class}` for every
+function discovered by the PCI bus. Writable sysfs attributes, driver
+bind/unbind and a process-oriented `/proc` provider are future work.
