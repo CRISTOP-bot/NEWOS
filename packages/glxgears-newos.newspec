@@ -1,4 +1,5 @@
-# Build on the host with the NEWOS cross toolchain and recursive submodules.
+# Built by the superproject with the host compiler and NEWOS libc; the same
+# binary is embedded in the normal image as /bin/glxgears.
 name = "glxgears-newos"
 version = "0.1.0"
 arch = "x86_64"
@@ -11,5 +12,5 @@ depends = ""
 
 # Preserve TinyGL's required copyright and permission notice with the binary.
 files:
-  build/userland/glxgears-newos.elf /bin/glxgears-newos 0755
+  build/userland/glxgears.elf /bin/glxgears 0755
   ports/glxgears-newos/vendor/tinygl/LICENSE /usr/share/licenses/glxgears-newos/TinyGL-LICENSE 0644

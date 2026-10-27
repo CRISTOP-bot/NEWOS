@@ -48,18 +48,21 @@ stubbed as fake commands.
 5. Dependencies: every entry must be installed and satisfy its constraint;
    self-dependencies and dependency cycles are rejected (DFS from the new
    package through installed `depends` edges, depth-capped at 16).
-6. Conflict scan: every existing target must be absent, owned by the same
+6. If the same package name and version is already registered, print
+   `already installed` and stop before touching the payload. `--force`
+   bypasses this and performs a repair/reinstall.
+7. Conflict scan: every existing target must be absent, owned by the same
    package (reinstall/upgrade), or explicitly forced.
-7. Streamed extraction: payload bytes flow package -> VFS in 512-byte
+8. Streamed extraction: payload bytes flow package -> VFS in 512-byte
    chunks (no seek/rewind), verifying per-file and whole-payload CRCs on
    the fly. Targets are unlinked before rewrite (NEWOS has no `O_TRUNC`,
    so this avoids stale tails).
-8. Registration: `/var/lib/newpkg/<name>.info` (metadata + `installed-at:`
+9. Registration: `/var/lib/newpkg/<name>.info` (metadata + `installed-at:`
    stamp from the CMOS clock + `files:` is implicit in `.files`) and
    `/var/lib/newpkg/<name>.files` (manifest verbatim). Stale registrations
    are replaced the same unlink-first way.
 
-Any failure in 7-8 unlinks every file the run touched plus partial
+Any failure in 8-9 unlinks every file the run touched plus partial
 database entries, leaving the previous state intact (failed upgrades keep
 serving the old files). Known transaction limit: replace is
 unlink+create (there is no `rename` syscall yet), so a crash between the

@@ -5,19 +5,27 @@ internals (no `core/*` types).
 
 ## Syscall mechanism
 
-`int $0x80` (a DPL-3 trap gate). The dispatcher (`syscall/syscall_dispatch.c`)
-runs on the saved user frame; the value it returns lands in the guest's `rax`.
+NEWOS user code uses `int $0x80` (a DPL-3 trap gate). The dispatcher
+(`syscall/syscall_dispatch.c`) runs on the saved user frame; the value it
+returns lands in the guest's `rax`. For compatibility with static Linux
+binaries, the CPU also programs `STAR`/`LSTAR`/`FMASK` and provides a real
+x86-64 `syscall` entry (`arch/x86_64/interrupts/x86_interrupt.S`) that shares
+the same frame layout and dispatcher. `readv`/`writev` are handled by
+`syscall/syscall_posix.c`.
 
 | Register | Meaning |
 | --- | --- |
 | `rax` | syscall number |
 | `rdi rsi rdx r10 r8 r9` | arguments (SysV order), copied from user memory |
 | `rax` (return) | `>= 0` success, `< 0` error (negative errno) |
+| `rcx`/`r11` | clobbered by `syscall`; preserved by `int $0x80` |
 
-`rcx`/`r11` are clobbered by the instruction itself; all other registers are
-preserved. Addresses passed as arguments are validated with
-`copy_from_user`/`copy_to_user` (range-checked against the current address
-space) before the kernel touches them.
+Addresses passed as arguments are validated with `copy_from_user`/
+`copy_to_user` (range-checked against the current address space) before the
+kernel touches them. The static Linux compatibility path currently returns
+`-1` (`SYSCALL_RET_ERROR`) for most failures rather than a specific `-errno`;
+successful BusyBox paths are exercised, but apps that inspect `errno` may see
+an imprecise value.
 
 ## Syscall table
 
@@ -43,6 +51,8 @@ is split between `syscall/syscall_dispatch.c` (core and vendor calls) and
 | 11 | `SYS_MUNMAP` | unmaps an anonymous region |
 | 12 | `SYS_BRK` | grows/shrinks the user heap |
 | 16 | `SYS_IOCTL` | terminal size/mode queries; unknown requests fail |
+| 19 | `SYS_READV` | scatter read through the existing per-fd read path |
+| 20 | `SYS_WRITEV` | gather write through the existing per-fd write path |
 | 21 | `SYS_ACCESS` | existence check for a user path |
 | 22 | `SYS_PIPE` | creates a pipe fd pair |
 | 28 | `SYS_MADVISE` | accepted no-op |
@@ -87,6 +97,23 @@ is split between `syscall/syscall_dispatch.c` (core and vendor calls) and
 | 457 | `SYS_READDIR` | legacy packed `nsh_dirent` form |
 | 458 | `SYS_GETTIME` | legacy CMOS `nsh_time` form |
 | 459 | `SYS_SYSINFO` | total/free frames, uptime and tick rate |
+| 460 | `SYS_KBD_GRAB` | foreground PS/2 keyboard ownership (`rdi=1` grab, `0` release) |
+| 461 | `SYS_KBD_READ` | non-blocking bytes from the GUI keyboard queue |
+| 462 | `SYS_CONSOLE_GUI` | suspend/resume fbcon and the legacy cursor for a framebuffer compositor |
+
+`SYS_KBD_GRAB` is meant for full-screen sessions such as `desktop`. While a
+process owns the grab, decoded PS/2 bytes go to its private queue instead of
+the shell console; serial input keeps working normally. Process teardown
+releases the grab automatically, so a crashed GUI cannot leave the keyboard
+stolen. `SYS_KBD_READ` returns 0 when the queue is empty and never blocks.
+
+`SYS_CONSOLE_GUI` takes `rdi=1` to claim the panel and `rdi=0` to release it.
+A second owner is refused. While claimed, kernel `printk`/fbcon output and the
+kernel's legacy mouse arrow do not touch the framebuffer (serial output and
+klog still receive the text); this is what keeps `proc:` lines and a duplicate
+cursor from appearing over `desktop` or `glxgears`. Text programs launched by
+the desktop release the claim first. Process teardown releases it
+automatically, including after a crash.
 
 Not implemented: `fork`, `execve` and `readlink` return an error. Signal
 setup calls are accepted as no-ops; the cooperative kernel never delivers a
@@ -102,23 +129,67 @@ directories through `unlink`. Conventional file descriptors exist in
 - User text/data live in `[USER_SPACE_BASE, USER_SPACE_END)`, linked
   static at `0x400000` (`user/lib/app.ld`, no PIC/PIE, no shared objects).
 - The user stack is a 1 MiB mapping just below `0x7fffffffe000`.
-- `heap`/`mmap` syscalls are not implemented; user binaries are small
-  static programs. Userland heap exists inside `libc/` (static 256 KiB
-  arena, no `sbrk` yet).
+- `SYS_MMAP` supports anonymous mappings, with `MAP_FIXED` refused over an
+  occupied range; file-backed mappings are not implemented. `SYS_BRK` grows
+  or shrinks the image heap up to `PROCESS_MMAP_BASE`. `SYS_MUNMAP` and
+  `SYS_MPROTECT` operate on mapped pages. The freestanding libc still uses its
+  static 256 KiB arena rather than `sbrk`.
+
+## ELF64 loader profile (kernel/process/elf_loader.c)
+
+What the kernel accepts (`elf_validate` → `elf_load_segments` →
+`elf_entry_valid`, the same path every exec-style spawn uses — `/bin/*`
+toolbox tools, `busybox`, and anything `/bin/desktop` launches):
+
+- ELF64 (`ELFCLASS64`), little-endian (`ELFDATA2LSB`), `EM_X86_64`,
+  `ET_EXEC` **static** images only. Dynamic objects (`ET_DYN`, PIE or
+  shared) and any image that carries `PT_INTERP` are rejected with an
+  explicit console reason — NEWOS has no dynamic loader, so silently
+  loading them would only fault later inside the process.
+- Program headers: `PT_LOAD` only is mapped; each segment gets frames per
+  page, the BSS tail (`p_memsz > p_filesz`) is zero-filled and pages are
+  mapped `VMM_USER` + NX/W rules derived from `p_flags` (W → writable,
+  no X → NX). `p_offset`/`p_filesz` are bounds-checked overflow-safe
+  (`p_offset > size || p_filesz > size - p_offset`; the ELF data comes
+  from VFS and must not be trusted). Entry must land on a present,
+  user, executable page.
+- Everything else present in the image (`PT_GNU_STACK`, `PT_GNU_RELRO`,
+  `PT_NOTE`, …) is left alone.
+- `PT_TLS` is detected and **warned, not rejected**: the loader ignores
+  the header and the program is expected to set its own FS base with
+  `SYS_ARCH_PRCTL` (158). Static musl binaries do exactly that for
+  their self-contained TCB, which is how `busybox` runs. There is no
+  kernel-side TLS allocation yet.
+- Syscalls of loaded programs go through the ambient dispatcher: both
+  the native `int $0x80` vendor block 450-462 and the Linux-number
+  compatibility entry (`SYS_ARCH_PRCTL` 158 lives there) share
+  `kernel/syscall/syscall_dispatch.c`; `SYS_EXECVE` (59) is a stub.
+  Syscall numbers/records are statically asserted in
+  `include/abi/syscall_abi.h`.
+
+The loader is intentionally not a relocation engine, an `ld.so`, or a
+shared-library loader: no dynamic linking, no `dlopen`, no
+relocation processing.
 
 ## Program ABI (`user/programs/*`)
 
-Every `/bin` toolbox tool is freestanding (`-O2`, `-ffreestanding`,
+Every native `/bin` toolbox tool is freestanding (`-O2`, `-ffreestanding`,
 `-mgeneral-regs-only`): one `user/programs/<name>/<name>_main.c` with a
 standard `main(argc, argv)`, linked with the shared `user/lib/nshlib`
 (thin `int $0x80` wrappers + string/output helpers) and the
 `user/lib/start.S` entry stub (`_start` forwards `argc/argv` into `main`,
-exits with its return code). The only exception is the legacy `hello`
-smoke-test, which carries its own entry point and syscall wrappers and
-links with its own `user/programs/hello/linker.ld`. The build embeds each
-tool as an opaque blob (`_binary_<name>_elf_start...`) and initramfs
-exposes it as `/bin/<name>`; `newpkg` (`user/programs/newpkg/`)
-additionally links its portable `.new` format core.
+exits with its return code). The exceptions are the legacy `hello`
+smoke-test, which carries its own entry point and syscall wrappers, and
+`glxgears`, which is linked with FPU-enabled flags plus `libc/src/math.c`
+for TinyGL. The build embeds each tool as an opaque blob
+(`_binary_<name>_elf_start...`) and initramfs exposes it as `/bin/<name>`;
+`newpkg` (`user/programs/newpkg/`) additionally links its portable `.new`
+format core.
+
+`/bin/busybox` is not built from the NEWOS ABI; it is the official static
+Linux x86_64-linux-musl 1.35.0 binary, run through the `syscall` entry and
+the Linux-number compatibility subset. The source URL, GPLv2 license and
+SHA-256 checksums are recorded in `ports/busybox/`.
 
 Running one:
 

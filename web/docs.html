@@ -13,7 +13,7 @@
 </head>
 <body>
 <nav><div class="nav-in">
-  <a class="brand" href="index.html" style="text-decoration:none"><svg class="mark" viewBox="0 0 1000 1000" aria-hidden="true"><defs><mask id="p"><rect x="150" y="150" width="700" height="700" rx="150" fill="#fff"/><path d="M330 370l170 130-170 130" fill="none" stroke="#000" stroke-width="95" stroke-linejoin="round" stroke-linecap="round"/></mask></defs><rect x="150" y="150" width="700" height="700" rx="150" fill="currentColor" mask="url(#p)"/><rect x="540" y="595" width="150" height="95" rx="8" fill="currentColor"/></svg><span class="logo">NEWOS</span> <small>v0.3.0-gui</small></a>
+  <a class="brand" href="index.html" style="text-decoration:none"><svg class="mark" viewBox="0 0 64 64" aria-hidden="true"><rect x="2" y="2" width="60" height="60" rx="14" fill="#0B0B1A"/><rect x="5" y="5" width="54" height="54" rx="11" fill="#29305D"/><g stroke="#000" stroke-width="1.5" stroke-linejoin="round"><polygon points="12,21 31,17 31,31 12,35" fill="#FF7A3C"/><polygon points="34,16 52,12 52,26 34,30" fill="#7BD45A"/><polygon points="12,38 31,34 31,48 12,52" fill="#35B6C8"/><polygon points="34,33 52,29 52,43 34,47" fill="#4A4DC8"/></g></svg><span class="logo">NEWOS</span> <small>v0.3.0-gui</small></a>
   <button class="hamb" aria-label="Abrir menú">☰</button>
   <div class="links">
     <a href="index.html">Inicio</a><a href="docs.html" class="active">Documentación</a><a href="api.html">Syscalls y comandos</a><a href="packages.html">Paquetes .new</a><a href="downloads.html">Descargas</a><a href="changelog.html">Changelog</a><a href="https://github.com/CRISTOP-bot/NEWOS" target="_blank" rel="noopener">GitHub ↗</a>
@@ -50,19 +50,19 @@
 <div class="arr">→</div>
 <div class="step"><b>2 · arch_main</b><br>Normaliza la RAM (multiboot2 / PVH / Limine), siembra el PMM run a run, levanta GDT·TSS·IDT·serie y el VMM.</div>
 <div class="arr">→</div>
-<div class="step"><b>3 · kernel_boot_main</b><br>Monta initramfs, crea procesos, registra syscalls, corre 18 self-tests y salta a <span class="mono">/init</span> en ring 3.</div>
+<div class="step"><b>3 · kernel_boot_main</b><br>Monta initramfs, crea procesos, registra syscalls, corre 20 self-tests y salta a <span class="mono">/init</span> en ring 3.</div>
 </div>
 <div class="grid g2">
-<div class="card"><h3>Vía nativa (PVH / Multiboot2)</h3><p>1. Trampolín 32-bit <span class="mono">x86_entry.S:_start</span> (solo BSP): paging 4 niveles en <span class="mono">.early_bss</span> — identidad baja 1 GiB + high-half <span class="mono">0xffffffff80000000</span>. Activa PAE + long mode, salto lejano a C.<br>2. <span class="mono">arch_main</span>: normaliza RAM (multiboot2 <span class="mono">0xe85250d6</span> o PVH <span class="mono">0x336ec578</span>), PMM por cada run E820 (nunca MMIO), GDT/TSS, IDT 256 + <span class="mono">int $0x80</span> DPL3, VMM, heap temprano 4 MiB.<br>3. <span class="mono">kernel_boot_main</span>: sched, tests, <span class="mono">/bin/hello</span> si <span class="mono">test_mode=1</span> si no <span class="mono">/init</span>, salto a ring 3.</p></div>
+<div class="card"><h3>Vía nativa (PVH / Multiboot2)</h3><p>1. Trampolín 32-bit <span class="mono">x86_entry.S:_start</span> (solo BSP): paging 4 niveles en <span class="mono">.early_bss</span> — identidad baja 1 GiB + high-half <span class="mono">0xffffffff80000000</span>. Activa PAE + long mode, salto lejano a C.<br>2. <span class="mono">arch_main</span>: normaliza RAM (multiboot2 <span class="mono">0xe85250d6</span> o PVH <span class="mono">0x336ec578</span>), PMM por cada run E820 (nunca MMIO), GDT/TSS, IDT 256 + <span class="mono">int $0x80</span> DPL3, entrada <span class="mono">syscall</span> x86-64 (STAR/LSTAR/FMASK), VMM, heap temprano 48 MiB.<br>3. <span class="mono">kernel_boot_main</span>: sched, tests, <span class="mono">/bin/hello</span> si <span class="mono">test_mode=1</span> si no <span class="mono">/init</span>, salto a ring 3.</p></div>
 <div class="card"><h3>Vía Limine (framebuffer)</h3><p>Ya en long mode + HHDM. Copia runs usables, snapshot del framebuffer, mapea el panel <b>UC</b> en ventana privada y registra <span class="mono">fbcon</span> junto a serie/VGA. Pide entry, HHDM, memmap, cmdline y framebuffer. Release <span class="mono">v12.9.0</span> cacheada en <span class="mono">build/limine-bins/</span>.</p></div>
 </div>
 <pre class="block">NEWOS x86_64 boot: entry(magic=..., info=...)
 boot: PVH protocol detected ...
 PMM: tracking N frames (M MiB) from physical 100000
 VMM: kernel address space ready (CR3=..., direct map at 0xfffffe0000000000)
+=== 11 tests, 0 failures ===
 === 9 tests, 0 failures ===
-=== 9 tests, 0 failures ===
-userland: entering init (pid 4) at ring 3
+userland: entering sh (pid 4) at ring 3
 root@newos:/#
 NEWOS: boot complete.</pre>
 
@@ -70,11 +70,11 @@ NEWOS: boot complete.</pre>
 <div class="grid g3">
 <div class="card"><h3>PMM</h3><p>Bitmap + buddy sobre <b>todos</b> los rangos RAM usables (<span class="mono">pmm_allocator_init_ranges</span>, clamp a direct-map). MMIO jamás entregado. APIs <span class="mono">pmm_frame_alloc/free, pmm_block_alloc/free, phys_reserve/release_range</span>.</p></div>
 <div class="card"><h3>VMM</h3><p>4 niveles, espacios por proceso, mitad kernel heredada, mitad usuario validada. Flags <span class="mono">PRESENT/USER/WRITE/NX</span>. <span class="mono">copy_from/to_user</span> validados; <span class="mono">copy_user_string</span> byte-a-byte.</p></div>
-<div class="card"><h3>Heap</h3><p>Arena temprana 4 MiB + <span class="mono">kmalloc/kfree</span>. libc userland con arena estática 256 KiB (sin <span class="mono">sbrk</span>; NULL si se agota).</p></div>
+<div class="card"><h3>Heap</h3><p>Arena temprana 48 MiB + <span class="mono">kmalloc/kfree</span>. libc userland con arena estática 256 KiB (sin <span class="mono">sbrk</span>; NULL si se agota).</p></div>
 </div>
 
 <h3 class="sec" id="fs">VFS y rootfs generado</h3>
-<p class="sub">VFS con <span class="mono">open/read/write/close/mkdir/create/lookup/unlink/rename/stat/lseek/readdir</span>, cwd por proceso, modos DIR/REG, flags O_READ/O_WRITE/O_CREATE. Backends tmpfs (RAM) + devfs + initramfs + procfs/sysfs de solo lectura. Al boot se genera: <span class="mono">/dev /proc /sys /tmp /etc /bin /sbin /lib /usr /home /root /run /opt /var /mnt</span>, dotfiles (<span class="mono">hostname passwd motd version</span>), pics <span class="mono">splash.bmp test.ppm</span>, 30 bins, sample <span class="mono">/tmp/*.new</span>. Límites honestos: solo RAM volátil, sin disco persistente, sin enlaces simbólicos ni red, I/O 512 B por syscall.</p>
+<p class="sub">VFS con <span class="mono">open/read/write/close/mkdir/create/lookup/unlink/rename/stat/lseek/readdir</span>, cwd por proceso, modos DIR/REG, flags O_READ/O_WRITE/O_CREATE. Backends tmpfs (RAM) + devfs + initramfs + procfs/sysfs de solo lectura. Al boot se genera: <span class="mono">/dev /proc /sys /tmp /etc /bin /sbin /lib /usr /home /root /run /opt /var /mnt</span>, dotfiles (<span class="mono">hostname passwd motd version</span>), pics <span class="mono">splash.bmp test.ppm</span>, 39 entradas en <span class="mono">/bin</span> (incluye BusyBox y glxgears), sample <span class="mono">/tmp/*.new</span>. Límites honestos: solo RAM volátil, sin disco persistente, sin enlaces simbólicos ni red, I/O 512 B por syscall.</p>
 
 <h3 class="sec" id="drivers">Drivers</h3>
 <div class="tbl-wrap"><table><thead><tr><th>Driver</th><th>Detalle</th></tr></thead><tbody>
@@ -91,7 +91,7 @@ NEWOS: boot complete.</pre>
 <h3 class="sec" id="shell">Shell nsh y gráficos userland</h3>
 <div class="grid g2">
 <div class="card"><h3>nsh (/init, /bin/sh · 534 líneas)</h3><p>Edición UTF-8: flechas, Home/End, Delete, historial 16, <kbd>Ctrl</kbd>+<kbd>A</kbd>/<kbd>E</kbd>/<kbd>U</kbd>/<kbd>W</kbd>/<kbd>K</kbd>/<kbd>Y</kbd>/<kbd>V</kbd>/<kbd>C</kbd>/<kbd>D</kbd>/<kbd>L</kbd>, kill-ring, quoting, builtins <span class="mono">cd exit help history clear</span>, externos vía spawn2/waitpid. Prompt <span class="mono">root@newos:&lt;cwd&gt;#</span>.</p></div>
-<div class="card"><h3>img · vid · desktop (solo Limine FB)</h3><p><span class="mono">img</span>: BMP 24/32 sin compresión + PPM P6 (JPEG/PNG rechazados con mensaje: necesitan heap+FPU). <span class="mono">vid</span>: animación procedural 60 frames ~15 fps (bola + plasma) vía FBWRITE+SLEEP. <span class="mono">desktop</span>: compositor con ventanas draggables, close boxes, cursor con backing store, barra de memoria, readout de <span class="mono">/dev/mouse</span>, microfuente 3×5.</p></div>
+<div class="card"><h3>img · vid · desktop · glxgears (solo Limine FB)</h3><p><span class="mono">img</span>: BMP 24/32 sin compresión + PPM P6 (JPEG/PNG rechazados con mensaje: falta decodificador). <span class="mono">vid</span>: animación procedural 60 frames ~15 fps (bola + plasma) vía FBWRITE+SLEEP. <span class="mono">desktop</span>: compositor modular con seis ventanas (System, Files, Mouse, About, Log, Nova), drag/resize/max/min/close, dock, menú, ayuda, temas BoredOS/Win95, iconos Win95, fuente 8×8, cursor overlay, repintado por rectángulos sucios y <span class="mono">SYS_CONSOLE_GUI</span>. <span class="mono">glxgears</span>: demo TinyGL de 300 frames embebido en <span class="mono">/bin</span>.</p></div>
 </div>
 <div class="ok-box">Logo oficial = el de <span class="mono">newfetch</span> (3 líneas de bloques) + datos vivos: OS/Kernel/Uptime/Memory/Shell:nsh/Display/Packages. MOTD: <i>"NEWOS 0.3.0-gui (x86_64) - nsh shell / Type 'help' for commands."</i></div>
 
@@ -101,15 +101,16 @@ make limine         # variante Limine → build/images/newos-x86_64-limine.elf
 make iso            # ISO GRUB multiboot2 reproducible
 make build/images/newos-x86_64-limine.iso   # ISO híbrida BIOS+UEFI
 make qemu           # interactivo serie
-make qemu-test      # suite PVH 18 tests (exit 1 = PASS)
-make qemu-limine-test / make qemu-limine / make qemu-network / make qemu-disk
+make qemu-test      # suite PVH 20 tests (exit 1 = PASS)
+make qemu-limine-test / make qemu-limine / make qemu-limine-gui
+make check-nova     # tests host de los widgets Nova NTK
 make check-newpkg   # paquetes sin QEMU (80+ asserts + 19 e2e)
 make toolchain      # binutils 2.44 + GCC 16.1.0 C-only (~20-40 min)
 make clean          # borra build/ entero</pre>
 <p class="sub">Flags kernel: <span class="mono">-ffreestanding -nostdlib -fno-pic -fno-pie -mno-red-zone -mno-sse -mgeneral-regs-only -mcmodel=kernel -O2 -Werror</span>, link con PHDRS explícitos (ningún PT_LOAD RWE). Userland: ELF estático en <span class="mono">0x400000</span>, stack 1 MiB bajo <span class="mono">0x7fffffffe000</span>, embebido vía <span class="mono">ld -r -b binary</span> → initramfs <span class="mono">/bin/*</span>.</p>
 
 <h3 class="sec" id="tests">Tests y CI</h3>
-<p class="sub">Fase-1 (kernel): <span class="mono">crypto-sha256 bitmap heap-rw pmm-alloc pipe vfs-tmpfs procfs sysfs pcnet</span>. Fase-2 (ABI): <span class="mono">pmm-phys address-spaces usercopy elf-loader syscalls open-close timer-pit proc-life</span>. CI: <span class="mono">build.yml</span> (matrix + header multiboot2 + check-newpkg), <span class="mono">qemu-test.yml</span> (BUILD/BOOT/QEMU PASS), <span class="mono">static-analysis.yml</span> (-Werror, layering, whitespace).</p>
+<p class="sub">Fase-1 (kernel): <span class="mono">crypto-sha256 bitmap heap-rw pmm-alloc pipe kbd-grab fbcon-gui vfs-tmpfs procfs sysfs pcnet</span>. Fase-2 (ABI): <span class="mono">pmm-phys address-spaces usercopy elf-loader syscalls open-close timer-pit proc-life fpu-state</span>. CI: <span class="mono">build.yml</span> (matrix + header multiboot2 + check-newpkg), <span class="mono">qemu-test.yml</span> (BUILD/BOOT/QEMU PASS), <span class="mono">static-analysis.yml</span> (-Werror, layering, whitespace).</p>
 
 <h3 class="sec" id="mapa">Mapa de memoria x86_64</h3>
 <div class="membar" aria-label="Mapa de memoria">
@@ -129,11 +130,11 @@ make clean          # borra build/ entero</pre>
 </tbody></table></div>
 
 <h3 class="sec" id="vbox">VirtualBox y hardware real</h3>
-<p class="sub">ISO no híbrida/MBR: adjuntar como CD/DVD, máquina <i>Linux Other 64-bit</i>, ≥128 MB, BIOS legacy (no EFI), menú GRUB en serie 115200 8N1; el kernel siempre espeja en VGA. Serie opcional COM1 <span class="mono">0x3F8</span> IRQ4. Validado en SeaBIOS + OVMF + PVH. Detalle completo en <span class="mono">docs/virtualbox-and-hardware.md</span>.</p>
+<p class="sub">ISO no híbrida/MBR: adjuntar como CD/DVD, máquina <i>Linux Other 64-bit</i>, ≥256 MB, BIOS legacy (no EFI), menú GRUB en serie 115200 8N1; el kernel siempre espeja en VGA. Serie opcional COM1 <span class="mono">0x3F8</span> IRQ4. Validado en SeaBIOS + OVMF + PVH. Detalle completo en <span class="mono">docs/virtualbox-and-hardware.md</span>.</p>
 
 <h3 class="sec" id="changelog">Changelog</h3>
 <div class="card"><h3>v0.3.0-gui <span class="tag">actual</span></h3><p>Rework al layout canónico por capas, Makefile único explícito, jerarquía <span class="mono">build/</span>, lint de layering, docs architecture/build/boot/abi/layering, PHDRS sin RWE. Verificado BUILD/BOOT/SELF-TEST/QEMU PASS.</p></div>
-<div class="card" style="margin-top:12px"><h3>Unreleased</h3><p>SYS_OPEN/CLOSE + test open-close · fix GCC 16 C23 <span class="mono">bool</span> · PMM multi-run · consola VGA texto · GRUB robusto serie+VGA · ISO reproducible · sistema <span class="mono">.new</span> completo · fix <span class="mono">vfs_unlink split_parent</span>. Verificado BOOT SeaBIOS+OVMF, REPRO byte-idéntico.</p></div>
+<div class="card" style="margin-top:12px"><h3>Unreleased</h3><p>SYS_OPEN/CLOSE + test open-close · fix GCC 16 C23 <span class="mono">bool</span> · PMM multi-run · consola VGA texto · GRUB robusto serie+VGA · ISO GRUB reproducible · sistema <span class="mono">.new</span> completo · fix <span class="mono">vfs_unlink split_parent</span>. Verificado BOOT SeaBIOS+OVMF, REPRO byte-idéntico en la ISO GRUB.</p></div>
 <div class="card" style="margin-top:12px"><h3>v0.1.0-pre-alpha — 2026-09-06</h3><p>Hito fase-1: build -Werror, boot PVH+multiboot2, self-tests + isa-debug-exit, workflows, MIT/VERSION/CHANGELOG, fixes TSS/IDT/PIC/PVH/VFS.</p></div>
 <p style="margin-top:10px"><a href="downloads.html">→ Ir a descargas</a> · <a href="api.html">→ Tabla de syscalls y comandos</a></p>
 </section>

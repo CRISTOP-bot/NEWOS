@@ -46,6 +46,7 @@ file_class() {
         ipc/*)                 echo IPC ;;
         process/*)             echo PROC ;;
         syscall/*)             echo SYSC ;;
+        net/*)                 echo NET ;;
         include/core/*)        echo CORE ;;
         include/mm/*)          echo MM ;;
         include/fs/*)          echo FS ;;
@@ -53,6 +54,7 @@ file_class() {
         include/ipc/*)         echo IPC ;;
         include/process/*)     echo PROC ;;
         include/syscall/*)     echo SYSC ;;
+        include/net/*)         echo NET ;;
         include/*)             echo INC ;;
         *)                     echo UNKNOWN ;;
     esac
@@ -71,6 +73,7 @@ include_class() {
         '<ipc/'*)       echo IPC ;;
         '<process/'*)   echo PROC ;;
         '<syscall/'*)   echo SYSC ;;
+        '<net/'*)       echo NET ;;
         '"'*)           echo LOCAL ;;
         "<"*)           echo SYSTEM ;;
         *)              echo UNKNOWN ;;
@@ -80,9 +83,10 @@ include_class() {
 # Allowed target classes for files of domain $1.
 allowed() {
     case "$1" in
-        CORE) echo ABI LIB ARCH CORE MM FS DRV IPC PROC SYSC ;;
-        ARCH) echo ABI LIB ARCH CORE MM FS DRV IPC PROC SYSC ;;
+        CORE) echo ABI LIB ARCH CORE MM FS DRV IPC PROC SYSC NET ;;
+        ARCH) echo ABI LIB ARCH CORE MM FS DRV IPC PROC SYSC NET ;;
         DRV)  echo LIB ARCH CORE MM DRV ;;
+        NET)  echo LIB ARCH CORE MM DRV NET ;;
         MM)   echo LIB ARCH CORE MM ;;
         FS)   echo LIB CORE MM DRV FS ;;
         # PROC may use IPC so process_free can drop pipe references when a

@@ -27,6 +27,6 @@ The top-level command intentionally omits `--recursive`: the default build needs
 
 ## Pinned component revisions for this import
 
-The superproject uses Git gitlinks (not branch names) to pin `NEWOS-kernel` `083b9986b8d5222b063e624f19b94487d6be88d1`, `NEWOS-userland` `f4cc9f1b7080a9e9fe1aceaf05ff1e011718eb2c`, `NEWOS-toolchain` `93745ade464ae04e5e18bc594ad130b4679ab50b`, and `NEWOS-ports` `7d49f504dd5fd4b5b0f06150c6d99ebff6f5fde4`. Nested refs are likewise explicit: GCC `6afcc4f6da931eb93f3ab001a0dd9650ea71d1ea`, `glxgears-newos` `b44f4f622d9a63888acd5b59c07c465483143aed`, Nova `d586f1bfc4687172ca097298ba3c91d6f7d40069`.
+The superproject uses Git gitlinks (not branch names) to pin `NEWOS-kernel` `711b9097ab989c67dbe3961147b2ce1d19802bf4`, `NEWOS-userland` `3d5c36b567979507db291fda0835546cea508894`, `NEWOS-toolchain` `93745ade464ae04e5e18bc594ad130b4679ab50b`, and `NEWOS-ports` `9514ef27092ae40c1966e9ea39c2195233614ef5`. Nested refs are likewise explicit: GCC `6afcc4f6da931eb93f3ab001a0dd9650ea71d1ea`, `glxgears-newos` `5a890511567cb8dc3da5bed7c409aeb51f7653d3`, TinyGL `c2e48591a6bfba1a85f1b87a78dcf1abf7dff57a`, Nova `d586f1bfc4687172ca097298ba3c91d6f7d40069`.
 
 Component content was imported as source snapshots from the existing NEWOS PR branch; the original monorepo history was not rewritten into each new repository.

@@ -3,7 +3,7 @@
 Where NEWOS is going, in what order, and what is explicitly **not** planned.
 This is a living document: completed items move to `CHANGELOG.md`,
 and every milestone must keep `BUILD=PASS`, `BOOT=PASS`, `QEMU=PASS`
-(18/18 self-tests green) or it does not ship.
+(20/20 self-tests green) or it does not ship.
 
 ## Where we are
 
@@ -11,16 +11,28 @@ and every milestone must keep `BUILD=PASS`, `BOOT=PASS`, `QEMU=PASS`
 - **Works today:** triple boot (PVH / Multiboot2 / Limine BIOS+UEFI),
   PMM bitmap+buddy, VMM, VFS (tmpfs/devfs/initramfs plus read-only
   procfs/sysfs), a Linux-numbered syscall ABI with NEWOS extensions,
-  `nsh` + native `/bin` toolbox (including recursive `find`), framebuffer
-  (`img`, `vid`, `desktop`),
-  native `.new` packages with rollback, reproducible ISOs, MIT.
+  `nsh` + native `/bin` toolbox (including recursive `find`) and the complete
+  static BusyBox 1.35.0 (402 applets) through the Linux-compatible `syscall`
+  entry, anonymous `mmap`/`mprotect`/`munmap`/`brk` for static Linux binaries,
+  framebuffer (`img`, `vid`, `desktop`, `glxgears`), opt-in graphical
+  session (`gui=1` menu entry, keyboard/fbcon ownership, return to shell on
+  exit), native `.new` packages with rollback, a normalized reproducible
+  GRUB ISO, MIT.
   `/proc` exposes live identity/uptime/memory/mounts/cmdline, `/sys`
   exposes kernel identity and the PCI inventory; `free`, `df` and `uptime`
   consume `/proc` with a syscall fallback.
+  The built-in desktop is a modular Nova NTK alpha: six windows (including the
+  Nova preview), dock, start menu, help, BoredOS/Win95 themes, a Win95 icon
+  family and a damage-based compositor that uploads only dirty rectangles.
+  The upstream Nova compositor, protocol and app suite remain future work.
 - **Honest gaps:** no disk driver (RAM-only FS), no IP stack
-  (PCnet loopback only), no `truncate/mmap/sbrk/signals`,
-  no USB/AHCI/NVMe/audio, no APIC/ACPI/SMP, JPEG/PNG refused
-  (no userspace heap+FPU yet), package repos need net+persistence.
+  (PCnet loopback only), no file-backed `mmap`, signal delivery or native
+  `sbrk` allocator (`truncate` is path/fd-based for writable backends), no
+  USB/AHCI/NVMe,
+  no APIC/ACPI/SMP, JPEG/PNG refused (no image decoder yet; glxgears does use
+  the FPU and a local math shim), package repos need net+persistence. The
+  Limine ISO embeds build timestamps and is not byte-reproducible yet; the
+  GRUB ISO and ELF outputs are normalized.
   See `docs/virtualbox-and-hardware.md`, `docs/packages.md`,
   `docs/new-format.md` for the recorded details.
 
@@ -32,8 +44,9 @@ and every milestone must keep `BUILD=PASS`, `BOOT=PASS`, `QEMU=PASS`
    as future work, not shipped (packages v1 set the pattern).
 3. **Tests travel with code.** New subsystems land with phase-1/phase-2
    self-tests or host tests (`make check-newpkg` style).
-4. **Reproducible builds.** New artifacts must be byte-identical across
-   clean rebuilds (`scripts/iso/fixup_iso.py` pattern).
+4. **Reproducible artifacts.** ELF outputs and the GRUB ISO normalize
+   timestamps/GUIDs (`scripts/iso/fixup_iso.py`). New artifacts should follow;
+   the Limine ISO timestamp gap is tracked above.
 5. **One milestone at a time.** Finish, verify (`BOOT=PASS` on
    SeaBIOS+OVMF+PVH), changelog, then move on.
 
@@ -60,11 +73,12 @@ Goal: the filesystem lives on real storage.
 
 Goal: real userspace memory management.
 
-- `SYS_MMAP/MUNMAP`, `SYS_BRK/SBRK` (per-address-space VMM already exists
-  in `mm/` — expose it safely with `copy_*_user`-grade validation).
-- Userspace heap + FPU context (`-mgeneral-regs-only` is lifted for
-  userland first, kernel keeps it): unblocks vendored `stb_image`
-  so `img` opens **JPEG/PNG**, and a real `vid` codec path.
+- Native libc heap on the existing `SYS_MMAP`/`SYS_BRK` support (currently
+  static arena; file-backed mappings are still unsupported).
+- Userland FPU context (`-mgeneral-regs-only` is lifted for userland first,
+  kernel keeps it): unblocks a vendored `stb_image` so `img` opens
+  **JPEG/PNG**, and a real `vid` codec path. `glxgears` already uses the FPU
+  with a local math shim.
 - Basic signals (`SYS_KILL` exists; add delivery + `signal()` semantics).
 - Extend the read-only `/proc` that already serves version/uptime/meminfo/
   mounts/cmdline: add a process provider for `ps` (the FS layer cannot
@@ -113,9 +127,50 @@ Goal: behave on real machines and use all their CPUs.
   (`CONFIG_SMP` exists as `n` — flip it here, not before).
 - USB: UHCI companion first (QEMU `-usb`), keyboard/mass-storage;
   xHCI only after UHCI ships.
-- Intel HDA stub (enumerate + beep) — full audio is post-1.0.
+- Intel HDA poll-mode playback: **done** (CORB/RIRB with the
+  `GET_SUBSYSTEM_ID` echo, codec converter verbs, SD slot 4 BDL play,
+  LPIB poll; A4 sine ktest with host-side WAV validation — see
+  CHANGELOG). Remaining: IRQ mode + capture later; full audio stack
+  post-1.0.
+- e1000 NIC variant beside PCnet (same stack, same ktest pattern).
 - Acceptance: `sysinfo` reports N CPUs; SMP suite passes;
   USB keyboard works in QEMU and on one real laptop (documented model).
+
+### Graphics roadmap (honest versions, no fake drivers)
+
+The graphics story advances by *hardware-model milestones*, and every
+one lands with a working ktest (screendump comparison or byte checks)
+before the next starts. Current state: the Limine-provided linear
+framebuffer is the only display mode; `fbcon-gui` and the `desktop`
+compositor live on top of it.
+
+1. **BGA / VBE dispi (done first)** — the Bochs Graphics Adapter
+   (`-device bochs-display` in QEMU; the same dispi register interface
+   VirtualBox exposes through its legacy graphics adapter). PCI
+   class-device enumeration, mode set via the 0x1ce/0x1cf
+   index/data register pairs (display width, bpp, enable bits), linear
+   framebuffer mapping through the PCI BAR. This is the REAL
+   display path on two of our three platforms and replaces the
+   Limine-copied fb for everything booted on Bochs/VirtualBox.
+2. **PCI class driver layer** — VGA-class probing (`pci.c` inventory
+   already prints them) extended to a small registry: BGA, std VGA,
+   later VirtIO-GPU. Each backend exposes `fb_info {addr, w, h, pitch,
+   bpp}`; fbcon/desktop pick the backend by probe order.
+3. **VirtIO-GPU 2D (when the virtio layer lands)** — device model QEMU
+   ships honestly; needs the shared virtio ring plumbing we do not have
+   yet, so it waits for the virtio spike, NOT a shortcut hack.
+4. **Intel i915 / AMD ATOMBIOS family — display-only first.** The
+   KMS-style display bring-up (pipe programming) is gated on the v0.7
+   ACPI+APIC/MSI work; below that base the drivers cannot honestly run
+   outside of QEMU anyway (neither QEMU nor VirtualBox emulates them, so
+   every line would be untestable fake). Phase A: display configuration
+   only (scanout + linear fb), mode set from the display-controller
+   tables. Phase B (3D rings, shaders, GEM, Mesa-stack integration) is
+   post-1.0 and only after HW partners confirm register paths; no fake
+   stubs, ever.
+
+What we will NOT do: claim "GPU driver" before scanout pixels come from
+the actual device under test.
 
 ### v0.8 — Ports ("beyond x86_64")
 

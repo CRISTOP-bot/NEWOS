@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" width="1920" height="1080" role="img" aria-label="NEWOS boot wallpaper">
+<title>NEWOS boot wallpaper</title>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#080A18"/><stop offset=".55" stop-color="#29305D"/><stop offset="1" stop-color="#0B0B1A"/>
+    </linearGradient>
+    <linearGradient id="rainbow" x1="0" y1="0" x2="1" y2="0">
+      <stop stop-color="#FF7A3C"/><stop offset=".33" stop-color="#7BD45A"/><stop offset=".66" stop-color="#35B6C8"/><stop offset="1" stop-color="#4A4DC8"/>
+    </linearGradient>
+  </defs>
+  <rect width="1920" height="1080" fill="url(#bg)"/>
+  <g opacity=".22">
+    <polygon points="0,0 520,0 160,620 0,780" fill="#4A4DC8"/>
+    <polygon points="1920,0 1920,420 1420,180 1680,0" fill="#35B6C8"/>
+    <polygon points="1920,1080 1220,1080 1560,700 1920,620" fill="#FF7A3C"/>
+    <polygon points="0,1080 0,720 420,1080" fill="#7BD45A"/>
+  </g>
+  <g opacity=".35">
+    <polygon points="760,0 980,0 1260,1080 1080,1080" fill="#29305D"/>
+    <polygon points="1190,0 1280,0 1600,1080 1500,1080" fill="#14162E"/>
+  </g>
+  <g transform="translate(170,290) scale(.72)">
+<g fill="#000" opacity=".35" transform="translate(10,12)">
+<polygon points="96,160 232,128 232,252 96,284"/>
+<polygon points="248,124 392,92 392,216 248,248"/>
+<polygon points="96,300 232,268 232,392 96,424"/>
+<polygon points="248,264 392,232 392,356 248,388"/>
+</g>
+<g>
+<polygon points="96,160 232,128 232,252 96,284" fill="#FF7A3C" opacity="1.0" stroke="#000000" stroke-width="6" stroke-linejoin="round"/>
+<polyline points="96,160 232,128" fill="none" stroke="#FFB45A" stroke-width="8" opacity=".85"/>
+<polygon points="248,124 392,92 392,216 248,248" fill="#7BD45A" opacity="1.0" stroke="#000000" stroke-width="6" stroke-linejoin="round"/>
+<polyline points="248,124 392,92" fill="none" stroke="#D7FF8A" stroke-width="8" opacity=".85"/>
+<polygon points="96,300 232,268 232,392 96,424" fill="#35B6C8" opacity="1.0" stroke="#000000" stroke-width="6" stroke-linejoin="round"/>
+<polyline points="96,300 232,268" fill="none" stroke="#8AF0FF" stroke-width="8" opacity=".85"/>
+<polygon points="248,264 392,232 392,356 248,388" fill="#4A4DC8" opacity="1.0" stroke="#000000" stroke-width="6" stroke-linejoin="round"/>
+<polyline points="248,264 392,232" fill="none" stroke="#8F93FF" stroke-width="8" opacity=".85"/>
+</g>  </g>
+  <text x="760" y="470" font-family="DejaVu Sans Mono, monospace" font-weight="bold" font-size="150" letter-spacing="14" fill="#F4F5FA">NEWOS</text>
+  <text x="766" y="536" font-family="DejaVu Sans Mono, monospace" font-size="30" letter-spacing="5" fill="#A1A5BB">A SMALL SYSTEM WITH ROOM TO GROW</text>
+  <rect x="766" y="580" width="760" height="6" fill="url(#rainbow)" rx="3"/>
+  <text x="766" y="640" font-family="DejaVu Sans Mono, monospace" font-size="24" letter-spacing="3" fill="#A1A5BB">0.3.0-gui / x86_64 / LIMINE</text>
+  <g opacity=".55">
+    <circle cx="1600" cy="860" r="6" fill="#7BD45A"/>
+    <circle cx="1640" cy="860" r="6" fill="#35B6C8"/>
+    <circle cx="1680" cy="860" r="6" fill="#4A4DC8"/>
+  </g>
+</svg>

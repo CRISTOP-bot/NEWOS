@@ -4,7 +4,7 @@
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
 <script>(function(){var t;try{t=localStorage.getItem("newos-theme")}catch(e){}if(!t)t=matchMedia("(prefers-color-scheme:dark)").matches?"dark":"light";document.documentElement.setAttribute("data-theme",t)})()</script>
 <title>NEWOS — Sistema operativo desde cero · v0.3.0-gui</title>
-<meta name="description" content="NEWOS: kernel x86_64 monolítico escrito desde cero. Triple arranque, shell nsh, 30 herramientas, paquetes .new, libc propia. Documentación, API y descargas.">
+<meta name="description" content="NEWOS: kernel x86_64 monolítico escrito desde cero. Triple arranque, shell nsh, 39 entradas en /bin, BusyBox, paquetes .new, libc propia. Documentación, API y descargas.">
 <meta name="theme-color" content="#ffffff">
 <meta property="og:title" content="NEWOS — Sistema operativo desde cero">
 <meta property="og:description" content="Kernel x86_64 monolítico, triple arranque, shell nsh, paquetes .new. MIT.">
@@ -16,7 +16,7 @@
 </head>
 <body>
 <nav><div class="nav-in">
-  <a class="brand" href="index.html" style="text-decoration:none"><svg class="mark" viewBox="0 0 1000 1000" aria-hidden="true"><defs><mask id="p"><rect x="150" y="150" width="700" height="700" rx="150" fill="#fff"/><path d="M330 370l170 130-170 130" fill="none" stroke="#000" stroke-width="95" stroke-linejoin="round" stroke-linecap="round"/></mask></defs><rect x="150" y="150" width="700" height="700" rx="150" fill="currentColor" mask="url(#p)"/><rect x="540" y="595" width="150" height="95" rx="8" fill="currentColor"/></svg><span class="logo">NEWOS</span> <small>v0.3.0-gui</small></a>
+  <a class="brand" href="index.html" style="text-decoration:none"><svg class="mark" viewBox="0 0 64 64" aria-hidden="true"><rect x="2" y="2" width="60" height="60" rx="14" fill="#0B0B1A"/><rect x="5" y="5" width="54" height="54" rx="11" fill="#29305D"/><g stroke="#000" stroke-width="1.5" stroke-linejoin="round"><polygon points="12,21 31,17 31,31 12,35" fill="#FF7A3C"/><polygon points="34,16 52,12 52,26 34,30" fill="#7BD45A"/><polygon points="12,38 31,34 31,48 12,52" fill="#35B6C8"/><polygon points="34,33 52,29 52,43 34,47" fill="#4A4DC8"/></g></svg><span class="logo">NEWOS</span> <small>v0.3.0-gui</small></a>
   <button class="hamb" aria-label="Abrir menú">☰</button>
   <div class="links">
     <a href="index.html" class="active">Inicio</a>
@@ -33,7 +33,7 @@
 <header class="hero"><div class="wrap">
   <p class="kicker aos-fade">Rendimiento desde cero · x86_64 · MIT</p>
   <h1 class="aos">Un sistema operativo<br><span class="g">escrito desde cero.</span><br>Sin Linux dentro.</h1>
-  <p class="lead aos d1">NEWOS es un kernel <b>monolítico x86_64</b> freestanding con ABI propia, VFS, PMM bitmap+buddy, drivers PCI/PCnet/serie/PS2/PIT/CMOS, framebuffer, shell interactiva <span class="mono">nsh</span>, 30 herramientas en <span class="mono">/bin</span>, gestor de paquetes nativo <span class="mono">.new</span> y <span class="mono">libc.a</span> propia.</p>
+  <p class="lead aos d1">NEWOS es un kernel <b>monolítico x86_64</b> freestanding con ABI propia, VFS, PMM bitmap+buddy, drivers PCI/PCnet/serie/PS2/PIT/CMOS, framebuffer, shell interactiva <span class="mono">nsh</span>, 39 entradas en <span class="mono">/bin</span>, BusyBox completo (402 applets), gestor de paquetes nativo <span class="mono">.new</span> y <span class="mono">libc.a</span> propia.</p>
   <div class="cta aos d2">
     <a class="btn-edition" href="downloads.html">⬇ Descargar ISOs y kernel</a>
     <a class="btn" href="#features">Conocer el sistema</a>
@@ -41,24 +41,25 @@
   </div>
   <div class="badges aos d3">
     <span class="badge ok">BUILD=PASS</span><span class="badge ok">BOOT=PASS</span><span class="badge ok">QEMU=PASS</span>
-    <span class="badge">18/18 tests</span><span class="badge">-Werror</span><span class="badge">MIT</span><span class="badge">x86_64</span>
+    <span class="badge">20/20 tests</span><span class="badge">-Werror</span><span class="badge">MIT</span><span class="badge">x86_64</span>
   </div>
-  <img class="hero-img aos-fade d2" src="assets/desktop.png" alt="Compositor desktop de NEWOS corriendo en QEMU con tres ventanas y cursor" width="1280" height="800">
+  <img class="hero-img aos-fade d2" src="assets/desktop.png" alt="Compositor desktop de NEWOS corriendo en QEMU con seis ventanas, dock, launcher y cursor" width="1280" height="800">
 </div></header>
 
 <section class="band"><div class="wrap">
   <h2>Capturas reales <span class="tag">QEMU · ISO Limine</span></h2>
   <p class="sub">Sin mockups: estas imágenes salieron del framebuffer del propio NEWOS (1280×800 x32), capturadas por el puerto de monitor de QEMU mientras el sistema corría de verdad — boot, <span class="mono">newfetch</span> tecleado por PS/2 y el compositor <span class="mono">desktop</span>.</p>
   <div class="shots">
-    <figure class="shot"><img src="assets/boot.png" alt="Arranque de NEWOS en framebuffer: log del kernel, tests PASS y prompt nsh" loading="lazy"><figcaption><b>Arranque.</b> Log en fbcon, PCI enumerado, 18/18 tests PASS, prompt <span class="mono">root@newos:/#</span>.<span class="real">REAL</span></figcaption></figure>
-    <figure class="shot"><img src="assets/newfetch.png" alt="newfetch ejecutado en NEWOS mostrando logo, memoria y paquetes" loading="lazy"><figcaption><b>newfetch.</b> Logo, 11/126 MiB, Display 1280×800 x32, 33 paquetes.<span class="real">REAL</span></figcaption></figure>
-    <figure class="shot"><img src="assets/desktop.png" alt="Compositor desktop de NEWOS con tres ventanas y cursor" loading="lazy"><figcaption><b>desktop.</b> Ventanas de memoria, ratón y versión + cursor con backing store.<span class="real">REAL</span></figcaption></figure>
+    <figure class="shot"><img src="assets/boot.png" alt="Arranque de NEWOS en framebuffer: log del kernel, tests PASS y prompt nsh" loading="lazy"><figcaption><b>Arranque.</b> Log en fbcon, PCI enumerado, 20/20 tests PASS, prompt <span class="mono">root@newos:/#</span>.<span class="real">REAL</span></figcaption></figure>
+    <figure class="shot"><img src="assets/newfetch.png" alt="newfetch ejecutado en NEWOS mostrando logo, memoria y paquetes" loading="lazy"><figcaption><b>newfetch.</b> Logo, 37/254 MiB, Display 1280×800 x32, 39 paquetes (/bin).<span class="real">REAL</span></figcaption></figure>
+    <figure class="shot"><img src="assets/desktop.png" alt="Compositor desktop de NEWOS con seis ventanas, dock, launcher y cursor" loading="lazy"><figcaption><b>desktop.</b> Seis ventanas (System, Files, Mouse, About, Log y Nova), dock, temas BoredOS/Win95, cursor con backing store, compositor por daños, teclado PS/2 (Tab, 1–6, flechas, Enter, ?) y botones FILES/ABOUT/GEARS del preview Nova.<span class="real">REAL</span></figcaption></figure>
+    <figure class="shot"><img src="assets/desktop-win95.png" alt="Tema Win95 del escritorio de NEWOS con ventanas grises, barras azules e iconos bevelados" loading="lazy"><figcaption><b>desktop · Win95.</b> El mismo compositor con el tema claro de Windows 95: caras grises, barras de título azul marino e iconos bevelados.<span class="real">REAL</span></figcaption></figure>
   </div>
 </div></section>
 
 <section class="band"><div class="wrap">
   <h2>Aplicaciones con identidad <span class="tag">brand/app-icons</span></h2>
-  <p class="sub">Cada herramienta nativa de <span class="mono">/bin</span> y el demo TinyGL tienen su icono propio, generado por <span class="mono">scripts/gen-brand.py</span> a partir de la misma geometría de la marca.</p>
+  <p class="sub">Las herramientas principales de <span class="mono">/bin</span> y el demo TinyGL tienen su icono propio, generado por <span class="mono">scripts/gen-brand.py</span> con el lenguaje bevelado de Windows 95 y los acentos BoredOS.</p>
   <div class="app-grid">
     <figure class="app"><img src="assets/app-icons/shell.svg" alt="Icono de nsh" loading="lazy"><figcaption>nsh</figcaption></figure>
     <figure class="app"><img src="assets/app-icons/desktop.svg" alt="Icono del escritorio" loading="lazy"><figcaption>desktop</figcaption></figure>
@@ -82,9 +83,9 @@
 <span class="c-cyan">boot:</span> PVH protocol detected
 <span class="c-cyan">PMM:</span> tracking 32640 frames (127 MiB)
 <span class="c-cyan">VMM:</span> kernel address space ready <span class="c-dim">(CR3=..., direct map 0xfffffe0000000000)</span>
+<span class="c-green">=== 11 tests, 0 failures ===</span>
 <span class="c-green">=== 9 tests, 0 failures ===</span>
-<span class="c-green">=== 9 tests, 0 failures ===</span>
-<span class="c-dim">userland: entering init (pid 4) at ring 3</span>
+<span class="c-dim">userland: entering sh (pid 4) at ring 3</span>
 <span class="c-green">NEWOS 0.3.0-gui (x86_64) booted</span>
 <span class="c-green">NEWOS: boot complete.</span>
 <span class="c-yel">root@newos:/#</span> newfetch
@@ -103,9 +104,9 @@
   </div>
   <div class="grid g4">
     <div class="card aos"><div class="stat">3</div><div class="stat-l">vías de arranque</div><p>PVH (<span class="mono">qemu -kernel</span>), Multiboot2 (GRUB) y Limine (BIOS+UEFI, única con framebuffer).</p></div>
-    <div class="card aos d1"><div class="stat">70</div><div class="stat-l">syscalls definidas</div><p>Subconjunto POSIX numerado como Linux + llamadas NEWOS (spawn, fbinfo, ps, sysinfo…).</p></div>
-    <div class="card aos d2"><div class="stat">33</div><div class="stat-l">programas userland</div><p>Shell <span class="mono">nsh</span> + toolbox de 30 (<span class="mono">ls cat ps desktop img vid …</span>) + <span class="mono">hello</span>.</p></div>
-    <div class="card aos d3"><div class="stat">18</div><div class="stat-l">self-tests que pasan</div><p>9 fase-1 kernel + 9 fase-2 userland/ABI. QEMU sale con código <span class="mono">1</span> = PASS.</p></div>
+    <div class="card aos d1"><div class="stat">73</div><div class="stat-l">syscalls definidas</div><p>Subconjunto POSIX numerado como Linux + llamadas NEWOS (spawn, fbinfo, ps, sysinfo, console_gui…), con entrada <span class="mono">int $0x80</span> y <span class="mono">syscall</span> x86-64.</p></div>
+    <div class="card aos d2"><div class="stat">39</div><div class="stat-l">entradas en /bin</div><p>Shell <span class="mono">nsh</span> + toolbox nativo, <span class="mono">glxgears</span>, <span class="mono">busybox</span> (402 applets) y herramientas GNU instalables.</p></div>
+    <div class="card aos d3"><div class="stat">20</div><div class="stat-l">self-tests que pasan</div><p>11 fase-1 kernel + 9 fase-2 userland/ABI. QEMU sale con código <span class="mono">1</span> = PASS.</p></div>
   </div>
 </div></section>
 
@@ -118,7 +119,7 @@
   <div class="grid g3">
     <div class="card"><h3>🖥 PVH <span class="tag">dev default</span></h3><p><span class="mono">qemu -kernel build/images/newos-x86_64.elf</span>. Detecta la magia <span class="mono">0x336ec578</span>, arranca rapidísimo por consola serie. Ideal para desarrollar y para <span class="mono">make qemu-test</span>.</p></div>
     <div class="card"><h3>💿 Multiboot2 + GRUB</h3><p><span class="mono">make iso</span> genera ISO reproducible byte-idéntica. Cabecera validada en CI con <span class="mono">grub-file --is-x86-multiboot2</span>. Trampolín 32-bit → long mode.</p></div>
-    <div class="card"><h3>🎨 Limine <span class="tag">framebuffer</span></h3><p>ISO híbrida BIOS+UEFI, única vía con framebuffer (ventana UC, fbcon, <span class="mono">img</span>, <span class="mono">vid</span>, <span class="mono">desktop</span>). v12.9.0 cacheada en <span class="mono">build/</span>.</p></div>
+    <div class="card"><h3>🎨 Limine <span class="tag">framebuffer</span></h3><p>ISO híbrida BIOS+UEFI, única vía con framebuffer (ventana UC, fbcon, <span class="mono">img</span>, <span class="mono">vid</span>, <span class="mono">desktop</span>, <span class="mono">glxgears</span>). v12.9.0 cacheada en <span class="mono">build/</span>.</p></div>
   </div>
 </div></section>
 
@@ -128,10 +129,10 @@
     <div><pre class="block">git clone https://github.com/CRISTOP-bot/NEWOS.git newos &amp;&amp; cd NEWOS
 make all            # → build/images/newos-x86_64.elf
 make qemu           # arranque interactivo (serie)
-make qemu-test      # suite 18 tests, exit 1 = PASS
+make qemu-test      # suite 20 tests, exit 1 = PASS
 make check-newpkg   # tests de paquetes (sin QEMU)</pre></div>
     <div><pre class="block">qemu-system-x86_64 -kernel build/images/newos-x86_64.elf \
-  -serial stdio -no-reboot -m 128M \
+  -serial stdio -no-reboot -m 256M \
   -device isa-debug-exit,iobase=0xf4 -append "test_mode=1"
 # exit 1 = todo PASS · exit ≥3 = fallo</pre></div>
   </div>
@@ -141,7 +142,7 @@ make check-newpkg   # tests de paquetes (sin QEMU)</pre></div>
 <section class="band"><div class="wrap">
   <h2>Mapa del sistema</h2>
   <div class="cake">
-    <div class="layer hot"><span class="lv">L10</span><b>user/</b> nsh + 30 herramientas<span class="ld">solo ABI</span></div>
+    <div class="layer hot"><span class="lv">L10</span><b>user/</b> nsh + 39 entradas (incl. BusyBox)<span class="ld">solo ABI</span></div>
     <div class="layer"><span class="lv">L9</span><b>syscall/</b> dispatcher int $0x80 (POSIX + vendor)<span class="ld">ABI…SYSC</span></div>
     <div class="layer"><span class="lv">L7–8</span><b>process/ ipc/</b> ELF loader, scheduler, pipes<span class="ld">PROC · IPC</span></div>
     <div class="layer"><span class="lv">L6</span><b>fs/</b> VFS + tmpfs / devfs / initramfs<span class="ld">LIB…FS</span></div>
@@ -155,7 +156,7 @@ make check-newpkg   # tests de paquetes (sin QEMU)</pre></div>
     <tr><td class="mono">L2–L3 boot</td><td class="mono">arch/x86_64, core/</td><td>Trampolín, paging, GDT/TSS, IDT, PIC · printk/panic/init/selftests.</td></tr>
     <tr><td class="mono">L4–L5 hw/mem</td><td class="mono">drivers/, mm/</td><td>Serie/VGA/fb, PCI, PCnet, PS2, PIT/CMOS · PMM bitmap+buddy, VMM, kheap.</td></tr>
     <tr><td class="mono">L6–L8 fs/proc</td><td class="mono">fs/, process/, ipc/</td><td>VFS tmpfs/devfs/initramfs · ELF loader, scheduler, pipes.</td></tr>
-    <tr><td class="mono">L9–L10 api/user</td><td class="mono">syscall/, user/, libc/</td><td>Dispatcher int $0x80 (POSIX + vendor) · nsh + 30 tools · libc.a freestanding.</td></tr>
+    <tr><td class="mono">L9–L10 api/user</td><td class="mono">syscall/, user/, libc/</td><td>Dispatcher int $0x80 + syscall x86-64 (POSIX + vendor) · nsh + 39 entradas (incl. BusyBox) · libc.a freestanding.</td></tr>
     </tbody></table></div>
   <p style="margin-top:10px"><a href="docs.html">Ver documentación completa →</a> · <a href="api.html">Tabla de syscalls →</a> · <a href="packages.html">Sistema de paquetes →</a></p>
 </div></section>
@@ -176,8 +177,9 @@ make check-newpkg   # tests de paquetes (sin QEMU)</pre></div>
   <h2>Estado y roadmap honesto</h2>
   <p class="sub">Plan completo por hitos (v0.3 Persistencia → v1.0) en <a href="https://github.com/CRISTOP-bot/NEWOS/blob/main/ROADMAP.md">ROADMAP.md</a>.</p>
   <div class="grid g2">
-    <div class="card"><h3>✅ Hoy funciona</h3><ul><li>Boot PVH + Multiboot2 + Limine (BIOS y UEFI)</li><li>Shell nsh con edición UTF-8, historial, quoting</li><li>Framebuffer: img (BMP/PPM), vid procedural, desktop con ventanas</li><li>Paquetes .new con install/rollback real</li><li>ISO reproducible byte-idéntica</li></ul></div>
-    <div class="card"><h3>🚧 Roadmap (no prometido aún)</h3><ul><li>Sin USB/AHCI/NVMe/HDA, sin APIC/ACPI/MSI</li><li>Red: solo loopback PCnet, sin stack IP</li><li>Sin lseek/stat/mmap/sbrk/señales</li><li>JPEG/PNG y vídeo real requieren heap+FPU userland</li><li>SMP=n · ARM64/RISC-V solo placeholders</li></ul></div>
+    <div class="card"><h3>✅ Hoy funciona</h3><ul><li>Boot PVH + Multiboot2 + Limine (BIOS y UEFI)</li><li>Shell nsh con edición UTF-8, historial, quoting</li><li>Framebuffer: img (BMP/PPM), vid procedural, desktop de seis ventanas (entrada GUI opcional) y glxgears</li>
+<li>BusyBox 1.35.0 completo (402 applets) por la entrada syscall Linux</li><li>Paquetes .new con install/rollback real</li><li>ISO GRUB reproducible (metadata normalizada) y ELF reproducible</li></ul></div>
+    <div class="card"><h3>🚧 Roadmap (no prometido aún)</h3><ul><li>Sin USB/AHCI/NVMe/HDA, sin APIC/ACPI/MSI</li><li>Red: solo loopback PCnet, sin stack IP</li><li>Sin mmap de fichero ni entrega de señales; mmap anónimo y brk sí existen</li><li>JPEG/PNG y vídeo real requieren un decodificador de imágenes</li><li>SMP=n · ARM64/RISC-V solo placeholders</li></ul></div>
   </div>
 </div></section>
 
@@ -193,7 +195,7 @@ make check-newpkg   # tests de paquetes (sin QEMU)</pre></div>
 
 <footer><div class="wrap foot foot-cols">
   <div>
-    <a class="brand" href="index.html" style="text-decoration:none"><svg class="mark" viewBox="0 0 1000 1000" aria-hidden="true"><defs><mask id="pf"><rect x="150" y="150" width="700" height="700" rx="150" fill="#fff"/><path d="M330 370l170 130-170 130" fill="none" stroke="#000" stroke-width="95" stroke-linejoin="round" stroke-linecap="round"/></mask></defs><rect x="150" y="150" width="700" height="700" rx="150" fill="currentColor" mask="url(#pf)"/><rect x="540" y="595" width="150" height="95" rx="8" fill="currentColor"/></svg><span class="logo">NEWOS</span></a>
+    <a class="brand" href="index.html" style="text-decoration:none"><svg class="mark" viewBox="0 0 64 64" aria-hidden="true"><rect x="2" y="2" width="60" height="60" rx="14" fill="#0B0B1A"/><rect x="5" y="5" width="54" height="54" rx="11" fill="#29305D"/><g stroke="#000" stroke-width="1.5" stroke-linejoin="round"><polygon points="12,21 31,17 31,31 12,35" fill="#FF7A3C"/><polygon points="34,16 52,12 52,26 34,30" fill="#7BD45A"/><polygon points="12,38 31,34 31,48 12,52" fill="#35B6C8"/><polygon points="34,33 52,29 52,43 34,47" fill="#4A4DC8"/></g></svg><span class="logo">NEWOS</span></a>
     <p style="margin-top:10px">v0.3.0-gui · MIT © 2026 NEWOS contributors<br>Hecho desde cero: kernel, ABI, libc, shell, VFS, drivers y paquetes.</p>
   </div>
   <div>

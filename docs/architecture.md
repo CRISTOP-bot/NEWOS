@@ -16,7 +16,7 @@ two names (see `docs/development/layering.md` for the naming rules).
 | --- | --- | --- |
 | `abi/` | `syscall_abi.h`, `multiboot2.h` | Public ABI: syscall numbers/registers, multiboot2 boot structures. Self-contained (`<stdint.h>`), usable by userland. |
 | `lib/kernel/` | `iru_*` | Generic kernel utilities: string, memory, bitmap, intrusive list, lock, ring buffer, printf-style formatter. |
-| `libc/` | `string`, `stdlib`, `stdio`, `malloc` | Freestanding C library for userland (no floats/threads); static `libc.a`, self-contained + ABI. |
+| `libc/` | `string`, `stdlib`, `stdio`, `malloc`, `math` | Freestanding C library for userland (no locale/threads; `math.c` is a small float shim for TinyGL); static `libc.a`, self-contained + ABI. |
 | `arch/x86_64/` | `x86_*` | Machine-facing code: boot trampoline + entry, page tables, GDT/TSS, IDT, PIC, paging, context switch. Public arch headers live flat in `arch/x86_64/include/`. |
 | `drivers/` | `serial_16550`, `tty_console`, `vga_text_console`, `fb`, `driver_core`, `device_core`, `qemu_debug`, `pci_*`, `pcnet`, `ps2_*`, `pit_timer`, `cmos_rtc` | Hardware-facing services behind the device model: serial/VGA/fb consoles, PCI bus, PCnet NIC, PS/2 input, timers. |
 | `core/` | `core_printk`, `core_panic`, `core_oops`, `core_cmdline`, `core_init`, `core_selftest` | Kernel core: logging, panic/oops, cmdline parsing, boot orchestration, self-tests. |
@@ -24,8 +24,8 @@ two names (see `docs/development/layering.md` for the naming rules).
 | `fs/` | `vfs_{core,inode}`, `tmpfs`, `devfs`, `initramfs`, `procfs`, `sysfs` | VFS plus in-memory filesystem backends, the built-in root filesystem, and read-only kernel/device trees. |
 | `process/` | `proc_process`, `proc_thread`, `elf_loader`, `sched` | Processes, threads (kernel-stack layout, context save/restore), cooperative+tick scheduler, ELF loading into a user address space. |
 | `ipc/` | `ipc_pipe` | Inter-process primitives (pipes). |
-| `syscall/` | `syscall_dispatch` | The `int $0x80` dispatcher switching on `rax` (syscalls 0-21, incl. `FBINFO`/`FBWRITE`). |
-| `user/` | `programs/*/*_main.c` + `lib/nshlib` | Freestanding userland: `init` (nsh shell) plus the 30-tool `/bin` toolbox (`ls`, `cat`, …, `img`, `vid`, `newpkg`), linked against the ABI only. |
+| `syscall/` | `syscall_dispatch`, `syscall_posix` | The `int $0x80` and x86-64 `syscall` dispatcher, including the Linux-number compatibility subset used by static BusyBox/GNU binaries. |
+| `user/` | `programs/*/*_main.c` + `lib/nshlib` | Freestanding userland: `init` (nsh shell), the native `/bin` toolbox (`ls`, `cat`, …, `desktop`, `glxgears`, `newpkg`) and the official static BusyBox at `/bin/busybox`. |
 | `packages/` + `tools/newpkg/` | `*.newspec`, `newpkg-build.py`, tests | Native `.new` packages: host builder, install database at `/var/lib/newpkg`, first package `hello-new` (see `docs/packages.md`). |
 
 ## Dependency contract
@@ -69,7 +69,7 @@ together; they are the exception, not the rule.
    and the fbcon text backend registers next to serial/VGA text.
 5. `core_init` mounts the root filesystem (initramfs over tmpfs, devfs,
    procfs and sysfs), initializes processes/threads, registers the syscall
-   table, runs the in-kernel self-tests (9 phase-1 + 9 phase-2) and finally
+   table, runs the in-kernel self-tests (11 phase-1 + 16 phase-2) and finally
    launches `/init` (interactive shell) or `/bin/hello` in `test_mode`.
 
 See `docs/boot.md` for details and `docs/abi.md` for the user interface.
@@ -87,7 +87,7 @@ See `docs/boot.md` for details and `docs/abi.md` for the user interface.
   (kill-ring clipboard for cut/paste), builtins plus spawned `/bin` tools.
 - `img /etc/splash.bmp|*.ppm`: native BMP (24/32-bit) + PPM viewer on the
   Limine framebuffer (`FBINFO`/`FBWRITE`); `vid`: procedural animation
-  player. JPEG/PNG need a userspace codec (no heap/FPU yet) and are
+  player. JPEG/PNG need a userspace decoder that is not vendored yet and are
   refused with a message.
 
 ## Why this layout (decision record)

@@ -47,12 +47,12 @@ GCC, and it is not yet integrated into NEWOS.
 | --- | --- | --- |
 | Kilo | Existing editor; `nano` is a build alias for it | Keep the distinction explicit; add genuine GNU nano after terminal/libc work |
 | Lua | `user/programs/lua/` exists | Audit runtime coverage and package integration |
-| TinyGL | `user/programs/tinygl/` exists | Audit rendering and desktop integration |
-| GNU coreutils | Experimental host-built Linux ELF package installs under `/usr/bin`; runtime fails on Linux `syscall`/TLS setup (`#UD` at `syscall`) | Add a real NEWOS libc/runtime port or explicitly implement the required Linux ABI before calling these tools usable |
+| TinyGL | `ports/glxgears-newos` builds a real 300-frame demo; `/bin/glxgears` is embedded in every ISO | Keep the NEWOS math/libc shim small; audit TinyGL for larger demos |
+| GNU coreutils | Static musl package installs under `/usr/bin` and runs through the Linux `syscall` entry (tested `echo`, `arch`, `true`); individual tools may still need missing Linux interfaces | Document per-tool limits; a real NEWOS libc port remains the long-term path |
 | TCC | Not ported | Best first on-device compiler candidate; audit LGPLv2 source and libc/ELF needs |
 | AHCI and ext4 | NEWOS has AHCI and ext4 source trees, but storage is not a complete persistent user-facing system | Finish block-device/VFS integration and persistence before relying on disk-backed toolchains |
 | e1000, RTL8139, VirtIO and lwIP | NEWOS has a PCnet driver and loopback self-test, but no IP stack or socket ABI | Port concepts and tests selectively; implement the network stack before promising BoredOS-compatible networking |
-| Nova compositor, desktop apps and games | No direct port identified | Revisit after a stable windowing, input and graphics application ABI exists |
+| Nova compositor, desktop apps and games | NEWOS has a framebuffer blit ABI, PS/2 pointer state, foreground keyboard/fbcon ownership and a six-window NTK alpha (`WNOVA`), but no shared-memory/window protocol | Revisit after a stable surface/IPC ABI exists; the current `desktop` remains a self-contained compositor |
 
 BoredOS is GPL-3.0. Its kernel and userland code must not be copied into the
 proprietary NEWOS codebase without resolving the project's licensing model.

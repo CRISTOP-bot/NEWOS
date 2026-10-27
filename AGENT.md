@@ -12,7 +12,7 @@ make all            # ISO Limine -> build/images/newos-x86_64-limine.iso
 make build/images/newos-x86_64.elf   # kernel PVH/multiboot2 (lo que arranca qemu-test)
 make limine         # kernel variante Limine  -> build/images/newos-x86_64-limine.elf
 make build/images/newos-x86_64-limine.iso   # ISO híbrida BIOS+UEFI (Limine)
-make qemu-test      # suite automatizada PVH (16 tests, exit 1 = PASS)
+make qemu-test      # suite automatizada PVH (20 tests, exit 1 = PASS)
 make qemu-limine-test  # suite vía ISO Limine (rebuild con test_mode=1)
 make qemu           # arranque interactivo con ventana (requiere DISPLAY)
 make clean
@@ -22,14 +22,14 @@ QEMU manual (sin ventana):
 
 ```sh
 # PVH directo, serie a stdio:
-qemu-system-x86_64 -kernel build/images/newos-x86_64.elf -m 128M \
+qemu-system-x86_64 -kernel build/images/newos-x86_64.elf -m 256M \
   -no-reboot -display none -serial stdio -device pcnet
 # ISO Limine BIOS:
 qemu-system-x86_64 -cdrom build/images/newos-x86_64-limine.iso -boot order=d \
-  -m 128M -no-reboot -display none -serial stdio -device pcnet
+  -m 256M -no-reboot -display none -serial stdio -device pcnet
 # ISO Limine UEFI (OVMF de /usr/share/ovmf/x64/):
 qemu-system-x86_64 -cdrom build/images/newos-x86_64-limine.iso -boot order=d \
-  -serial stdio -no-reboot -m 128M -display none \
+  -serial stdio -no-reboot -m 256M -display none \
   -drive file=/usr/share/ovmf/x64/OVMF_CODE.4m.fd,if=pflash,format=raw,unit=0,readonly=on \
   -drive file=/tmp/ovmf_vars.fd,if=pflash,format=raw,unit=1 -device pcnet
 ```
@@ -137,6 +137,6 @@ PASS, >= 3 = fallo). Sin `test_mode` arranca `/init` (shell interactiva).
 
 1. Auditar antes de tocar (leer código, no asumir APIs).
 2. Cambios pequeños, compilar (`-Werror`), `lint-layers` en verde.
-3. `make qemu-test` 18/18 (9 fase-1 + 9 fase-2) + boot ISO BIOS y UEFI + screenshot si hay
+3. `make qemu-test` 20/20 (11 fase-1 + 9 fase-2) + boot ISO BIOS y UEFI + screenshot si hay
    salida visual.
 4. No commits salvo pedido explícito. No `TODO`s como implementación.

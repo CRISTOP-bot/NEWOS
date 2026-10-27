@@ -12,7 +12,7 @@ a CD/DVD-ROM drive.
 
 1. New machine or existing VM:
    - *Operating System*: `Linux`, *Version*: `Other Linux (64-bit)`.
-   - RAM: 128 MB or more.
+   - RAM: 256 MB or more.
    - **Keep the default firmware (legacy BIOS)**. No need for "Enable EFI".
 2. *Storage* -> the optical drive (empty) -> *Choose a disk file* ->
    `build/images/newos-x86_64.iso`.

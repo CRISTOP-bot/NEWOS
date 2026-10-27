@@ -14,8 +14,9 @@
 #   make clean       - remove build/ artifacts (not source modules or toolchain)
 #
 # All source checkouts and generated files stay under this repository.
-# Nova is downloaded as a pinned source, but is not built until its NEWOS port
-# is implemented. Host packages listed in docs/build.md remain prerequisites.
+# Nova is downloaded as a pinned source; only the modular NTK slice is built
+# into the NEWOS desktop. The upstream compositor/protocol remain unported.
+# Host packages listed in docs/build.md remain prerequisites.
 #
 # Options: V=0 (short log), V=1 (full commands, default),
 #   ARCH=x86_64, CROSS_PREFIX=x86_64-elf-, CONFIG=path/to/config
@@ -48,12 +49,21 @@ LIMINE_BIN      := $(BUILD_DIR)/images/newos-$(ARCH)-limine.elf
 LIMINE_ISO      := $(BUILD_DIR)/images/newos-$(ARCH)-limine.iso
 LIMINE_ROOT     := $(BUILD_DIR)/limine-root
 LIMINE_BINS     := $(BUILD_DIR)/limine-bins
+# The kernel always boots nsh.  An empty cmdline therefore means a text
+# session; the Limine menu also exposes a separate "NEWOS (GUI)" entry with
+# gui=1, and users can run /bin/desktop from nsh.  The test target overrides
+# this with test_mode=1 (which keeps the shell and never starts the desktop).
+LIMINE_CMDLINE  ?=
 
 CC              := $(CROSS_PREFIX)gcc
 LD              := $(CROSS_PREFIX)ld
 AR              := $(CROSS_PREFIX)ar
 NASM            := nasm
 QEMU            := qemu-system-x86_64
+# Interactive QEMU targets use GTK without a host-drawn pointer: grab-on-hover
+# hides the host cursor while the guest is focused and show-cursor=off stops
+# QEMU from painting a second arrow over the NEWOS compositor cursor.
+QEMU_DISPLAY    ?= -display gtk,grab-on-hover=on,show-cursor=off
 
 # ---------------------------------------------------------------------------
 # Verbosity: V=1 (default) prints every command in full; V=0 prints only
@@ -96,7 +106,8 @@ ARCH_SRCS_C     := arch/$(ARCH)/boot/x86_boot.c arch/$(ARCH)/boot/x86_multiboot2
                    arch/$(ARCH)/cpu/x86_vendor.c arch/$(ARCH)/cpu/x86_gdt.c \
                    arch/$(ARCH)/interrupts/x86_idt.c \
                    arch/$(ARCH)/interrupts/x86_pic.c arch/$(ARCH)/interrupts/x86_irq.c \
-                   arch/$(ARCH)/memory/x86_paging.c
+                   arch/$(ARCH)/memory/x86_paging.c \
+                   arch/$(ARCH)/memory/x86_devmap.c
 ARCH_SRCS_ASM   := arch/$(ARCH)/boot/x86_entry.S arch/$(ARCH)/boot/limine_entry.S \
                    arch/$(ARCH)/interrupts/x86_interrupt.S \
                    arch/$(ARCH)/threading/x86_context.S \
@@ -121,17 +132,25 @@ MM_SRCS         := mm/mm_heap.c mm/mm_kmalloc.c mm/mm_debug.c \
 # storage: VFS and backends
 FS_SRCS         := fs/devfs/devfs.c fs/initramfs/initramfs.c fs/tmpfs/tmpfs.c \
                     fs/vfs/vfs_inode.c fs/vfs/vfs_core.c \
-                    fs/ext4/ext4fs.c fs/procfs/procfs.c fs/sysfs/sysfs.c
+                    fs/ext4/ext4fs.c fs/fat32/fat32fs.c \
+                    fs/iso9660/iso9660.c fs/romfs/romfs.c \
+                    fs/procfs/procfs.c fs/sysfs/sysfs.c
+
+# network stack: poll-mode IPv4 core over the pcnet driver
+NET_SRCS        := net/net_stack.c net/nic.c
 
 # drivers: hardware-facing services
 DRV_SRCS        := drivers/console/tty_console.c drivers/console/vga_text_console.c \
                      drivers/core/device_core.c \
                      drivers/core/driver_core.c drivers/qemu/qemu_debug.c \
                      drivers/block_dev.c drivers/graphics/fb.c \
+                     drivers/block/ata.c \
                      drivers/input/ps2_keyboard.c drivers/input/ps2_mouse.c \
                      drivers/pci/pci_bus.c drivers/pci/pci_chipset.c \
                      drivers/pci/pci_ids.c \
                      drivers/net/pcnet.c \
+                     drivers/net/e1000.c \
+                     drivers/audio/hda.c \
                      drivers/acpi/acpi.c drivers/ahci/ahci.c \
                       drivers/serial/serial_16550.c drivers/timer/pit_timer.c \
                       drivers/timer/cmos_rtc.c
@@ -154,14 +173,18 @@ LIBC_SRCS       := libc/src/string.c libc/src/stdlib.c \
 LIBC_OBJS       := $(patsubst %.c,$(BUILD_DIR)/obj/%.o,$(LIBC_SRCS))
 LIBC_HEADERS    := $(wildcard libc/include/*.h libc/include/sys/*.h)
 LIBC_A          := $(BUILD_DIR)/userland/libc.a
-SDK_ROOT        := $(BUILD_DIR)/newos-sdk
+# Top-level sysroot: the C SDK lives at sysroot/usr/{include,lib} (see
+# sysroot/README.md).  `make sdk` (re)populates it in-tree; toolchain/
+# newos-gcc drives `-L`/`-isystem`/link-script straight out of it.
+SDK_ROOT        := sysroot
 SDK_HEADERS     := $(SDK_ROOT)/usr/include/.newos-headers
 SDK_LIBC        := $(SDK_ROOT)/usr/lib/libc.a
 SDK_LIBNSH      := $(SDK_ROOT)/usr/lib/libnsh.a
 SDK_CRT0        := $(SDK_ROOT)/usr/lib/crt0.o
+SDK_LD          := $(SDK_ROOT)/usr/lib/app.ld
 
 KERNEL_SRCS_C   := $(CORE_SRCS) $(MM_SRCS) $(FS_SRCS) $(DRV_SRCS) \
-                   $(IPC_SRCS) $(LIB_SRCS) \
+                   $(IPC_SRCS) $(LIB_SRCS) $(NET_SRCS) \
                    crypto/crypto_sha256.c crypto/crypto_chacha20.c
 
 # ---------------------------------------------------------------------------
@@ -193,7 +216,7 @@ PPM_EMBED       := $(BUILD_DIR)/obj/userland/testppm.bin.o
 # with a standard main(argc, argv). Installed into the root fs by initramfs.
 PROG_NAMES      := ls cat echo mkdir rmdir rm mv touch pwd clear uname \
                     hostname whoami id date uptime ps kill sleep free df \
-                    wc head grep find sort img vid ltest about newfetch desktop newpkg kilo
+                    wc head grep find sort img vid ltest about newfetch desktop newpkg kilo frotz
 PROG_OBJS       := $(patsubst %,$(BUILD_DIR)/userland/%.o,$(PROG_NAMES))
 PROG_BINS       := $(patsubst %,$(BUILD_DIR)/userland/%.elf,$(PROG_NAMES))
 PROG_EMBEDS     := $(patsubst %,$(BUILD_DIR)/obj/userland/%.bin.o,$(PROG_NAMES))
@@ -204,11 +227,32 @@ NANO_EMBED      := $(BUILD_DIR)/obj/userland/nano.bin.o
 # (shared with the host test driver). Linked explicitly like ltest+libc.
 NEWPKG_FORMAT_OBJ := $(BUILD_DIR)/userland/newpkg_format.o
 
-# Nova-derived, integer-only NTK color component used by NEWOS desktop.
-NOVA_COLOR_SRC := user/programs/desktop/nova/ntk_color.c
-NOVA_COLOR_OBJ := $(BUILD_DIR)/userland/nova_ntk_color.o
-NOVA_COLOR_HEADERS := user/programs/desktop/nova/ntk_color.h \
-                      user/programs/desktop/nova/ntk_types.h
+# Nova-derived, integer-only NTK slice used by the NEWOS desktop. Every module
+# is caller-owned and allocation-free; the desktop composes through this
+# painter/style/widget layer instead of ad-hoc drawing helpers.
+NOVA_NTK_DIR      := user/programs/desktop/nova
+NOVA_NTK_SRCS     := ntk_color.c ntk_gradient.c ntk_painter.c ntk_style.c \
+                     ntk_progress.c ntk_button.c ntk_scrollbar.c \
+                     ntk_separator.c
+NOVA_NTK_OBJS     := $(patsubst %.c,$(BUILD_DIR)/userland/nova_%.o,$(NOVA_NTK_SRCS))
+NOVA_NTK_HEADERS  := $(NOVA_NTK_DIR)/ntk_color.h \
+                     $(NOVA_NTK_DIR)/ntk_types.h \
+                     $(NOVA_NTK_DIR)/ntk_gradient.h \
+                     $(NOVA_NTK_DIR)/ntk_painter.h \
+                     $(NOVA_NTK_DIR)/ntk_style.h \
+                     $(NOVA_NTK_DIR)/ntk_progress.h \
+                     $(NOVA_NTK_DIR)/ntk_button.h \
+                     $(NOVA_NTK_DIR)/ntk_scrollbar.h \
+                     $(NOVA_NTK_DIR)/ntk_separator.h
+
+# Desktop modules. desktop_main.c stays the entry point; the rest is split by
+# responsibility so the compositor, shell and applications can evolve without
+# growing one translation unit.
+DESKTOP_DIR       := user/programs/desktop
+DESKTOP_SRCS      := desktop_state.c desktop_gfx.c desktop_wm.c desktop_theme.c \
+                     desktop_shell.c desktop_apps.c desktop_input.c \
+                     desktop_compositor.c
+DESKTOP_OBJS      := $(patsubst %.c,$(BUILD_DIR)/userland/%.o,$(DESKTOP_SRCS))
 
 # Sample `.new` package embedded for live QEMU exercises (/tmp/*.new).
 # Built from the already-linked hello ELF through the host builder script.
@@ -217,6 +261,13 @@ NEWPKG_PKGDIR         := $(BUILD_DIR)/packages
 NEWPKG_HELLO_NEW      := $(NEWPKG_PKGDIR)/hello-new-1.0.0-x86_64.new
 NEWPKG_SAMPLE_NEW     := $(BUILD_DIR)/sample.new
 SAMPLE_NEW_EMBED      := $(BUILD_DIR)/obj/userland/sample_new.bin.o
+
+# Demo Z-code story checked in with the frotz port (tools/frotz/tests),
+# installed by initramfs as /usr/share/zcode/mini.z3 (demo: `frotz /usr/
+# share/zcode/mini.z3`; real-game story files are user-supplied). Declared
+# before OBJS on purpose: OBJS expands immediately (see AGENT.md).
+MINI_Z3_SRC      := tools/frotz/tests/mini.z3
+MINI_Z3_EMBED    := $(BUILD_DIR)/obj/userland/mini_z3.bin.o
 
 # Shell boot script (nsh runs /etc/nsh.rc before the prompt). Commented-out
 # by default so a normal boot stays interactive; edit it to script a session,
@@ -245,6 +296,31 @@ GNU_PKG_VERSION := 9.7
 GNU_PKG         := $(BUILD_DIR)/gnu-coreutils.new
 GNU_PKG_EMBED   := $(BUILD_DIR)/obj/userland/gnu_coreutils.bin.o
 
+# Complete upstream BusyBox (official 1.35.0 x86_64-linux-musl build,
+# 402 applets).  It is a static ET_EXEC and now runs on NEWOS through the
+# Linux-compatible SYSCALL entry in arch/x86_64/interrupts/x86_interrupt.S.
+# The binary is checked in so a build never needs network access; BusyBox is
+# GPLv2, so ports/busybox/ records the exact source URL, SHA-256 and license.
+BUSYBOX_BIN     := ports/busybox/busybox
+BUSYBOX_EMBED   := $(BUILD_DIR)/obj/userland/busybox.bin.o
+
+# TinyGL gears demo, built with the host compiler and NEWOS libc so it is
+# part of the normal image.  The port's own Makefile remains available for
+# cross-toolchain builds, but no user has to run it to get /bin/glxgears.
+GLXGEARS_DIR    := ports/glxgears-newos
+TINYGL_DIR      := $(GLXGEARS_DIR)/vendor/tinygl
+GLXGEARS_PORT_SRCS := glxgears_newos.c allocator.c
+GLXGEARS_TINY_SRCS := api.c arrays.c clear.c clip.c get.c image_util.c \
+                      init.c light.c list.c matrix.c misc.c msghandling.c \
+                      select.c specbuf.c texture.c vertex.c zbuffer.c \
+                      zline.c zmath.c zpostprocess.c zraster.c ztext.c \
+                      ztriangle.c
+GLXGEARS_PORT_OBJS := $(patsubst %.c,$(BUILD_DIR)/userland/glxgears/%.o,$(GLXGEARS_PORT_SRCS))
+GLXGEARS_TINY_OBJS := $(patsubst %.c,$(BUILD_DIR)/userland/glxgears/tinygl_%.o,$(GLXGEARS_TINY_SRCS))
+GLXGEARS_MATH_OBJ  := $(BUILD_DIR)/userland/glxgears/math.o
+GLXGEARS_BIN       := $(BUILD_DIR)/userland/glxgears.elf
+GLXGEARS_EMBED     := $(BUILD_DIR)/obj/userland/glxgears.bin.o
+
 # Package the checked-in staged tools directly; `make gnu` refreshes this
 # same stage from upstream. They install under /usr/bin, preserving native
 # NEWOS commands under /bin.
@@ -257,6 +333,15 @@ $(GNU_PKG_EMBED): $(GNU_PKG)
 	$(Q)mkdir -p $(dir $@)
 	$(E) "  GEMB $(notdir $<)"
 	$(Q)cd $(BUILD_DIR) && $(LD) -r -b binary -o obj/userland/gnu_coreutils.bin.o gnu-coreutils.new
+
+# The binary is an opaque ET_EXEC blob (not linked into the kernel); only the
+# initramfs copies it to /bin/busybox.  Keep the embed name stable for the
+# _binary_busybox_elf_* symbols used by the VFS initializer.
+$(BUSYBOX_EMBED): $(BUSYBOX_BIN) | dirs
+	$(Q)mkdir -p $(dir $@)
+	$(Q)cp $(BUSYBOX_BIN) $(BUILD_DIR)/busybox.elf
+	$(E) "  EMB busybox ($(notdir $(BUSYBOX_BIN)))"
+	$(Q)cd $(BUILD_DIR) && $(LD) -r -b binary -o obj/userland/busybox.bin.o busybox.elf
 
 gnu: | dirs ports-assets
 	$(E) "Building GNU tools with musl (Docker) ..."
@@ -279,14 +364,15 @@ ports-assets:
 # $(KERNEL_BIN) goes the same way: `make all` reaches it through the ISO
 # chain, and a plain `make all` would otherwise remove the -kernel image
 # that `make qemu`/scripts/qemu-shell.py boot.
-.SECONDARY: $(PROG_BINS) $(NANO_BIN) $(KERNEL_BIN)
+.SECONDARY: $(PROG_BINS) $(NANO_BIN) $(GLXGEARS_BIN) $(KERNEL_BIN)
 
 OBJS_C          := $(patsubst %.c,$(BUILD_DIR)/obj/%.o,$(KERNEL_SRCS_C) $(ARCH_SRCS_C))
 OBJS_ASM        := $(patsubst %.S,$(BUILD_DIR)/obj/%.o,$(ARCH_SRCS_ASM))
 OBJS            := $(OBJS_C) $(OBJS_ASM) $(HELLO_EMBED) $(INIT_EMBED) \
                    $(PROG_EMBEDS) $(SPLASH_EMBED) $(PPM_EMBED) \
                    $(SAMPLE_NEW_EMBED) $(NSH_RC_EMBED) $(GNU_PKG_EMBED) \
-                   $(NANO_EMBED)
+                   $(NANO_EMBED) $(BUSYBOX_EMBED) $(GLXGEARS_EMBED) \
+                   $(MINI_Z3_EMBED)
 
 INCLUDE         := -Iinclude -I. -Ilib/kernel -Iarch/$(ARCH)/include \
                    -I$(BUILD_DIR)
@@ -371,21 +457,62 @@ $(BUILD_DIR)/userland/$(1).o: user/programs/$(1)/$(1)_main.c user/lib/nshlib.h
 endef
 $(foreach p,$(PROG_NAMES),$(eval $(call PROG_COMPILE_RULE,$(p))))
 
-# NTK color is compiled separately and linked only into the desktop program.
-$(BUILD_DIR)/userland/desktop.o: $(NOVA_COLOR_HEADERS)
+# NTK modules are compiled separately and linked only into the desktop.
+$(BUILD_DIR)/userland/desktop.o: $(NOVA_NTK_HEADERS) \
+    user/programs/desktop/font8x8.h user/programs/desktop/desktop.h
 
-$(NOVA_COLOR_OBJ): $(NOVA_COLOR_SRC) $(NOVA_COLOR_HEADERS)
+$(BUILD_DIR)/userland/desktop_%.o: $(DESKTOP_DIR)/desktop_%.c \
+    $(DESKTOP_DIR)/desktop.h $(NOVA_NTK_HEADERS) \
+    user/programs/desktop/font8x8.h
 	$(Q)mkdir -p $(dir $@)
-	$(E) "  UCC $< (Nova NTK color)"
-	$(Q)$(CC) $(USER_CFLAGS) -Iuser/programs/desktop/nova -o $@ $<
+	$(E) "  UCC $< (desktop module)"
+	$(Q)$(CC) $(USER_CFLAGS) -o $@ $<
+
+$(BUILD_DIR)/userland/nova_%.o: $(NOVA_NTK_DIR)/%.c $(NOVA_NTK_HEADERS) \
+    user/programs/desktop/font8x8.h
+	$(Q)mkdir -p $(dir $@)
+	$(E) "  UCC $< (Nova NTK)"
+	$(Q)$(CC) $(USER_CFLAGS) -I$(NOVA_NTK_DIR) -o $@ $<
 
 $(BUILD_DIR)/userland/desktop.elf: $(BUILD_DIR)/userland/desktop.o \
-    $(NOVA_COLOR_OBJ) $(NSHLIB_OBJ) $(START_OBJ) $(APP_LD)
+    $(DESKTOP_OBJS) $(NOVA_NTK_OBJS) $(NSHLIB_OBJ) $(START_OBJ) $(APP_LD)
 	$(Q)mkdir -p $(dir $@)
-	$(E) "  ULD $@ +Nova NTK color"
+	$(E) "  ULD $@ +Nova NTK"
 	$(Q)$(LD) -n -static -nostdlib -T $(APP_LD) -o $@ \
-	  $(BUILD_DIR)/userland/desktop.o $(NOVA_COLOR_OBJ) \
+	  $(BUILD_DIR)/userland/desktop.o $(DESKTOP_OBJS) $(NOVA_NTK_OBJS) \
 	  $(NSHLIB_OBJ) $(START_OBJ)
+
+# --- TinyGL glxgears ---------------------------------------------------
+# The demo uses floating point and TinyGL, so it cannot use the normal
+# -mgeneral-regs-only userland flags.  It still links the NEWOS libc and the
+# local math.c instead of a host libm.
+GLXGEARS_CFLAGS := $(filter-out -mgeneral-regs-only,$(USER_CFLAGS)) \
+                   -std=gnu99 -Wno-error -Wno-implicit-fallthrough \
+                   -Iuserland/user/lib \
+                   -I$(TINYGL_DIR)/include -I$(TINYGL_DIR)/src \
+                   -DNO_DEBUG_OUTPUT -DTGL_FEATURE_RENDER_BITS=32
+
+$(BUILD_DIR)/userland/glxgears/%.o: $(GLXGEARS_DIR)/src/%.c
+	$(Q)mkdir -p $(dir $@)
+	$(E) "  UCC $< (glxgears)"
+	$(Q)$(CC) $(GLXGEARS_CFLAGS) -o $@ $<
+
+$(BUILD_DIR)/userland/glxgears/tinygl_%.o: $(TINYGL_DIR)/src/%.c
+	$(Q)mkdir -p $(dir $@)
+	$(E) "  UCC $< (TinyGL)"
+	$(Q)$(CC) $(GLXGEARS_CFLAGS) -o $@ $<
+
+$(GLXGEARS_MATH_OBJ): libc/src/math.c libc/include/math.h
+	$(Q)mkdir -p $(dir $@)
+	$(E) "  UCC $< (libm)"
+	$(Q)$(CC) $(GLXGEARS_CFLAGS) -o $@ $<
+
+$(GLXGEARS_BIN): $(GLXGEARS_PORT_OBJS) $(GLXGEARS_TINY_OBJS) \
+    $(GLXGEARS_MATH_OBJ) $(NSHLIB_OBJ) $(START_OBJ) $(LIBC_A) $(APP_LD)
+	$(Q)mkdir -p $(dir $@)
+	$(E) "  ULD $@ +TinyGL"
+	$(Q)$(LD) -n -static -nostdlib -T $(APP_LD) -o $@ \
+	  $(filter %.o,$^) $(filter %.a,$^)
 
 $(BUILD_DIR)/obj/userland/%.bin.o: $(BUILD_DIR)/userland/%.elf
 	$(Q)mkdir -p $(dir $@)
@@ -441,6 +568,14 @@ $(SAMPLE_NEW_EMBED): $(NEWPKG_SAMPLE_NEW)
 	$(E) "  EMB $<"
 	$(Q)cd $(BUILD_DIR) && $(LD) -r -b binary -o obj/userland/sample_new.bin.o sample.new
 
+# Demo story blob: mini.z3 -> _binary_mini_z3_{start,end}. Installed by
+# initramfs at /usr/share/zcode/mini.z3.
+$(MINI_Z3_EMBED): $(MINI_Z3_SRC) | dirs
+	$(Q)mkdir -p $(dir $@)
+	$(Q)cp $(MINI_Z3_SRC) $(BUILD_DIR)/mini.z3
+	$(E) "  EMB mini.z3 (demo story)"
+	$(Q)cd $(BUILD_DIR) && $(LD) -r -b binary -o obj/userland/mini_z3.bin.o mini.z3
+
 # --- libc (static archive for userland) --------------------------------
 # Compiled with the userland flags (NOT the kernel -mcmodel=kernel ones).
 
@@ -475,9 +610,13 @@ $(SDK_CRT0): $(START_OBJ)
 	$(Q)mkdir -p $(dir $@)
 	$(Q)cp $< $@
 
+$(SDK_LD): user/lib/app.ld
+	$(Q)mkdir -p $(dir $@)
+	$(Q)cp $< $@
+
 .PHONY: sdk
-sdk: $(SDK_HEADERS) $(SDK_LIBC) $(SDK_LIBNSH) $(SDK_CRT0)
-	$(E) "NEWOS C SDK ready: $(SDK_ROOT)"
+sdk: $(SDK_HEADERS) $(SDK_LIBC) $(SDK_LIBNSH) $(SDK_CRT0) $(SDK_LD)
+	$(E) "NEWOS sysroot ready: $(SDK_ROOT)"
 
 # ltest proves libc: same recipe as the toolbox pattern rule plus libc.a
 # (explicit rules win over pattern rules).
@@ -492,6 +631,41 @@ $(BUILD_DIR)/userland/kilo.elf: $(BUILD_DIR)/userland/kilo.o \
 	$(Q)mkdir -p $(dir $@)
 	$(E) "  ULD $@ +libc"
 	$(Q)$(LD) -n -static -nostdlib -T $(APP_LD) -o $@ $(filter %.o,$^) $(filter %.a,$^)
+
+# --- frotz: Z-machine interpreter (upstream Frotz 2.44, GPL-2+) -----------
+# Ported source lives in user/programs/frotz/ (one TU per upstream file);
+# frotz_main.c is the NEWOS toolbox entry, frotz_run.c is the renamed
+# upstream main.c. Like ltest, it links NEWOS libc.a explicitly.
+# gnu99: upstream is ANSI C (typedef's bool, K&R-era syntax); the default
+# -std=c23 breaks it. -Wno-error=unterminated-string-initialization keeps
+# the upstream exact-6-byte game serial records intact. -fcommon: upstream
+# 2.44 relies on commons merging for the duplicated `f_setup`/`do_more_
+# prompts` definitions in the dumb driver (pre-gcc10 default).
+FROTZ_CFLAGS   := $(USER_CFLAGS) -std=gnu99 \
+                  -Wno-error=unterminated-string-initialization -fcommon
+FROTZ_DIR      := user/programs/frotz
+FROTZ_SRCS     := buffer.c err.c fastmem.c files.c frotz_run.c hotkey.c \
+                  input.c math.c object.c process.c quetzal.c random.c \
+                  redirect.c screen.c sound.c stream.c table.c text.c \
+                  variable.c dumb_init.c dumb_input.c dumb_output.c \
+                  dumb_pic.c
+FROTZ_OBJS     := $(patsubst %.c,$(BUILD_DIR)/userland/frotz/%.o,$(FROTZ_SRCS))
+FROTZ_HEADERS  := $(FROTZ_DIR)/frotz.h $(FROTZ_DIR)/setup.h \
+                  $(FROTZ_DIR)/dumb_frotz.h
+
+$(BUILD_DIR)/userland/frotz.o $(FROTZ_OBJS): $(FROTZ_HEADERS) $(LIBC_HEADERS)
+
+$(BUILD_DIR)/userland/frotz/%.o: $(FROTZ_DIR)/%.c
+	$(Q)mkdir -p $(dir $@)
+	$(E) "  UCC $< (frotz)"
+	$(Q)$(CC) $(FROTZ_CFLAGS) -o $@ $<
+
+$(BUILD_DIR)/userland/frotz.elf: $(BUILD_DIR)/userland/frotz.o $(FROTZ_OBJS) \
+    $(NSHLIB_OBJ) $(START_OBJ) $(LIBC_A) $(APP_LD)
+	$(Q)mkdir -p $(dir $@)
+	$(E) "  ULD $@ +frotz"
+	$(Q)$(LD) -n -static -nostdlib -T $(APP_LD) -o $@ \
+	  $(filter %.o,$^) $(filter %.a,$^)
 
 # --- generated assets: console font + test images ----------------------
 # The font is fetched once and cached; the images are generated locally
@@ -548,8 +722,8 @@ $(BUILD_DIR)/obj/drivers/graphics/fb.o: $(FONT_HDR)
 # Rules
 # ---------------------------------------------------------------------------
 .PHONY: all bootstrap bootstrap-fast fast clean qemu qemu-debug qemu-test qemu-network qemu-disk iso \
-        qemu-limine qemu-limine-test limine toolchain sdk check-config dirs ports-assets \
-        lint-layers check-newpkg check-nova check-web web brand qemu-shell \
+        qemu-limine qemu-limine-gui qemu-limine-test limine toolchain sdk check-config dirs ports-assets \
+        lint-layers check-newpkg check-nova check-frotz check-web web brand qemu-shell \
         build-info help system-image-build \
         vbox vbox-setup vbox-test FORCE
 
@@ -566,7 +740,7 @@ all: bootstrap
 	$(Q)$(MAKE) --no-print-directory toolchain
 	$(Q)PATH="$(CURDIR)/toolchain/out/bin:$$PATH" $(MAKE) --no-print-directory CROSS_PREFIX=x86_64-elf- system-image-build
 	$(Q)PATH="$(CURDIR)/toolchain/out/bin:$$PATH" $(MAKE) --no-print-directory CROSS_PREFIX=x86_64-elf- glxgears-newos glxgears-pkg
-	$(Q)echo "Nova source is pinned under ports/nova; build is deferred until its NEWOS port is implemented."
+	$(Q)echo "Nova source is pinned under ports/nova; the NEWOS NTK alpha is built, the upstream compositor remains deferred."
 
 # Initialize every first-party and nested source repository at its pinned SHA.
 # Build products are kept in build/ and toolchain/out/ inside this checkout.
@@ -609,6 +783,8 @@ help:
 	@echo "  make qemu              boot in QEMU (serial console)"
 	@echo "  make qemu-debug        boot with GDB server on :1234"
 	@echo "  make qemu-test         automated test suite in QEMU (exit 1 = PASS)"
+	@echo "  make qemu-limine       boot Limine (text shell; GUI is a menu entry)"
+	@echo "  make qemu-limine-gui   boot Limine with gui=1"
 	@echo "  make qemu-limine-test  suite through the Limine ISO"
 	@echo "  make vbox              boot the Limine ISO in VirtualBox (GUI)"
 	@echo "  make vbox-test         headless VirtualBox boot + serial check"
@@ -617,13 +793,14 @@ help:
 	@echo "  make check-newpkg      package system tests (no QEMU needed)"
 	@echo "  make glxgears-pkg      package the TinyGL demo as a native .new"
 	@echo "  make check-nova        Nova NTK color component host tests"
+	@echo "  make check-frotz       frotz port host tests (mini.z3 story)"
 	@echo "  make check-web         validate website links and assets"
 	@echo "  make web               serve web/ at http://localhost:8000"
 	@echo "  make brand             regenerate the brand/ SVG family"
 	@echo "  make qemu-shell        run a scripted nsh session (CMDS=file)"
 	@echo "  make lint-layers       layering contract check only"
 	@echo "  make toolchain         bootstrap sources and build x86_64-elf under toolchain/out"
-	@echo "  make CROSS_PREFIX=x86_64-elf- sdk  stage the NEWOS C SDK"
+	@echo "  make CROSS_PREFIX=x86_64-elf- sdk  populate sysroot/usr C SDK"
 	@echo "  make clean             remove build/ entirely"
 	@echo "Options: V=0 (short log), V=1 (full commands, default),"
 	@echo "  ARCH=x86_64, CROSS_PREFIX=x86_64-elf-, CONFIG=path/to/config"
@@ -664,6 +841,25 @@ check-nova: | dirs
 	  user/programs/desktop/nova/ntk_color.c \
 	  user/programs/desktop/nova/tests/ntk_color_test.c
 	$(Q)$(BUILD_DIR)/nova-ntk-color-test
+	$(Q)gcc -std=c11 -Wall -Wextra -Werror \
+	  -o $(BUILD_DIR)/nova-ntk-widgets-test \
+	  user/programs/desktop/nova/ntk_color.c \
+	  user/programs/desktop/nova/ntk_gradient.c \
+	  user/programs/desktop/nova/ntk_painter.c \
+	  user/programs/desktop/nova/ntk_style.c \
+	  user/programs/desktop/nova/ntk_progress.c \
+	  user/programs/desktop/nova/ntk_button.c \
+	  user/programs/desktop/nova/ntk_scrollbar.c \
+	  user/programs/desktop/nova/ntk_separator.c \
+	  user/programs/desktop/nova/tests/ntk_widgets_test.c
+	$(Q)$(BUILD_DIR)/nova-ntk-widgets-test
+
+# check-frotz: host functional test for the /bin/frotz port (upstream
+# Frotz 2.44, GPL-2+). Compiles the ported units against the host libc
+# and drives the committed mini.z3 story: banner, one line read and
+# deterministic regeneration. No QEMU needed.
+check-frotz: | dirs
+	$(Q)bash tools/frotz/check-frotz.sh $(BUILD_DIR)/frotz-check
 
 # The static site has no build step; this validates every local link/asset
 # and catches unreferenced files under web/assets.
@@ -704,7 +900,7 @@ $(KERNEL_BIN): $(OBJS) lint-layers | check-config dirs
 iso: $(KERNEL_BIN)
 	$(Q)mkdir -p $(dir $(ISO_IMG)) $(BUILD_DIR)/iso/boot/grub
 	$(Q)cp $(KERNEL_BIN) $(BUILD_DIR)/iso/boot/newos.elf
-	$(Q)printf 'set timeout=0\nset default=0\nserial --unit=0 --speed=115200 --stop=1\nterminal_input serial\nterminal_output serial\nmenuentry "NEWOS" {\n  multiboot2 /boot/newos.elf\n  boot\n}\nmenuentry "NEWOS (test mode)" {\n  multiboot2 /boot/newos.elf test_mode=1\n  boot\n}\n' \
+	$(Q)printf 'set timeout=0\nset default=0\nserial --unit=0 --speed=115200 --stop=1\nterminal_input serial\nterminal_output serial\nmenuentry "NEWOS (text shell)" {\n  multiboot2 /boot/newos.elf\n  boot\n}\nmenuentry "NEWOS (GUI)" {\n  multiboot2 /boot/newos.elf gui=1\n  boot\n}\nmenuentry "NEWOS (test mode)" {\n  multiboot2 /boot/newos.elf test_mode=1\n  boot\n}\n' \
 	  > $(BUILD_DIR)/iso/boot/grub/grub.cfg
 	$(Q)grub-mkrescue --arcs-boot -o $(ISO_IMG) $(BUILD_DIR)/iso 2>/dev/null || \
 	  xorriso -as mkisofs -b boot/grub/eltorito.img -no-emul-boot \
@@ -720,9 +916,14 @@ LIMINE_RELEASE  ?= v12.9.0
 
 $(LIMINE_ROOT)/limine.conf: FORCE | dirs
 	$(Q)mkdir -p $(LIMINE_ROOT)
-	$(Q)printf 'timeout=0\nserial: yes\n\n/NEWOS\n    protocol: limine\n    path: boot():/boot/newos-limine.elf\n' > $@
+	$(Q)printf 'timeout: 2\nserial: yes\ninterface_resolution: 1280x800\nwallpaper: boot():/boot/newos-limine.png\nwallpaper_style: stretched\nbackdrop: 000000\nterm_margin: 64\ninterface_branding: NEWOS\ninterface_branding_colour: ff7a3c\n\n/NEWOS (text shell)\n    protocol: limine\n    path: boot():/boot/newos-limine.elf\n' > $@
 	$(Q)if [ -n "$(LIMINE_CMDLINE)" ]; then \
 	  printf '    cmdline: $(LIMINE_CMDLINE)\n' >> $@; fi
+	$(Q)printf '\n/NEWOS (GUI)\n    protocol: limine\n    path: boot():/boot/newos-limine.elf\n    cmdline: gui=1\n' >> $@
+
+$(LIMINE_ROOT)/boot/newos-limine.png: brand/newos-limine.png | dirs
+	$(Q)mkdir -p $(dir $@)
+	$(Q)cp $< $@
 
 $(LIMINE_ROOT)/boot/newos-limine.elf: $(LIMINE_BIN) | dirs
 	$(Q)mkdir -p $(dir $@)
@@ -743,6 +944,7 @@ $(LIMINE_BIN): $(OBJS) lint-layers | check-config dirs
 
 $(LIMINE_ISO): $(LIMINE_BIN) $(LIMINE_ROOT)/limine.conf \
                $(LIMINE_ROOT)/boot/newos-limine.elf \
+               $(LIMINE_ROOT)/boot/newos-limine.png \
                $(LIMINE_BINS)/limine-bios-cd.bin
 	$(Q)mkdir -p $(dir $(LIMINE_ISO)) $(LIMINE_ROOT)/boot $(LIMINE_ROOT)/EFI/BOOT
 	$(Q)cp $(LIMINE_BINS)/limine-bios-cd.bin $(LIMINE_ROOT)/boot/
@@ -766,14 +968,11 @@ limine: $(LIMINE_BIN)
 toolchain: bootstrap
 	$(Q)bash toolchain/build.sh
 
-# Optional userspace graphics demo. Its nested TinyGL source is initialized
-# by bootstrap; the target builds into this repository's build/ directory.
+# Userspace graphics demo. The normal image already contains /bin/glxgears;
+# the target is kept as a direct build entry point for the standalone port.
 .PHONY: glxgears-newos glxgears-pkg
-glxgears-newos: bootstrap toolchain
-	$(Q)$(MAKE) -C ports/glxgears-newos \
-	  NEWOS_ROOT=$(CURDIR) \
-	  TINYGL_ROOT=$(CURDIR)/ports/glxgears-newos/vendor/tinygl \
-	  OUT=$(CURDIR)/build/userland/glxgears-newos.elf
+glxgears-newos: $(GLXGEARS_BIN)
+	$(E) "glxgears: $(GLXGEARS_BIN)"
 
 # The demo ships as a native .new package too, so the spec under packages/
 # has a real build target instead of sitting unused.
@@ -785,16 +984,24 @@ glxgears-pkg: glxgears-newos
 	  packages/glxgears-newos.newspec -o $(GLXGEARS_PKG) --root .
 
 qemu-limine: $(LIMINE_ISO)
-	$(E) "Booting NEWOS (Limine) in QEMU ..."
-	$(Q)$(QEMU) -cdrom $(LIMINE_ISO) -boot order=d -serial stdio -no-reboot -m 128M
+	$(E) "Booting NEWOS (Limine, text shell; choose GUI in the menu) ..."
+	$(Q)$(QEMU) -cdrom $(LIMINE_ISO) -boot order=d -serial stdio -no-reboot \
+	  -m 256M $(QEMU_DISPLAY)
+
+# Same image, but boot the GUI entry directly for quick visual checks.
+qemu-limine-gui: LIMINE_CMDLINE := gui=1
+qemu-limine-gui: $(LIMINE_ISO)
+	$(E) "Booting NEWOS (Limine, gui=1) in QEMU ..."
+	$(Q)$(QEMU) -cdrom $(LIMINE_ISO) -boot order=d -serial stdio -no-reboot \
+	  -m 256M $(QEMU_DISPLAY)
 
 # Target-specific variable: LIMINE_CMDLINE reaches the ISO via the FORCE-prereq
 # limine.conf, adding a `cmdline:` option to the boot entry (test_mode).
 qemu-limine-test: LIMINE_CMDLINE := test_mode=1
 qemu-limine-test: $(LIMINE_ISO)
 	$(E) "Running automated test suite through Limine in QEMU ..."
-	$(Q)status=0; $(QEMU) -cdrom $(LIMINE_ISO) -boot order=d -serial stdio -no-reboot -m 128M \
-	  -device isa-debug-exit,iobase=0xf4 -device pcnet || status=$$?; \
+	$(Q)status=0; $(QEMU) -cdrom $(LIMINE_ISO) -boot order=d -serial stdio -no-reboot -m 256M \
+	  -display none -device isa-debug-exit,iobase=0xf4 -device pcnet || status=$$?; \
 	echo "QEMU exit status: $$status"; \
 	if [ "$$status" -ne 1 ]; then \
 	  echo "qemu-limine-test: FAIL (expected QEMU exit status 1)"; exit 1; \
@@ -834,33 +1041,53 @@ vbox-test: vbox-setup
 	$(Q)rm -f $(VBOX_SERIAL)
 	$(Q)VBoxManage startvm $(VBOX_VM) --type headless >/dev/null
 	$(Q)for i in $$(seq 1 40); do \
-	  grep -q '=== 9 tests, 0 failures ===' $(VBOX_SERIAL) 2>/dev/null && break; \
+	  grep -q '=== 11 tests, 0 failures ===' $(VBOX_SERIAL) 2>/dev/null && break; \
 	  sleep 1; \
 	done; \
 	VBoxManage controlvm $(VBOX_VM) poweroff >/dev/null 2>&1; \
-	if grep -q '=== 9 tests, 0 failures ===' $(VBOX_SERIAL); then \
-	  echo "VBox: boot complete, 9/9 phase-1 kernel tests PASS"; \
+	if grep -q '=== 11 tests, 0 failures ===' $(VBOX_SERIAL); then \
+	  echo "VBox: boot complete, 11/11 phase-1 kernel tests PASS"; \
 	else \
 	  echo "VBox: FAILED - see $(VBOX_SERIAL)"; exit 1; \
 	fi
 
 qemu: all
 	$(E) "Booting NEWOS in QEMU (serial console) ..."
-	$(Q)$(QEMU) -kernel $(KERNEL_BIN) -serial stdio -no-reboot -m 128M
+	$(Q)$(QEMU) -kernel $(KERNEL_BIN) -serial stdio -no-reboot -m 256M \
+	  $(QEMU_DISPLAY)
 
 qemu-debug: all
 	$(E) "Booting NEWOS in QEMU with GDB server on port 1234 ..."
-	$(Q)$(QEMU) -kernel $(KERNEL_BIN) -serial stdio -no-reboot -m 128M \
-	  -s -S -d guest_errors
+	$(Q)$(QEMU) -kernel $(KERNEL_BIN) -serial stdio -no-reboot -m 256M \
+	  $(QEMU_DISPLAY) -s -S -d guest_errors
 
 # `all` deliberately produces only the ISO, so the PVH suite must ask for
 # its own kernel: without this dependency QEMU ran over a missing (or
 # stale) ELF and the `exit 1 = PASS` convention reported a false green.
+# Audio devices ride along like the CI runner does (probing the recorder
+# backend name, "file" vs "wav" across QEMU builds); when no recorder
+# exists the hda ktest still self-verifies its DMA round through LPIB.
+# The WAV payload check on the host lives in scripts/ci/run_qemu_test.sh.
 qemu-test: $(KERNEL_BIN)
 	$(E) "Running automated test suite in QEMU ..."
-	$(Q)$(QEMU) -kernel $(KERNEL_BIN) -serial stdio -no-reboot -m 128M \
-	  -device isa-debug-exit,iobase=0xf4 -device pcnet -append "test_mode=1"; \
-	  rc=$$?; echo "QEMU exit status: $$rc"; \
+	$(Q)adrv=none; \
+	  for cand in file wav; do \
+	    if $(QEMU) -audiodev help 2>/dev/null | grep -qw $$cand; then adrv=$$cand; break; fi; \
+	  done; \
+	  wava=$$(mktemp /tmp/newos-hda-XXXXXX.wav); \
+	  astr=""; \
+	  if [ "$$adrv" != "none" ]; then \
+	    astr="-audiodev driver=$$adrv,id=aud0,path=$$wava,out.frequency=48000,out.channels=2,out.format=s16"; \
+	  fi; \
+	  $(QEMU) -kernel $(KERNEL_BIN) -serial stdio -no-reboot -m 256M \
+	  -display none -device isa-debug-exit,iobase=0xf4 \
+	  -netdev user,id=net0 -device pcnet,netdev=net0 \
+	  -netdev user,id=net1 -device e1000,netdev=net1 \
+	  $$astr -device intel-hda -device hda-duplex,audiodev=aud0 \
+	  -append "test_mode=1"; \
+	  rc=$$?; \
+	  rm -f $$wava; \
+	  echo "QEMU exit status: $$rc"; \
 	  if [ $$rc -ne 1 ]; then \
 	    echo "qemu-test: FAIL (isa-debug-exit maps 1 to this status only when every test passed)"; \
 	    exit 1; \
@@ -898,12 +1125,13 @@ qemu-shell: $(KERNEL_BIN)
 
 qemu-network: all
 	$(E) "Booting NEWOS with user-mode networking ..."
-	$(Q)$(QEMU) -kernel $(KERNEL_BIN) -serial stdio -no-reboot -m 128M \
-	  -netdev user,id=net0 -device virtio-net-pci,netdev=net0
+	$(Q)$(QEMU) -kernel $(KERNEL_BIN) -serial stdio -no-reboot -m 256M \
+	  $(QEMU_DISPLAY) -netdev user,id=net0 -device virtio-net-pci,netdev=net0
 
 qemu-disk: $(DISK_IMG)
 	$(E) "Booting NEWOS from disk image ..."
-	$(Q)$(QEMU) -drive file=$(DISK_IMG),format=raw,if=ide -serial stdio -no-reboot -m 128M
+	$(Q)$(QEMU) -drive file=$(DISK_IMG),format=raw,if=ide -serial stdio -no-reboot \
+	  -m 256M $(QEMU_DISPLAY)
 
 $(DISK_IMG): all
 	$(Q)mkdir -p $(dir $@)

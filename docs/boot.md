@@ -15,8 +15,11 @@ what the boot manager already did:
   line and **framebuffer**; `limine_arch_main` (`arch/x86_64/boot/limine.c`)
   takes over paging (Limine is already in long mode), copies the usable
   runs, snapshots the first framebuffer and rejoins the common
-  `kernel_boot_tail`. Only this path enables graphics (`fbcon` +
-  `img`/`vid`); the other two keep VGA text + serial.
+  `kernel_boot_tail`. Only this path enables graphics (`fbcon`, `img`, `vid`,
+  `glxgears` and `desktop`); the other two keep VGA text + serial. The Limine
+  menu shows a 2-second branded screen at 1280x800 with the BoredOS/Win95
+  wallpaper and `interface_branding`, with two entries: **NEWOS (text
+  shell)** (the default) and **NEWOS (GUI)**.
 
 ## Stage 1: 32-bit trampoline (`x86_entry.S`)
 
@@ -46,13 +49,55 @@ Runs on the pre-built early stack and boot page tables:
    - direct map of physical memory at `0xfffffe0000000000`
    - kernel image mapped at its link address `0xffffffff80000000`
    - pages marked NX; final `invlpg`/`mov cr3` switches to it.
-6. `mm_heap_init()` — early 4 MiB arena for the kernel heap.
+6. `mm_heap_init()` — early 48 MiB arena for the kernel heap.
 7. `kernel_boot_tail` — mounts `initramfs` (the `/bin` toolbox + `/init`
    hierarchy built into the image, plus `/var/lib/newpkg` and a sample
    `.new` staged under `/tmp`), devfs, tmpfs, procfs and sysfs; `core_init`
    then sets up processes/threads, registers the syscall table, runs
-   self-tests, and finally launches `/init` (interactive shell) — or
-   `/bin/hello` in `test_mode`.
+   self-tests, and finally launches `/bin/sh` (interactive shell) with the
+   `--session` flag — or runs only the suites in `test_mode`.
+
+## Graphical session (`gui=1`)
+
+Both entries boot the same kernel. The default **NEWOS (text shell)** entry
+passes no graphical flag, so the system always starts in `nsh`. The **NEWOS
+(GUI)** entry passes `gui=1`; `make qemu-limine-gui` builds and boots that
+entry directly, and a user can also type `/bin/desktop` in the text shell.
+`make qemu-limine-test` overrides the command line with `test_mode=1`. The
+kernel still enters the shell, which reads `/proc/cmdline` and, only for the
+boot session (`--session`) with `gui=1`, spawns `/bin/desktop` and waits for
+it. Closing the last window or pressing **Ctrl+Q** returns to a clean `nsh`
+prompt. A missing framebuffer or a failed spawn leaves the shell in place, so
+graphics can never strand the machine.
+
+The desktop owns the PS/2 keyboard through `SYS_KBD_GRAB`/`SYS_KBD_READ`
+while it runs. `Tab` cycles windows, `1`–`6` focus one, arrows move through
+`/bin`, `Enter` runs the selected program, `?` toggles the help card and
+`Ctrl+Q` exits. Mouse drag, focus, resize, maximize, minimize, close, wheel
+scrolling, the `FILES` launcher and the Nova preview buttons work as before.
+Serial input remains available to the shell at all times. The compositor only
+repaints and uploads dirty rectangles; startup, theme changes and structural
+layout changes are the only full-screen redraws. The cursor is a staging-buffer
+overlay; old and new cursor rectangles are always uploaded before the current
+sprite is stamped, so pointer motion cannot leave a trail.
+
+While the desktop is active it also claims the framebuffer text console with
+`SYS_CONSOLE_GUI`. Kernel logs and child stdout still reach the serial console,
+but fbcon and the legacy kernel mouse arrow do not paint over compositor
+pixels. Text programs launched from the dock or Files temporarily release the
+claim so their output is visible; graphical programs such as `/bin/glxgears`
+keep it. Process teardown releases both claims, so a crashed GUI cannot leave
+the keyboard or console hidden.
+
+From a plain `nsh` session the built-in demo can be started directly:
+
+```sh
+glxgears             # 300 frames, then returns to nsh
+glxgears --frames 60 # shorter run
+```
+
+`/bin/busybox --list` reports the 402 embedded applets. Unshadowed names are
+dispatched as `/bin/busybox <applet>` because NEWOS has no symlinks.
 
 ## Terminal boot log
 
@@ -62,9 +107,9 @@ boot: PVH protocol detected ...
 PMM: tracking N frames (M MiB) from physical 100000
 VMM: kernel address space ready (CR3=..., direct map at 0xfffffe0000000000)
 ...
+=== 11 tests, 0 failures ===
 === 9 tests, 0 failures ===
-=== 9 tests, 0 failures ===
-userland: entering init (pid 4) at ring 3
+userland: entering sh (pid 4) at ring 3
 root@newos:/#
 NEWOS: boot complete.
 ```

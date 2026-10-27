@@ -214,6 +214,10 @@ class NewpkgTest(unittest.TestCase):
         self.assertEqual(self.newpkg("install", vfs)[0], 0)
         rc, out = self.newpkg("install", vfs)
         self.assertEqual(rc, 0, out)  # own files: upgrade path
+        self.assertIn("already installed", out)
+        rc, out = self.newpkg("install", "--force", vfs)
+        self.assertEqual(rc, 0, out)
+        self.assertNotIn("already installed", out)
 
     def test_remove_and_files_missing_fail(self):
         self.assertNotEqual(self.newpkg("remove", "ghost")[0], 0)

@@ -31,16 +31,21 @@ The x86_64 kernel reaches `BUILD=PASS`, `BOOT=PASS`, and `QEMU=PASS`:
 - Interactive `nsh` shell (`/init`) with a native `/bin` toolbox, including
   recursive `find`,
   `.new` package manager (`newpkg`), and a C library (`libc.a`).
-- Self-tests: 9 phase-1 kernel tests + 9 phase-2 userland/ABI tests —
+- A native `/bin/frotz` Z-machine interpreter (upstream Frotz 2.44, GPL-2+)
+  for Infocom-style interactive fiction; see `docs/frotz.md`.
+- Self-tests: 11 phase-1 kernel tests + 9 phase-2 userland/ABI tests —
   all pass (`make qemu-test`, QEMU exit `1` = PASS). `/proc` exposes
   version, uptime, meminfo, filesystems, mounts and cmdline; `/sys`
   exposes kernel identity and the PCI inventory.
+- Complete static BusyBox 1.35.0 at `/bin/busybox` (402 applets) through the
+  Linux-compatible x86-64 `syscall` entry, plus a built-in `/bin/glxgears`
+  TinyGL demo and six-window Nova NTK alpha desktop.
 
 ## Build & run
 
 For a fresh clone, `make` bootstraps every pinned recursive source submodule
-and builds the cross toolchain, NEWOS kernel/system ISO, and TinyGL demo from
-the original repository:
+and builds the cross toolchain, NEWOS kernel/system ISO, and the embedded
+TinyGL demo from the original repository:
 
 ```sh
 git clone https://github.com/CRISTOP-bot/NEWOS.git
@@ -50,10 +55,37 @@ make
 
 All source checkouts stay inside this repository; generated files stay in
 `build/` and `toolchain/out/`. The first full build may take 20-40 minutes.
-Use `make fast` for a host-compiler system build that skips the toolchain and
-graphics demo, or `make bootstrap` to fetch sources without compiling.
+Use `make fast` for a host-compiler system build that skips the cross
+toolchain but still builds and embeds `/bin/glxgears`, or `make bootstrap` to
+fetch sources without compiling.
 
-Nova from BoredOS is the intended graphical direction and is pinned under `ports/nova`. The active NEWOS desktop now reuses one small GPL-3.0-only, integer-based NTK color-rendering slice for panel and window-title gradients; the Nova compositor, widget tree, and window-manager runtime are not yet operational. Compatibility and port work are documented in [`docs/nova-porting.md`](docs/nova-porting.md). `glxgears-newos` is a separately built software-rendering demo, not part of the booted desktop.
+The ISO defaults to a plain text `nsh` session. The Limine menu exposes a
+separate **NEWOS (GUI)** entry (`gui=1`); `make qemu-limine-gui` boots
+with `gui=1` directly for visual checks, and `/bin/desktop` can also be
+started from `nsh`. `Ctrl+Q` (or closing the last window) returns to a
+clean shell. The desktop has six draggable/resizable windows — System,
+Files, Mouse, About, Log and the Nova NTK preview — plus a dock, live
+clock/memory readouts, a `/bin` launcher and BoredOS/Win95 themes. It owns
+the PS/2 keyboard while active: `Tab` cycles windows, `1`–`6` focus one,
+arrows select a program, `Enter` runs it and `?` shows the shortcut card.
+Serial input stays with the shell, and `gui=0` (or `test_mode=1`) keeps a
+plain text session. See [`docs/boot.md`](docs/boot.md)
+and [`docs/abi.md`](docs/abi.md).
+
+Nova from BoredOS is the intended graphical direction and is pinned under
+`ports/nova`. The active NEWOS desktop uses a modular, GPL-3.0-only,
+integer-based NTK slice (color, gradients, painter, style, progress, button,
+scrollbar and separator) plus a damage-based compositor; the upstream Nova
+compositor, protocol, widget tree and window-manager runtime are not yet
+operational. Compatibility and the alpha scope are documented in
+[`docs/nova-porting.md`](docs/nova-porting.md). `glxgears` is built into the
+image at `/bin/glxgears`; the standalone `build/userland/glxgears-newos.elf`
+and `.new` package remain available for explicit port work.
+
+`/bin/busybox` is the official static BusyBox 1.35.0 build (402 applets).
+`nsh` runs unshadowed command names through `/bin/busybox <applet>` because
+the VFS has no symlinks; see [`ports/busybox/README.md`](ports/busybox/README.md)
+for provenance, the GPLv2 notice and known kernel-feature limits.
 
 Requirements for the full build: `gcc`, `g++`, `make`, `binutils`, `nasm`,
 `git`, `curl`, `python3`, `libgmp-dev`, `libmpfr-dev`, `libmpc-dev`, `flex`,
@@ -62,11 +94,13 @@ OVMF are required only for the boot tests. NEWOS does not install host
 packages automatically.
 
 ```sh
-make all            # build kernel + Limine ISO + build/userland/glxgears-newos.elf
-make fast           # host-compiler system ISO only (no toolchain or demo)
+make all            # cross toolchain + Limine ISO + glxgears.elf/.new
+make fast           # host-compiler ISO (includes /bin/glxgears)
 make bootstrap      # fetch all pinned first-party and nested submodules
 make qemu           # boot in QEMU (serial console)  (BOOT=PASS)
 make qemu-test      # boot, run self-tests, exit with a machine-checkable code
+make qemu-limine    # text shell; choose NEWOS (GUI) in the Limine menu
+make qemu-limine-gui   # boot with gui=1 directly (no menu wait)
 make qemu-limine-test  # suite through the Limine ISO (graphics path)
 make check-newpkg   # package system tests (no QEMU needed)
 make help           # full target list (V=0 for a short log, V=1 verbose)
@@ -74,9 +108,9 @@ make clean
 ```
 
 Every push to `main` runs the build, package-manager tests, and QEMU boot
-tests. Passing commits publish a GitHub prerelease with the kernel, ISO images, and
-compiled TinyGL demo, and update the build environment at
-`ghcr.io/cristop-bot/newos-build` (`latest` and `sha-*` tags). Pull requests
+tests. Passing commits publish a GitHub prerelease with the kernel, ISO images,
+the standalone TinyGL demo and its `.new` package, and update the build
+environment at `ghcr.io/cristop-bot/newos-build` (`latest` and `sha-*` tags). Pull requests
 run the same checks without publishing. Pull and run the published build
 environment with `docker compose pull newos` followed by
 `docker compose run --rm newos`.
@@ -85,7 +119,7 @@ Automated test mode:
 
 ```sh
 qemu-system-x86_64 -kernel build/images/newos-x86_64.elf \
-  -serial stdio -no-reboot -m 128M \
+  -serial stdio -no-reboot -m 256M \
   -device isa-debug-exit,iobase=0xf4 -append "test_mode=1"
 ```
 

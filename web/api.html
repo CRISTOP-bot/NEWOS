@@ -13,7 +13,7 @@
 </head>
 <body>
 <nav><div class="nav-in">
-  <a class="brand" href="index.html" style="text-decoration:none"><svg class="mark" viewBox="0 0 1000 1000" aria-hidden="true"><defs><mask id="p"><rect x="150" y="150" width="700" height="700" rx="150" fill="#fff"/><path d="M330 370l170 130-170 130" fill="none" stroke="#000" stroke-width="95" stroke-linejoin="round" stroke-linecap="round"/></mask></defs><rect x="150" y="150" width="700" height="700" rx="150" fill="currentColor" mask="url(#p)"/><rect x="540" y="595" width="150" height="95" rx="8" fill="currentColor"/></svg><span class="logo">NEWOS</span> <small>v0.3.0-gui</small></a>
+  <a class="brand" href="index.html" style="text-decoration:none"><svg class="mark" viewBox="0 0 64 64" aria-hidden="true"><rect x="2" y="2" width="60" height="60" rx="14" fill="#0B0B1A"/><rect x="5" y="5" width="54" height="54" rx="11" fill="#29305D"/><g stroke="#000" stroke-width="1.5" stroke-linejoin="round"><polygon points="12,21 31,17 31,31 12,35" fill="#FF7A3C"/><polygon points="34,16 52,12 52,26 34,30" fill="#7BD45A"/><polygon points="12,38 31,34 31,48 12,52" fill="#35B6C8"/><polygon points="34,33 52,29 52,43 34,47" fill="#4A4DC8"/></g></svg><span class="logo">NEWOS</span> <small>v0.3.0-gui</small></a>
   <button class="hamb" aria-label="Abrir menú">☰</button>
   <div class="links"><a href="index.html">Inicio</a><a href="docs.html">Documentación</a><a href="api.html" class="active">Syscalls y comandos</a><a href="packages.html">Paquetes .new</a><a href="downloads.html">Descargas</a><a href="changelog.html">Changelog</a><a href="https://github.com/CRISTOP-bot/NEWOS" target="_blank" rel="noopener">GitHub ↗</a><button class="theme-btn" id="themeBtn" aria-label="Cambiar tema"></button></div>
 </div></nav>
@@ -37,6 +37,7 @@
 <tr><td class="mono">11</td><td class="mono">SYS_MUNMAP</td><td class="mono">munmap(addr, len)</td><td>Desmapea una región anónima.</td></tr>
 <tr><td class="mono">12</td><td class="mono">SYS_BRK</td><td class="mono">brk(addr)</td><td>Crece/decrece el heap de usuario.</td></tr>
 <tr><td class="mono">16</td><td class="mono">SYS_IOCTL</td><td class="mono">ioctl(fd, req, arg)</td><td>Tamaño/modo de terminal; el resto falla.</td></tr>
+<tr><td class="mono">19/20</td><td class="mono">SYS_READV/WRITEV</td><td class="mono">readv/writev(fd, iov, n)</td><td>Scatter/gather sobre el path de read/write existente.</td></tr>
 <tr><td class="mono">21</td><td class="mono">SYS_ACCESS</td><td class="mono">access(path, mode)</td><td>Comprueba existencia.</td></tr>
 <tr><td class="mono">22</td><td class="mono">SYS_PIPE</td><td class="mono">pipe(fds)</td><td>Par de fds de tubería.</td></tr>
 <tr><td class="mono">32</td><td class="mono">SYS_DUP</td><td class="mono">dup(fd)</td><td>Duplica al primer fd libre.</td></tr>
@@ -77,10 +78,13 @@
 <tr><td class="mono">457</td><td class="mono">SYS_READDIR</td><td class="mono">readdir(path, buf, bytes)</td><td>Forma legacy <span class="mono">nsh_dirent</span>.</td></tr>
 <tr><td class="mono">458</td><td class="mono">SYS_GETTIME</td><td class="mono">gettime(&amp;t)</td><td>CMOS real 24 h (forma legacy).</td></tr>
 <tr><td class="mono">459</td><td class="mono">SYS_SYSINFO</td><td class="mono">sysinfo(&amp;si)</td><td>frames total/free, uptime, hz.</td></tr>
+<tr><td class="mono">460</td><td class="mono">SYS_KBD_GRAB</td><td class="mono">kbd_grab(on)</td><td>Propiedad del teclado PS/2 para la sesión gráfica.</td></tr>
+<tr><td class="mono">461</td><td class="mono">SYS_KBD_READ</td><td class="mono">kbd_read(buf, len)</td><td>Bytes no bloqueantes de la cola del GUI.</td></tr>
+<tr><td class="mono">462</td><td class="mono">SYS_CONSOLE_GUI</td><td class="mono">console_gui(on)</td><td>Suspende fbcon y el cursor legacy mientras un compositor posee el panel.</td></tr>
 </tbody></table></div>
-<div class="note"><b>No implementados:</b> fork / execve / readlink · sockets y stack de red · entrega de señales. <span class="mono">poll</span> solo informa timeout. Las llamadas desconocidas fallan con −1. Structs compartidos en <span class="mono">abi/syscall_abi.h</span> (<span class="mono">NSH_MAX_ARGS=16 ARGLEN=128 PATH=256</span>).</div>
+<div class="note"><b>No implementados:</b> fork / execve / readlink · sockets y stack de red · entrega de señales. <span class="mono">poll</span> solo informa timeout. Las llamadas desconocidas fallan con −1; la ruta Linux estática devuelve −1 genérico en vez de −errno. Entrada doble: <span class="mono">int $0x80</span> y <span class="mono">syscall</span> x86-64 (STAR/LSTAR/FMASK). Structs compartidos en <span class="mono">abi/syscall_abi.h</span> (<span class="mono">NSH_MAX_ARGS=16 ARGLEN=128 PATH=256</span>).</div>
 
-<h3 class="sec">Toolbox /bin (30 + hello + init)</h3>
+<h3 class="sec">Toolbox /bin (39 entradas, incluye BusyBox y glxgears)</h3>
 <input class="search" id="q-cmd" placeholder="Filtrar comandos… (ej. ps, img, pkg)">
 <div class="tbl-wrap"><table id="t-cmd"><thead><tr><th>Comando</th><th>Qué hace</th></tr></thead><tbody>
 <tr><td class="mono">ls / cat / echo</td><td>Lista (perms d/rwx), dump en bucles de 512 B, echo con -n.</td></tr>
@@ -92,9 +96,11 @@
 <tr><td class="mono">wc / head / grep -i / sort</td><td>Filtros de texto clásicos.</td></tr>
 <tr><td class="mono">about / newfetch</td><td>about: uname+sysinfo+/etc/version/hostname+MIT. newfetch: logo + root@host, OS/Kernel/Uptime/Memory/Shell/Display/Packages.</td></tr>
 <tr><td class="mono">ltest</td><td>Self-test de libc (string/stdio/heap). Exit 0 solo si todo PASS.</td></tr>
-<tr><td class="mono">img &lt;bmp|ppm&gt;</td><td>Visor BMP 24/32 + PPM P6 sobre framebuffer. JPEG/PNG rechazados con mensaje.</td></tr>
+<tr><td class="mono">img &lt;bmp|ppm&gt;</td><td>Visor BMP 24/32 + PPM P6 sobre framebuffer; <span class="mono">--no-wait</span> evita el prompt (lo usa el desktop). JPEG/PNG rechazados con mensaje.</td></tr>
 <tr><td class="mono">vid</td><td>Animación procedural 60 frames ~15 fps (bola + plasma).</td></tr>
-<tr><td class="mono">desktop</td><td>Compositor: ventanas solapadas draggables, close boxes, cursor con backing store, barra de memoria, readout /dev/mouse.</td></tr>
+<tr><td class="mono">desktop</td><td>Compositor modular: seis ventanas (System, Files, Mouse, About, Log, Nova), drag/resize/max/min/close, dock, menú, ayuda, temas BoredOS/Win95, iconos Win95, fuente 8×8, repintado por daños, cursor overlay y teclado PS/2 vía KBD_GRAB/KBD_READ/CONSOLE_GUI. Usa los módulos Nova NTK (painter, style, gradient, color, progress, button, scrollbar, separator).</td></tr>
+<tr><td class="mono">glxgears [--frames N]</td><td>Demo TinyGL embebido: limpia el panel, renderiza 300 frames de engranajes a 640×480 y devuelve el control. No es GLX/X11.</td></tr>
+<tr><td class="mono">busybox &lt;applet&gt;</td><td>BusyBox 1.35.0 estático oficial (402 applets) mediante la entrada syscall Linux. nsh resuelve nombres no nativos como <span class="mono">busybox &lt;applet&gt;</span>.</td></tr>
 <tr><td class="mono">newpkg</td><td>Gestor .new: info verify install remove list files. <a href="packages.html">Ver página de paquetes →</a></td></tr>
 <tr><td class="mono">hello / init (nsh)</td><td>hello: entry propia sin nshlib/libc ("Hello from ring 3!"). init: la shell.</td></tr>
 </tbody></table></div>
@@ -111,12 +117,13 @@
                           Shell: nsh (/init)
                           Display: 1280x800 x32
                           Packages: 33 (/bin)
-root@newos:/# desktop
-proc: desktop pid=6 entry=0x402020 segments=7 stack [7fffffefe000, 7fffffffe000)
-desktop: close every window to quit</pre>
+gui: starting /bin/desktop (Ctrl+Q returns to nsh)
+proc: desktop pid=6 entry=0x40da60 segments=2449 stack [7fffffefe000, 7fffffffe000)
+gui: desktop closed; back to nsh
+root@newos:/#</pre>
 
 <h3 class="sec">libc propia (libc.a)</h3>
-<p class="sub">Freestanding: <span class="mono">string</span> (mem*/str*), <span class="mono">stdlib</span> (abs/atoi/rand/exit), <span class="mono">stdio</span> sin buffer (<span class="mono">putchar puts printf %s %d %u %x %X %p %c %%</span>), <span class="mono">malloc/free/calloc/realloc</span> con arena 256 KiB. Sin floats/locale/threads/FPU. Solo <span class="mono">ltest</span> la linka. nshlib (<span class="mono">user/lib/nshlib</span> + <span class="mono">start.S</span> + <span class="mono">app.ld</span>): wrappers <span class="mono">int $0x80</span> con macros SYSC0-3 + helper <span class="mono">fail()</span>.</p>
+<p class="sub">Freestanding: <span class="mono">string</span> (mem*/str*), <span class="mono">stdlib</span> (abs/atoi/rand/exit), <span class="mono">stdio</span> sin buffer (<span class="mono">putchar puts printf %s %d %u %x %X %p %c %%</span>), <span class="mono">malloc/free/calloc/realloc</span> con arena 256 KiB. Sin locale/threads ni <span class="mono">printf</span> flotante; <span class="mono">libc/src/math.c</span> es un shim para TinyGL. La linkan <span class="mono">ltest</span> y <span class="mono">glxgears</span>. nshlib (<span class="mono">user/lib/nshlib</span> + <span class="mono">start.S</span> + <span class="mono">app.ld</span>): wrappers <span class="mono">int $0x80</span> con macros SYSC0-3 + helper <span class="mono">fail()</span>.</p>
 </section></div>
 <footer><div class="wrap foot"><div><b style="color:var(--txt)">NEWOS</b> · ABI en <span class="mono">abi/syscall_abi.h</span> · <span class="mono">docs/abi.md</span></div><div><a href="docs.html">Documentación</a> · <a href="downloads.html">Descargas</a> · <a href="changelog.html">Changelog</a></div></div></footer>
 <button class="backtop" id="backtop" aria-label="Volver arriba">↑</button>

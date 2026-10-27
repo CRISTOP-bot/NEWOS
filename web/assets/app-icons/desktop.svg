@@ -1,6 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" width="1000" height="1000" role="img" aria-label="desktop">
-<title>desktop</title>
-<defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0" stop-color="#4A4DC8"/><stop offset="1" stop-color="#29305D"/></linearGradient></defs>
-<path d="M150 150H850V680L680 850H150Z" fill="url(#g)"/>
-<path d="M250 250h500v500H250Z" fill="#FFFFFF"/><path d="M250 250h500v110H250Z" fill="#DC8621"/><path d="M320 430h360v60H320Zm0 130h240v60H320Z" fill="#37417E"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32" role="img" aria-label="NEWOS app icon" shape-rendering="crispEdges">
+<title>NEWOS app icon</title>
+<rect x="1" y="1" width="30" height="30" fill="#C0C0C0" stroke="#000000"/><path d="M2 30V2h28" fill="none" stroke="#FFFFFF" stroke-width="1"/><path d="M3 30h27V3" fill="none" stroke="#808080" stroke-width="1"/><path d="M4 29h25V4" fill="none" stroke="#404040" stroke-width="1"/><rect x="4" y="4" width="24" height="24" fill="#C0C0C0" stroke="#000000"/><rect x="5" y="5" width="22" height="6" fill="#4A4DC8" stroke="#000000"/><rect x="6" y="6" width="5" height="3" fill="#FF7A3C" stroke="#000000"/><rect x="12" y="6" width="5" height="3" fill="#7BD45A" stroke="#000000"/><rect x="6" y="10" width="5" height="2" fill="#35B6C8" stroke="#000000"/><rect x="12" y="10" width="5" height="2" fill="#4A4DC8" stroke="#000000"/><rect x="5" y="12" width="22" height="15" fill="#102040" stroke="#000000"/><rect x="8" y="15" width="10" height="2" fill="#C0C0C0" stroke="#000000"/><rect x="8" y="19" width="16" height="2" fill="#808080" stroke="#000000"/><rect x="8" y="23" width="12" height="2" fill="#808080" stroke="#000000"/>
 </svg>

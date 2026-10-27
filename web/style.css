@@ -37,9 +37,8 @@ nav{position:sticky;top:0;z-index:50;background:transparent;border-bottom:1px so
 nav.scroll{background:var(--nav-bg);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);box-shadow:0 1px 2px rgba(0,0,0,.05);border-bottom-color:var(--border)}
 .nav-in{display:flex;align-items:center;gap:18px;padding:12px 20px;max-width:1120px;margin:0 auto}
 .brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:1.1rem;color:var(--txt)}
-/* The brand mark is the mono variant: it inherits the theme foreground, so
- * it stays legible in both the light and dark site themes. */
-.brand .mark{width:28px;height:28px;flex:none;color:var(--txt)}
+/* The brand mark is the four-pane BoredOS flag on a Win95 tile. */
+.brand .mark{width:30px;height:30px;flex:none}
 .brand .logo{font-family:var(--mono);background:linear-gradient(135deg,var(--p500),var(--accent));-webkit-background-clip:text;background-clip:text;color:transparent;font-size:1.3rem;line-height:1}
 .brand small{font-family:var(--mono);font-size:.68rem;color:var(--muted);border:1px solid var(--border);border-radius:20px;padding:2px 8px}
 .links{display:flex;gap:4px;margin-left:auto;flex-wrap:wrap;align-items:center}

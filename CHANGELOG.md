@@ -6,6 +6,144 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- Legacy-PIO ATA driver (`kernel/drivers/block/ata.c`) exposing the
+  primary-master disk as the `disk0` block device: polling-only command
+  completion with nIEN set (no IRQ14 path, no DMA, no PCI programming),
+  IDENTIFY-DEVICE geometry (LBA28, with LBA48 when the drive advertises
+  it), and bounds-checked sector transfers with FAT writes mirrored
+  across every FAT copy. `/dev/disk0` joins devfs when a plain ATA disk
+  is attached (`-drive if=ide` in QEMU; ATAPI signatures are skipped,
+  not claimed). Partial head/tail sector traffic on the device node
+  uses a read-modify-write scratch sector, so userland sees a
+  byte-addressable, seekable stream.
+- FAT32 read-write filesystem under `kernel/fs/fat32/`, mounted as `/fat`
+  from `disk0` when the BPB parses (FAT16 refused). Directory children
+  materialize as real VFS inodes (lookup/readdir stay in the core);
+  `vfs_create`/`vfs_mkdir` gained `inode_ops` hooks for disk-backed
+  parents and `ops->destroy` performs the on-disk delete (0xE5 dirent,
+  freed cluster chain) on unlink. Semantics and honest limits (8.3
+  namespace, LFN entries skipped on listing, overwrite-or-append-only
+  writes, no rename/no FSInfo) are documented in `docs/FILESYSTEM.md`.
+- Poll-mode IPv4 milestone 1: PCnet-PCI II driver
+  (`kernel/drivers/net/pcnet.c`, QEMU `-netdev user -device pcnet`) and
+  the kernel net stack (`kernel/net/`) under the new `net/` layering
+  tier — ARP cache + request/reply, IPv4 TX/RX with checksum
+  validation, ICMP echo with a single waiter slot, 60-byte TX padding
+  and a strict in-order TX cursor (documented in `docs/NETWORK.md`
+  with the PCnet gotchas). The `net-ping` ktest ARP-resolves the
+  slirp gateway (10.0.2.2) and round-trips an ICMP payload.
+- ISO 9660 read-only filesystem (`kernel/fs/iso9660/iso9660.c`) mounted
+  as `/iso` from `disk0`: PVD at LBA 16 only, 2048-byte blocks,
+  `;version` suffix stripped, `.`/`..`/hidden skipped, multi-extent
+  files joined (≤8 extents, name-mismatch guarded), depth ≤8. No
+  Joliet/Rock Ridge/El Torito, by declaration.
+- romfs v1 read-only filesystem (`kernel/fs/romfs/romfs.c`) mounted as
+  `/rom`: superblock checksum verified (additive 32-bit over the first
+  512 bytes), inode chains materialized with the format's
+  addr/type-nibble encoding, data offsets derived from
+  `header + padded name`, hard links honored, symlinks/devices skipped,
+  bounded against corrupt images (per-dir 4096-entry and depth-16
+  caps).
+- `scripts/fs-tools/mkfs.romfs.py`: romfs 1.0 image builder (genromfs
+  style 16-byte alignment of headers AND file data) with hardlink and
+  symlink entry support and a built-in round-trip self-check that
+  re-parses the produced image byte-for-byte before writing it.
+- VFS read-only mount rule: `vfs_mkdir`/`vfs_create` now refuse on any
+  foreign directory that carries no create/mkdir hook (romfs, iso9660,
+  procfs mounts) instead of materializing an unacknowledged in-memory
+  child; unlink keeps refusing by the parent-hooks rule.
+- ELF64 loader profile hardening in `kernel/process/elf_loader.c`: dynamic
+  objects (`ET_DYN`, PIE/shared) and `PT_INTERP`-bearing images are now
+  rejected outright with an explicit console reason instead of a silent
+  generic failure — NEWOS has no dynamic loader, so they could only fault
+  later inside the process. `PT_TLS` is detected and carries a visible
+  warning (loader ignores it; static musl binaries set their own FS base
+  via `SYS_ARCH_PRCTL`, which is how `busybox` runs). `ET_DYN`,
+  `PT_INTERP` and `PT_TLS` constants added to `include/process/proc_elf.h`.
+  The accepted-image policy (static `ET_EXEC` x86_64, bounds-checked
+  segments, FS-based TLS, `SYS_EXECVE` still a stub) is documented as an
+  "ELF64 loader profile" section in `docs/abi.md`.
+- Top-level `sysroot/` install tree for the C SDK: `make sdk` now populates
+  `sysroot/usr/{include,lib}` in-tree (libc.a, libnsh.a, crt0.o, app.ld and
+  the `newos/` ABI headers) instead of `build/newos-sdk`, with a documented
+  `README.md` and a generated-payload `.gitignore`. `toolchain/newos-gcc`
+  consumes the sysroot directly — headers, libc/libnsh link path, `crt0.o`
+  and the `app.ld` link script all resolve from it, so cross builds are
+  self-contained.
+- Windows 95-style taskbar replacing the centered bottom dock: full-width
+  bar with a pressed-state START button (NEWOS flag + bold label), one
+  beveled task button per open window (active = sunken/inverted colors,
+  minimized included), and a sunken clock tray on the right that shows the
+  date in a toast when clicked. The start menu now hangs directly above the
+  START button; the top panel, window layout (workspace now extends to the
+  bar) and drag/resize clamps follow the new geometry. Hit-tested from per
+  identity `taskbar_button_rect` so draw and input can never drift.
+- `/bin/frotz`, a native port of the Frotz 2.44 Z-machine interpreter
+  (GPL-2+, upstream DavidGriffith/frotz; dumb terminal driver). It plays
+  Infocom-style `.z3`–`.z8` story files from the console: Quetzal
+  save/restore, status line, runtime settings and stable-random without
+  FP registers. A deterministic demo story ships at
+  `/usr/share/zcode/mini.z3`; `make check-frotz` drives the same story on
+  the host through the ported units (`tools/frotz/`). Userland Z-machine
+  core compiles clean under `-Wall -Wextra -Werror`; deltas are documented
+  in `userland/user/programs/frotz/README` and `docs/frotz.md`.
+- Native x86-64 Linux `syscall` entry (`LSTAR`/`STAR`/`FMASK`, TSS RSP0 mirror)
+  with `readv`/`writev` and the Linux syscall-number subset. This runs the
+  official static BusyBox 1.35.0 x86_64-linux-musl binary at `/bin/busybox`
+  (402 applets); `nsh` falls back to `/bin/busybox <applet>` for unshadowed
+  names because the VFS has no symlinks. Applets that need Linux kernel
+  interfaces NEWOS still lacks are documented in `ports/busybox/README.md`.
+  Provenance, GPLv2 text and SHA-256 checksums live in the same directory.
+- A built-in `/bin/glxgears` TinyGL demo, compiled with the host/newos
+  toolchain and embedded into every ISO by both `make` and `make fast`. It
+  clears the panel, renders a 300-frame 640x480 gear scene, exposes
+  `--frames N`, and keeps kernel text/legacy cursor output off the panel.
+  Boot-verified on QEMU x86_64 TCG: real frames, visible gears animation in
+  framebuffer screendumps, clean console release back to `nsh`
+  (`ports/glxgears-newos/README.md`).
+- `SYS_CONSOLE_GUI` (462): a foreground compositor can suspend fbcon and the
+  kernel mouse arrow while it owns the panel. Text apps launched from the
+  desktop release the claim; graphical apps keep it; process teardown releases
+  it automatically. Phase-1 test `fbcon-gui` covers ownership and crash release.
+- Desktop/Nova preview (`WNOVA`) as a sixth window: adapted NTK painter and
+  gradient card, progress bar, font preview and FILES/ABOUT/GEARS actions that
+  open the real Files/About windows and `/bin/glxgears`. The desktop now also
+  exposes BusyBox and glxgears in its `/bin` metadata and start menu.
+- The desktop is now a modular Nova NTK alpha instead of one translation unit:
+  `desktop_main`, `state`, `gfx`, `wm`, `theme`, `shell`, `apps`, `input` and a
+  damage-based `compositor`. Cursor motion, hover, clock/memory updates and
+  toast expiry repaint only dirty rectangles; `SYS_FBWRITE` receives 16-row
+  chunks instead of a full frame. Startup, theme and structural changes are the
+  only full redraws.
+- The Nova NTK slice grew from color-only to painter, gradient, style,
+  progress, button, scrollbar and separator modules. Every module is linked
+  into the desktop and covered by `make check-nova`, which now runs both the
+  color test and a host widget test for clipping, gradients, scrollbar geometry,
+  separators, progress and button hit testing.
+- BoredOS/Win95 visual language: a four-pane waving flag logo, a Win95-beveled
+  icon family for the desktop and every `/bin` app, BoredOS navy/indigo wallpaper
+  shards, `BoredOS`/`Win95`/`Periwinkle` themes, a 1920x1080 Limine wallpaper
+  with `interface_branding`, a 2-second branded boot menu at 1280x800, and a
+  regenerated 640x400 splash. The website favicon, header mark, app-icon copies
+  and 1024px brand image use the same generated assets.
+- Opt-in graphical boot session: the default Limine entry is a text shell;
+  the separate **NEWOS (GUI)** entry passes `gui=1`, and
+  `make qemu-limine-gui` applies `gui=1` to the default entry for a direct
+  visual check. The shell then opens `/bin/desktop`, and closing the last
+  window or pressing `Ctrl+Q` returns to a clean `nsh` prompt. A missing
+  framebuffer or a failed desktop spawn falls back to the shell instead of
+  stranding the machine.
+- Desktop keyboard input through the new `SYS_KBD_GRAB` (460) and
+  `SYS_KBD_READ` (461) ABI: a foreground session owns the PS/2 keyboard
+  without stealing serial input, while the kernel releases the grab on
+  process teardown. The desktop uses it for `Tab`/`1`–`6` focus, arrow-key
+  `/bin` selection, `Enter` launch and a `?` shortcut card; spawned text
+  programs get the keyboard back for their lifetime.
+- The first user process now receives its `argc`/`argv` correctly:
+  `x64_enter_user` loads the SysV entry registers from the prepared iframe
+  instead of leaving leftover kernel values, which the boot session flag
+  depends on. Covered by the `kbd-grab` phase-1 test; `fbcon-gui` brings the
+  phase-1 suite to 11 tests and the total to 20.
 - Read-only `procfs` mounted at `/proc`: `version`, `uptime`, `meminfo`
   (live PMM counters), `filesystems`, `mounts` and `cmdline`, with
   offset-aware reads and a phase-1 kernel test.
@@ -74,8 +212,75 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `GITHUB_TOKEN`, CI is dispatched explicitly, and `auto-merge.yml` then
   merges the green result. No external API key is required; see
   `docs/self-healing.md` and `.coderabbit.yaml`.
+- Generic device-MMIO mapping window (`kernel/arch/x86_64/memory/
+  x86_devmap.c`): PCI BARs map as uncached (PCD|PWT) 2 MiB pages (never
+  1 GiB, per the VirtualBox PDPE1GB lesson) into a private kernel-half
+  window at PML4[506] next to the framebuffer's [507], wired with the
+  fb.c table discipline. `devmap_map(phys, bytes)` is probe-time,
+  never freed, and took the HDA BAR0 without touching fb.c.
+- Intel HD-Audio poll-mode playback (`kernel/drivers/audio/hda.c`,
+  `include/drivers/hda.h`): PCI probe (8086:2668/293e), spec-1.0
+  controller power-up with codec link presence via `STATESTS`,
+  CORB/RIRB rings inside one 4 KiB frame (CORB 1024 + RIRB 2048 + BDL,
+  all 128-byte aligned), link proven by the `GET_SUBSYSTEM_ID` echo
+  (QEMU answers `0x1af40022`), then one-shot playback: codec converter
+  format + stream-tag verbs, SD slot 4 (first output) BDL programming,
+  run, `LPIB` poll to completion, stop. No interrupts, no DMA position
+  buffer, no capture — documented. The phase-2 `hda` ktest composes a
+  0.25 s 440 Hz A4 sine integer-only (65-entry quarter-wave table,
+  32-bit phase accumulator) in one contiguous physical block and
+  delivers it at 48 kHz/S16/stereo; `make qemu-test` attaches
+  `intel-hda` + `hda-duplex` (recorder backend probed `file` vs `wav`
+  across QEMU builds — its property is `path`, and the recorder
+  ignores the codec side's rate, so it is pinned to 48 kHz stereo S16)
+  and `run_qemu_test.sh` re-validates the produced WAV on the host
+  (RIFF container, 48 kHz/S16/2ch, ≥50% nonzero samples, peak window,
+  both polarities). Phase-2 suite is now 15 tests (26 total).
 
+- Thin NIC registry (`kernel/include/drivers/nic.h`, `kernel/net/nic.c`):
+  every probe()d Ethernet adapter hands the net stack one `struct net_nic`
+  (open/get_mac/send/poll); the first registered is the boot default and
+  `net_nic_select()` lets ktests switch adapters (ARP cache flushes per
+  switch — ARP/ICMP answers travel the slirp network of the selected card).
+  `net_start()`/`net_start_nic()` replace the pcnet-specific boot bring-up in
+  `kernel/net/net_stack.c`, which now talks to whichever NIC is active.
+- Intel e1000 driver (`kernel/drivers/net/e1000.c`, `include/drivers/e1000.h`):
+  Intel 82540EM (8086:100e) polled MMIO playback over the devmap window;
+  TX legacy descriptors with TDT-write ring drain and RS write-back, RX
+  descriptors pre-armed with 2 KiB buffers consumed on DD/EOP + RDT tail,
+  MAC read from RAL/RAH (AV set by the emulated device at reset), no MSI,
+  static 10.0.2.15/24 over slirp. Phase-2 `net-e1000` ktest pings the
+  slirp gateway and byte-compares the echo ("NEWOS e1000 ping"); the stock
+  `net-ping` ktest keeps passing through PCnet. `make qemu-test` adds the
+  second NIC (`-netdev user,id=net1 -device e1000,netdev=net1`). Phase-2
+  suite is now 16 tests (27 total).
 ### Fixed
+- Cursor ghosting had two independent causes: the kernel kept painting its
+  own `fb_mouse_place` arrow and restoring old text cells while the compositor
+  drew a second pointer, and the compositor could leave its previous sprite in
+  the canvas. The cursor is now a compositor staging-buffer overlay (never part
+  of `canvas`), every old/new cursor rectangle is uploaded first, and fbcon's
+  kernel arrow is suppressed while the GUI owns the panel. QEMU interactive
+  targets use `grab-on-hover=on,show-cursor=off` so the host pointer cannot add
+  a third arrow.
+- The Mouse window showed a stale position whenever the pointer moved outside
+  its body, because only the old/new pointer rectangles were damaged. Pointer
+  motion and button/wheel changes now damage the Mouse window body too.
+- `glxgears` used to paint its banner and leave kernel `proc:` lines over the
+  desktop, and its letterbox area showed the previous desktop. It now claims
+  the framebuffer console while running and clears the full panel to black
+  before rendering the 640x480 viewport; desktop launches restore the desktop
+  through the normal damage pass.
+- The desktop launched `img` with only a file path, so the viewer waited for a
+  key on an invisible fbcon prompt while the compositor owned the panel. `img`
+  now accepts `--no-wait`; the desktop passes it, while shell invocations still
+  wait for a key as before.
+- `newfetch` now clears the panel before drawing. The kernel logs every spawn
+  before user code runs, and that line clipped the top of the fixed 14-row logo.
+- `/etc/nsh.rc` reinstalled GNU coreutils on every shell, making each new
+  terminal rewrite 71 files. `newpkg install` now reports `already installed`
+  for an identical installed version and skips the payload; `--force` still
+  reinstalls or repairs files.
 - `/etc/version` still contained a hard-coded `0.2.0-pre-alpha` banner even
   though `VERSION` and every other release string had moved on. It now uses
   `NEWOS_VERSION`, so the image cannot report two different versions.
@@ -119,7 +324,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `BOOT=PASS` - ISO boots to `NEWOS: boot complete.` under SeaBIOS (legacy
   BIOS path) and under OVMF/UEFI; PVH still passes the automated suite.
 - `REPRO`     - `make clean && make iso` twice is byte-for-byte identical
-  (ISO `6c84433a...`; ELF `d60467ba...`).
+  for the normalized GRUB ISO; ELF outputs are deterministic. The Limine ISO
+  embeds build timestamps and is not byte-identical across rebuilds yet.
 
 ### Changed
 - `VERSION` is now the single source of truth for the system version. The

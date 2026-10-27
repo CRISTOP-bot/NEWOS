@@ -17,8 +17,9 @@ boot assets over the network; host packages are not installed automatically.
 synchronizes and initializes every recursive submodule at the exact commits
 pinned by NEWOS, then builds binutils 2.44 + GCC 16.1.0 + newlib for
 `x86_64-elf` under `toolchain/out/`, builds the standalone kernel and Limine
-system ISO with that cross toolchain, and builds the software-rendered TinyGL
-demo. The first full build may take roughly 20-40 minutes and needs
+system ISO with that cross toolchain, and builds the embedded TinyGL
+`/bin/glxgears` plus the standalone demo and `.new` package. The first full
+build may take roughly 20-40 minutes and needs
 GMP/MPFR/MPC development
 headers, a host C/C++ toolchain, and the other prerequisites below. GCC 16.x
 is used for the pinned target compiler.
@@ -36,19 +37,22 @@ packages are prerequisites and are not installed automatically.
 
 For a quicker kernel/system-image iteration after the modules have been
 bootstrapped, use `make fast`. It deliberately uses host `gcc`/`ld` and skips
-the cross-toolchain build and TinyGL demo. `make bootstrap` only fetches the
-pinned recursive source modules; `make toolchain` bootstraps sources and
+the cross-toolchain build, but it still compiles and embeds `/bin/glxgears`
+because the demo is part of the normal image. `make bootstrap` only fetches
+the pinned recursive source modules; `make toolchain` bootstraps sources and
 builds the cross compiler by itself.
 
 ## Userland libc
 
-`libc/` is a freestanding C library (no floats, no locale, no threads):
-`string` (mem*/str*), `stdlib` (abs, atoi, rand, `exit`), `stdio`
+`libc/` is a freestanding C library (no locale, no threads, no floating-point
+`printf`): `string` (mem*/str*), `stdlib` (abs, atoi, rand, `exit`), `stdio`
 (unbuffered `putchar`/`puts`/`printf` with `%s %d %u %x %X %p %c %%`),
-`malloc`/`free`/`calloc`/`realloc` over a static 256 KiB arena (no
-`sbrk` yet: exhaustion returns NULL). Built as `build/userland/libc.a`;
-programs opt in via an explicit link rule (see `ltest`). The lint knows
-a `LIBC` class (`ABI` + self only); the kernel never imports it.
+`malloc`/`free`/`calloc`/`realloc` over a static 256 KiB arena (no `sbrk` yet:
+exhaustion returns NULL). `libc/src/math.c` is a small freestanding float shim
+used by TinyGL (`glxgears`); it is not a complete libm. Built as
+`build/userland/libc.a`; programs opt in via an explicit link rule (see
+`ltest`). The lint knows a `LIBC` class (`ABI` + self only); the kernel never
+imports it.
 
 ## Repository components and bootstrap
 
@@ -71,12 +75,15 @@ not updated to floating branch heads.
 Nova is pinned as `ports/nova`; full `make` fetches that source but
 intentionally does not compile the upstream compositor until its BoredOS-specific
 SDK, framebuffer/VT, UNIX-socket, shared-memory, process, and threading interfaces
-have real NEWOS adapters. The active desktop incorporates only the small NTK
-color-rendering slice described in [`nova-porting.md`](nova-porting.md); Nova's
-compositor, widgets, and window manager remain unported. Full `make` also
-compiles `glxgears-newos` with its pinned TinyGL source to
-`build/userland/glxgears-newos.elf`. That software-rendered framebuffer demo is
-not GLX/X11 and is not part of the booted desktop.
+have real NEWOS adapters. The active desktop incorporates the modular NTK slice
+(painter, style, color, gradient, progress, button, scrollbar, separator) and a
+damage-based compositor described in [`nova-porting.md`](nova-porting.md);
+it provides six windows, including the Nova NTK preview. Nova's upstream
+compositor, protocol, widgets and window manager remain unported. Both `make`
+and `make fast` compile `glxgears-newos` with its pinned TinyGL source, embed
+it as `/bin/glxgears`, and leave `build/userland/glxgears-newos.elf` for direct
+inspection; `make glxgears-pkg` also creates its `.new` package. The demo uses
+the NEWOS framebuffer and libc, not GLX/X11.
 
 ## Targets
 
@@ -84,7 +91,7 @@ not GLX/X11 and is not part of the booted desktop.
 make / make all     fetch recursive modules, build x86_64-elf toolchain,
                     standalone kernel + Limine ISO and TinyGL demo
 make bootstrap      fetch all pinned source modules into this checkout
-make fast           host-tool system ISO only (skips cross toolchain and demo)
+make fast           host-tool ISO (skips toolchain; embeds glxgears)
 make limine         Limine-flavour kernel  -> build/images/newos-x86_64-limine.elf
 make build/images/newos-x86_64-limine.iso  BIOS+UEFI Limine ISO (complete system)
 make iso            bootable multiboot2 ISO-> build/images/newos-x86_64.iso (needs grub)
@@ -92,7 +99,10 @@ make qemu           boot in QEMU (serial console)
 make qemu-debug     boot with GDB server on :1234 (-s -S)
 make qemu-test      run the in-kernel self-tests, isa-debug-exit (exit 1 = PASS)
 make qemu-limine-test  self-tests through the Limine ISO (exit 1 = PASS)
-make qemu-limine    boot the Limine ISO interactively
+make qemu-limine      boot the Limine ISO (text shell; GUI is a menu entry)
+make qemu-limine-gui  boot the Limine GUI entry (gui=1)
+make glxgears-pkg   build the standalone TinyGL .new package
+make check-nova     Nova NTK color + widget host tests
 make qemu-network   boot with user-mode networking
 make qemu-disk      boot from a 64 MiB raw disk image
 make check-newpkg   package system tests (C unit driver + end-to-end suite)

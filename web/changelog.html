@@ -13,7 +13,7 @@
 </head>
 <body>
 <nav><div class="nav-in">
-  <a class="brand" href="index.html" style="text-decoration:none"><svg class="mark" viewBox="0 0 1000 1000" aria-hidden="true"><defs><mask id="p"><rect x="150" y="150" width="700" height="700" rx="150" fill="#fff"/><path d="M330 370l170 130-170 130" fill="none" stroke="#000" stroke-width="95" stroke-linejoin="round" stroke-linecap="round"/></mask></defs><rect x="150" y="150" width="700" height="700" rx="150" fill="currentColor" mask="url(#p)"/><rect x="540" y="595" width="150" height="95" rx="8" fill="currentColor"/></svg><span class="logo">NEWOS</span> <small>v0.3.0-gui</small></a>
+  <a class="brand" href="index.html" style="text-decoration:none"><svg class="mark" viewBox="0 0 64 64" aria-hidden="true"><rect x="2" y="2" width="60" height="60" rx="14" fill="#0B0B1A"/><rect x="5" y="5" width="54" height="54" rx="11" fill="#29305D"/><g stroke="#000" stroke-width="1.5" stroke-linejoin="round"><polygon points="12,21 31,17 31,31 12,35" fill="#FF7A3C"/><polygon points="34,16 52,12 52,26 34,30" fill="#7BD45A"/><polygon points="12,38 31,34 31,48 12,52" fill="#35B6C8"/><polygon points="34,33 52,29 52,43 34,47" fill="#4A4DC8"/></g></svg><span class="logo">NEWOS</span> <small>v0.3.0-gui</small></a>
   <button class="hamb" aria-label="Abrir menú">☰</button>
   <div class="links"><a href="index.html">Inicio</a><a href="docs.html">Documentación</a><a href="api.html">Syscalls y comandos</a><a href="packages.html">Paquetes .new</a><a href="downloads.html">Descargas</a><a href="changelog.html" class="active">Changelog</a><a href="https://github.com/CRISTOP-bot/NEWOS" target="_blank" rel="noopener">GitHub ↗</a><button class="theme-btn" id="themeBtn" aria-label="Cambiar tema"></button></div>
 </div></nav>
@@ -31,17 +31,25 @@
 </ul></div>
 <h3 class="sec">Unreleased <span class="tag">en desarrollo</span></h3>
 <div class="card"><h3>Añadido</h3><ul>
+<li>Entrada Linux <span class="mono">syscall</span> x86-64 + BusyBox 1.35.0 estático oficial (402 applets) en <span class="mono">/bin/busybox</span>, con fallback de nsh por applet.</li>
+<li><span class="mono">/bin/glxgears</span> TinyGL embebido (300 frames), limpieza de panel y <span class="mono">SYS_CONSOLE_GUI</span> para que los logs del kernel no ensucien el framebuffer.</li>
+<li>Escritorio modular Nova NTK alpha: <span class="mono">main/state/gfx/wm/theme/shell/apps/input/compositor</span>, seis ventanas (incluye preview Nova), dock, menú, ayuda y repintado por rectángulos sucios (damage) con subida de 16 filas por <span class="mono">SYS_FBWRITE</span>.</li>
+<li>Sesión gráfica opcional: entrada Limine <b>NEWOS (GUI)</b> con <span class="mono">gui=1</span>, <span class="mono">make qemu-limine-gui</span>, teclado PS/2 1–6 y retorno limpio a nsh.</li>
+<li>Slice NTK ampliado: painter, gradient, style, progress, button, scrollbar y separator, todos enlazados y cubiertos por <span class="mono">make check-nova</span> (color + widgets host).</li>
+<li>Identidad BoredOS/Win95: bandera de cuatro paneles, iconos bevelados para el escritorio y todo <span class="mono">/bin</span>, temas BoredOS/Win95/Periwinkle, wallpaper Limine 1920×1080 y splash 640×400.</li>
 <li>Syscalls <span class="mono">SYS_OPEN</span> (7) y <span class="mono">SYS_CLOSE</span> (8) + test fase-2 <span class="mono">open-close</span>.</li>
 <li>Fix GCC 16 / C23 (<span class="mono">bool</span> en <span class="mono">core_types.h</span>).</li>
 <li>PMM multi-run: registra cada región E820, nunca MMIO como RAM.</li>
 <li>Consola de texto VGA 80×25 (máquinas sin serie, p. ej. VirtualBox).</li>
-<li>Config GRUB robusta (serie + VGA) e ISO reproducible byte-idéntica.</li>
+<li>Config GRUB robusta (serie + VGA) e ISO GRUB reproducible byte-idéntica.</li>
 <li>Sistema de paquetes <span class="mono">.new</span> completo (formato NEW1, <span class="mono">/bin/newpkg</span>, builder host, <span class="mono">hello-new-1.0.0</span>, <span class="mono">make check-newpkg</span>).</li>
 <li>Doc <span class="mono">docs/virtualbox-and-hardware.md</span>.</li>
 </ul></div>
 <div class="card" style="margin-top:12px"><h3>Corregido · Verificado</h3><ul>
 <li><span class="mono">vfs_unlink split_parent</span> comía el primer carácter del basename (rompía <span class="mono">rm</span> anidado y el remove de paquetes).</li>
-<li><span class="badge ok">BOOT=PASS</span> SeaBIOS + OVMF · <span class="badge ok">REPRO</span> ISO byte-idéntica.</li>
+<li>Cursor duplicado/fantasma: el kernel pintaba su flecha y restauraba celdas viejas sobre el compositor. Ahora el cursor es overlay de staging, se dañan los rectángulos viejo/nuevo y la flecha legacy se suspende con <span class="mono">SYS_CONSOLE_GUI</span>.</li>
+<li><span class="mono">newpkg install</span> reinstalaba GNU coreutils en cada shell; ahora detecta la misma versión y <span class="mono">--force</span> sigue reparando.</li>
+<li><span class="badge ok">BOOT=PASS</span> SeaBIOS + OVMF · <span class="badge ok">REPRO</span> ISO GRUB byte-idéntica.</li>
 </ul></div>
 
 <h3 class="sec">0.2.0-pre-alpha <span class="tag">2026-09-10</span></h3>
