@@ -6,7 +6,7 @@ The central `CRISTOP-bot/NEWOS` repository is the build/boot/ISO orchestration s
 |---|---|---|
 | [`NEWOS-kernel`](https://github.com/CRISTOP-bot/NEWOS-kernel) | `kernel/` | ABI, architecture, core, crypto, drivers (including the PCnet NIC), filesystems, IPC, kernel library, memory, process, system services, syscalls |
 | [`NEWOS-userland`](https://github.com/CRISTOP-bot/NEWOS-userland) | `userland/` | `user/` programs/runtime/rootfs and `libc/` |
-| [`NEWOS-toolchain`](https://github.com/CRISTOP-bot/NEWOS-toolchain) | `toolchain/` | Cross-toolchain scripts/docs/examples; optional shallow GCC 16.1.0 submodule |
+| [`NEWOS-toolchain`](https://github.com/CRISTOP-bot/NEWOS-toolchain) | `toolchain/` | Cross-toolchain scripts/docs/examples (GCC comes from the release tarball `build.sh` downloads; no GCC submodule) |
 | [`NEWOS-ports`](https://github.com/CRISTOP-bot/NEWOS-ports) | `ports/` | Port integration, staged assets, pinned nested graphics/desktop source modules |
 
 ## Preserved build paths
@@ -27,6 +27,6 @@ The top-level command intentionally omits `--recursive`: the default build needs
 
 ## Pinned component revisions for this import
 
-The superproject uses Git gitlinks (not branch names) to pin `NEWOS-kernel` `711b9097ab989c67dbe3961147b2ce1d19802bf4`, `NEWOS-userland` `3d5c36b567979507db291fda0835546cea508894`, `NEWOS-toolchain` `93745ade464ae04e5e18bc594ad130b4679ab50b`, and `NEWOS-ports` `9514ef27092ae40c1966e9ea39c2195233614ef5`. Nested refs are likewise explicit: GCC `6afcc4f6da931eb93f3ab001a0dd9650ea71d1ea`, `glxgears-newos` `5a890511567cb8dc3da5bed7c409aeb51f7653d3`, TinyGL `c2e48591a6bfba1a85f1b87a78dcf1abf7dff57a`.
+The superproject uses Git gitlinks (not branch names) to pin `NEWOS-kernel` `711b9097ab989c67dbe3961147b2ce1d19802bf4`, `NEWOS-userland` `3d5c36b567979507db291fda0835546cea508894`, `NEWOS-toolchain` `93745ade464ae04e5e18bc594ad130b4679ab50b`, and `NEWOS-ports` `9514ef27092ae40c1966e9ea39c2195233614ef5`. Nested refs are likewise explicit: `glxgears-newos` `5a890511567cb8dc3da5bed7c409aeb51f7653d3`, TinyGL `c2e48591a6bfba1a85f1b87a78dcf1abf7dff57a`. (The former `toolchain/upstream-gcc` GCC submodule was removed; `toolchain/build.sh` fetches the GCC release tarball instead.)
 
 Component content was imported as source snapshots from the existing NEWOS PR branch; the original monorepo history was not rewritten into each new repository.

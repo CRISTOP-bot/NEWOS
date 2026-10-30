@@ -68,9 +68,10 @@ make check-newpkg    # optional test suite
 ```
 
 `make bootstrap` can be run alone to fetch all first-party and nested source
-modules without compiling. This includes the pinned GCC source checkout,
-glxgears-newos, and TinyGL; submodules are checked out at recorded SHAs,
-not updated to floating branch heads.
+modules without compiling. This includes glxgears-newos and TinyGL; submodules
+are checked out at recorded SHAs, not updated to floating branch heads. GCC is
+not a submodule: `toolchain/build.sh` downloads the official GCC 16.1.0 release
+tarball when the cross toolchain is built.
 
 The desktop is built entirely from NEWOS code: `desktop_surface` (clipped XRGB
 canvas) and `desktop_widgets` (button, progress, scrollbar, separator) feed a

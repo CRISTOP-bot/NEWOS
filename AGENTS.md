@@ -25,7 +25,9 @@ before touching kernel internals.
   which re-detaches submodule HEADs to the pinned SHAs. Land submodule commits
   and bump the pin **before** rerunning full `make`/`bootstrap` to avoid losing
   your HEAD position (commits remain in reflog).
-- `toolchain/upstream-gcc` is gigabytes; `make bootstrap-fast` fetches only
+- `toolchain/upstream-gcc` no longer exists: GCC sources are downloaded as
+  the official release tarball by `toolchain/build.sh`; `make bootstrap-fast`
+  fetches only
   `kernel`, `userland`, `ports`.
 
 ## Commands (from repo root; full list: `make help`)

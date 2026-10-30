@@ -28,10 +28,10 @@ filters (`fork`/`execve` do not exist). See `ports/nano/README.md`.
 
 `toolchain/` builds a host-executed `x86_64-elf` cross compiler used to build
 NEWOS itself. It is not an executable that runs in NEWOS, and it is the only
-GCC in the project. Its GCC source is pinned as the optional, shallow
-`toolchain/upstream-gcc` submodule at the GCC 16.1.0 release commit;
-`toolchain/build.sh` uses it when initialized and version-matched, otherwise
-it retains the release-tarball fallback.
+GCC in the project. Its GCC source is the official GCC 16.1.0 release tarball,
+downloaded and verified by `toolchain/build.sh` on demand (the former optional
+`toolchain/upstream-gcc` submodule was removed); pinned versions for binutils,
+GCC, and newlib live in that script.
 
 The on-system compiler is **TinyCC**, not GCC: `/bin/tcc` is TinyCC 0.9.27
 (LGPL-2.1-or-later) built from the vendored fork in `ports/tcc`. `tcc -c`

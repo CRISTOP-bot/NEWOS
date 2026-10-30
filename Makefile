@@ -811,8 +811,7 @@ bootstrap:
 
 # Fast local alternative: bootstrap only the sources the system image uses,
 # then build the Limine ISO with host gcc/ld. It deliberately skips the cross
-# toolchain (including toolchain/upstream-gcc, whose repository is gigabytes)
-# and the optional graphics demo.
+# toolchain and the optional graphics demo.
 bootstrap-fast:
 	$(Q)git -C "$(CURDIR)" rev-parse --show-toplevel >/dev/null 2>&1 || { echo "ERROR: run make from a Git checkout of NEWOS" >&2; exit 1; }
 	$(Q)git submodule sync --recursive -- kernel userland ports
