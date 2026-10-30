@@ -5,7 +5,7 @@
   const input = document.getElementById("demo-in-field");
   if (!out || !input) return;
   const t0 = Date.now();
-  const TOOLS = "ls cat echo mkdir rmdir rm touch pwd clear uname hostname whoami id date uptime ps kill sleep free df wc head grep sort img vid ltest about newfetch desktop newpkg hello sh".split(" ");
+  const TOOLS = "ls cat echo mkdir rmdir rm touch pwd clear uname hostname whoami id date uptime ps kill sleep free df wc head grep sort img vid about newfetch desktop newpkg nano tcc voxel hello sh".split(" ");
   const FILES = {
     "/etc/hostname": "newos",
     "/etc/version": "NEWOS 0.3.0-gui",
@@ -67,7 +67,9 @@
     about: () => "NEWOS - a from-scratch x86_64 operating system\nversion: NEWOS 0.3.0-gui\nhost: newos\nmemory: 126 MiB total / 115 MiB free\n" + uptime() + "\nlicense: MIT",
     newfetch: () => newfetch(),
     hello: () => "Hello from ring 3! (demo)",
-    ltest: () => "libc self-test: string PASS, stdio PASS, heap PASS → exit 0",
+    nano: () => "nano 8.4: editor a pantalla completa (Ctrl+O guardar, Ctrl+X salir). Solo en el NEWOS real.",
+    tcc: () => "tcc 0.9.27: compila, ensambla y enlaza dentro de NEWOS contra el SDK. Solo en el NEWOS real.",
+    voxel: () => "VOXEL (MIT): stack gráfico software + escritorio clásico. Ratón PS/2, taskbar y apps in-process. Solo en el NEWOS real.",
     newpkg: (a) => {
       if (a[0] === "list") return "hello-new 1.0.0";
       if (a[0] === "files") return "/bin/hello-new";

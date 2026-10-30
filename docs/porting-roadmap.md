@@ -9,50 +9,57 @@ that an architecture or program can boot and run.
 
 ### Nano
 
-`nano` currently resolves to the existing Kilo editor ELF in the build. It is
-not GNU nano. Kilo offers basic terminal editing, but the alias must not be
-presented as a GNU nano port. BoredOS contains Kilo (BSD-2-Clause), not GNU
-nano. A genuine nano port needs a terminal/termios compatibility layer,
-signals and a sufficiently complete libc; NEWOS currently has only a limited
-subset. GNU nano is GPL-3.0-or-later, so its source and notices must be kept
-with the port and distributed in a way compatible with that license.
+`/bin/nano` is a genuine GNU nano (8.4, GPL-3.0-or-later) port, not an alias:
+the vendored fork lives in `ports/nano`, the binary is a static musl
+`ET_EXEC` built with a static ncursesw (fallback `linux`/`xterm` terminfo
+compiled in), and it runs through the Linux `syscall` entry like
+`/bin/busybox`. The terminal work it needed is in the kernel: `pselect6`/
+`select`/`poll` readiness with timeouts, `fsync`/`fdatasync` as no-op
+successes, `chmod`/`fchmod` recorded on the inode, and `readlink` returning
+`-EINVAL` so realpath works without symlinks. fbcon implements the ANSI/VT100
+subset ncurses emits (SGR 16/256 colors, bold, reverse, cursor movement,
+erase/insert/delete line and chars) and paints a real reverse-video block
+cursor. GNU nano replaces the retired Kilo editor at `/bin/nano`; initramfs
+installs `/usr/etc/nanorc` with autoindent, line numbers and C/C++/shell/
+Makefile/nanorc highlighting. Limits: no spell checker and no external
+filters (`fork`/`execve` do not exist). See `ports/nano/README.md`.
 
-### GCC
+### Compilers
 
-`toolchain/` builds a host-executed `x86_64-elf` cross compiler for kernel
-development. It is not an executable that runs in NEWOS. Its GCC source is
-pinned as the optional, shallow `toolchain/upstream-gcc` submodule at the GCC
-16.1.0 release commit; `toolchain/build.sh` uses it when initialized and
-version-matched, otherwise it retains the release-tarball fallback. A native
-GCC port needs a hosted target toolchain and substantial OS support:
-reliable process creation and `exec`, large per-process virtual address spaces,
-`mmap`, signals, filesystem operations, terminal support, and a usable hosted
-libc. NEWOS is
-missing several of these pieces. The practical bootstrap order is:
+`toolchain/` builds a host-executed `x86_64-elf` cross compiler used to build
+NEWOS itself. It is not an executable that runs in NEWOS, and it is the only
+GCC in the project. Its GCC source is pinned as the optional, shallow
+`toolchain/upstream-gcc` submodule at the GCC 16.1.0 release commit;
+`toolchain/build.sh` uses it when initialized and version-matched, otherwise
+it retains the release-tarball fallback.
 
-1. Complete process and virtual-memory interfaces and broaden the libc.
-2. Port a small self-hosted compiler such as TCC as an intermediate compiler.
-3. Build a NEWOS-targeting binutils and GCC cross toolchain on the host.
-4. Only then attempt native GCC, its assembler/linker tools, and compiler test
-   suite inside NEWOS.
+The on-system compiler is **TinyCC**, not GCC: `/bin/tcc` is TinyCC 0.9.27
+(LGPL-2.1-or-later) built from the vendored fork in `ports/tcc`. `tcc -c`
+writes x86-64 ELF objects, and `tcc -nostdlib -run /etc/tcc-hello.c` compiles,
+relocates and runs a freestanding program **in the same process** — no
+`fork`/`execve` needed. TCC's x86-64 image base (`0x400000`) matches the NEWOS
+user load address. A full `tcc hello.c -o hello` link needs the NEWOS SDK
+(headers, `crt0.o`, `libc.a`) on board; that package is built by `make sdk-pkg`
+and embedded at `/tmp/newos-sdk.new`. TCC is not GCC: no C++/Objective-C, no
+full libtcc1, and no programs that need libc without the SDK.
 
-BoredOS has TCC, which is a credible intermediate port candidate. Its local
-manifest identifies it as LGPLv2; preserve the upstream license, notices, and
-any source modifications with the port. This does not make TCC equivalent to
-GCC, and it is not yet integrated into NEWOS.
+A native GCC port is **not planned**: it needs a hosted target toolchain and
+substantial OS support (reliable `fork`/`exec`, large address spaces, signals,
+a hosted libc), while TCC already compiles and runs code on the machine. See
+`ports/tcc/README.md`.
 
 ## BoredOS port inventory
 
 | BoredOS component | NEWOS status | Next useful action |
 | --- | --- | --- |
-| Kilo | Existing editor; `nano` is a build alias for it | Keep the distinction explicit; add genuine GNU nano after terminal/libc work |
+| Kilo | Retired; GNU nano 8.4 is `/bin/nano` | No action (see `ports/nano/README.md`) |
 | Lua | `user/programs/lua/` exists | Audit runtime coverage and package integration |
 | TinyGL | `ports/glxgears-newos` builds a real 300-frame demo; `/bin/glxgears` is embedded in every ISO | Keep the NEWOS math/libc shim small; audit TinyGL for larger demos |
 | GNU coreutils | Static musl package installs under `/usr/bin` and runs through the Linux `syscall` entry (tested `echo`, `arch`, `true`); individual tools may still need missing Linux interfaces | Document per-tool limits; a real NEWOS libc port remains the long-term path |
-| TCC | Not ported | Best first on-device compiler candidate; audit LGPLv2 source and libc/ELF needs |
+| TCC | Ported: `/bin/tcc` 0.9.27 (LGPL-2.1), `-c` + in-process `-run` | SDK package (headers/crt0/libc.a) for full links; keep license/source with `ports/tcc` |
+| GNU nano | Ported: `/bin/nano` 8.4 (GPL-3.0+), static ncursesw, kernel select/fsync/chmod support, fbcon colors and `/usr/etc/nanorc` syntax highlighting | Spell checker and external filters stay out until fork/exec exists |
 | AHCI and ext4 | NEWOS has AHCI and ext4 source trees, but storage is not a complete persistent user-facing system | Finish block-device/VFS integration and persistence before relying on disk-backed toolchains |
 | e1000, RTL8139, VirtIO and lwIP | NEWOS has a PCnet driver and loopback self-test, but no IP stack or socket ABI | Port concepts and tests selectively; implement the network stack before promising BoredOS-compatible networking |
-| Nova compositor, desktop apps and games | NEWOS has a framebuffer blit ABI, PS/2 pointer state, foreground keyboard/fbcon ownership and a six-window NTK alpha (`WNOVA`), but no shared-memory/window protocol | Revisit after a stable surface/IPC ABI exists; the current `desktop` remains a self-contained compositor |
 
 BoredOS is GPL-3.0. Its kernel and userland code must not be copied into the
 proprietary NEWOS codebase without resolving the project's licensing model.

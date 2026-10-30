@@ -39,7 +39,12 @@ The x86_64 kernel reaches `BUILD=PASS`, `BOOT=PASS`, and `QEMU=PASS`:
   exposes kernel identity and the PCI inventory.
 - Complete static BusyBox 1.35.0 at `/bin/busybox` (402 applets) through the
   Linux-compatible x86-64 `syscall` entry, plus a built-in `/bin/glxgears`
-  TinyGL demo and six-window Nova NTK alpha desktop.
+  TinyGL demo and a five-window Win95-style desktop.
+- `/bin/nano` — genuine GNU nano 8.4 on a static ncursesw, with colors, line
+  numbers and syntax highlighting on the framebuffer console — and `/bin/tcc` —
+  TinyCC 0.9.27, which compiles objects and can compile-and-run a freestanding
+  program in place (`tcc -nostdlib -run /etc/tcc-hello.c`). Both are vendored
+  forks under `ports/` (see `ports/nano/README.md`, `ports/tcc/README.md`).
 
 ## Build & run
 
@@ -63,24 +68,24 @@ The ISO defaults to a plain text `nsh` session. The Limine menu exposes a
 separate **NEWOS (GUI)** entry (`gui=1`); `make qemu-limine-gui` boots
 with `gui=1` directly for visual checks, and `/bin/desktop` can also be
 started from `nsh`. `Ctrl+Q` (or closing the last window) returns to a
-clean shell. The desktop has six draggable/resizable windows — System,
-Files, Mouse, About, Log and the Nova NTK preview — plus a dock, live
-clock/memory readouts, a `/bin` launcher and BoredOS/Win95 themes. It owns
-the PS/2 keyboard while active: `Tab` cycles windows, `1`–`6` focus one,
+clean shell. The desktop has five draggable/resizable windows — System,
+Files, Mouse, About and Log — plus a dock, live clock/memory readouts, a
+`/bin` launcher and Midnight/Win95 themes. It owns the PS/2 keyboard while
+active: `Tab` cycles windows, `1`–`5` focus one,
 arrows select a program, `Enter` runs it and `?` shows the shortcut card.
 Serial input stays with the shell, and `gui=0` (or `test_mode=1`) keeps a
 plain text session. See [`docs/boot.md`](docs/boot.md)
 and [`docs/abi.md`](docs/abi.md).
 
-Nova from BoredOS is the intended graphical direction and is pinned under
-`ports/nova`. The active NEWOS desktop uses a modular, GPL-3.0-only,
-integer-based NTK slice (color, gradients, painter, style, progress, button,
-scrollbar and separator) plus a damage-based compositor; the upstream Nova
-compositor, protocol, widget tree and window-manager runtime are not yet
-operational. Compatibility and the alpha scope are documented in
-[`docs/nova-porting.md`](docs/nova-porting.md). `glxgears` is built into the
-image at `/bin/glxgears`; the standalone `build/userland/glxgears-newos.elf`
-and `.new` package remain available for explicit port work.
+The desktop is self-contained NEWOS code: a clipped XRGB surface
+(`desktop_surface`), caller-owned widgets (`desktop_widgets`) and a
+damage-based compositor. The MIT [VOXEL](https://github.com/CRISTOP-bot/voxel)
+software graphics stack is vendored under `ports/voxel` (built by
+`scripts/build-voxel.sh`) and shipped as `/bin/voxel`, a standalone
+classic-desktop demo; it is the graphics direction but not yet the session
+shell. `glxgears` is built into the image at `/bin/glxgears`; the
+standalone `build/userland/glxgears-newos.elf` and `.new` package remain
+available for explicit port work.
 
 `/bin/busybox` is the official static BusyBox 1.35.0 build (402 applets).
 `nsh` runs unshadowed command names through `/bin/busybox <applet>` because

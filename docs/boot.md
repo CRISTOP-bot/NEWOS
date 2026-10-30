@@ -17,7 +17,7 @@ what the boot manager already did:
   runs, snapshots the first framebuffer and rejoins the common
   `kernel_boot_tail`. Only this path enables graphics (`fbcon`, `img`, `vid`,
   `glxgears` and `desktop`); the other two keep VGA text + serial. The Limine
-  menu shows a 2-second branded screen at 1280x800 with the BoredOS/Win95
+  menu shows a 2-second branded screen at 1280x800 with the NEWOS/Win95
   wallpaper and `interface_branding`, with two entries: **NEWOS (text
   shell)** (the default) and **NEWOS (GUI)**.
 
@@ -71,10 +71,10 @@ prompt. A missing framebuffer or a failed spawn leaves the shell in place, so
 graphics can never strand the machine.
 
 The desktop owns the PS/2 keyboard through `SYS_KBD_GRAB`/`SYS_KBD_READ`
-while it runs. `Tab` cycles windows, `1`–`6` focus one, arrows move through
+while it runs. `Tab` cycles windows, `1`–`5` focus one, arrows move through
 `/bin`, `Enter` runs the selected program, `?` toggles the help card and
 `Ctrl+Q` exits. Mouse drag, focus, resize, maximize, minimize, close, wheel
-scrolling, the `FILES` launcher and the Nova preview buttons work as before.
+scrolling and the `FILES` launcher work as before.
 Serial input remains available to the shell at all times. The compositor only
 repaints and uploads dirty rectangles; startup, theme changes and structural
 layout changes are the only full-screen redraws. The cursor is a staging-buffer

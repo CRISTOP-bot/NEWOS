@@ -14,8 +14,8 @@
 #   make clean       - remove build/ artifacts (not source modules or toolchain)
 #
 # All source checkouts and generated files stay under this repository.
-# Nova is downloaded as a pinned source; only the modular NTK slice is built
-# into the NEWOS desktop. The upstream compositor/protocol remain unported.
+# The desktop is built from NEWOS code (desktop_surface/desktop_widgets);
+# no external compositor or widget toolkit is fetched.
 # Host packages listed in docs/build.md remain prerequisites.
 #
 # Options: V=0 (short log), V=1 (full commands, default),
@@ -165,13 +165,25 @@ LIB_SRCS        := lib/kernel/iru_bitmap.c lib/kernel/iru_format.c \
                    lib/kernel/iru_ringbuf.c lib/kernel/iru_string.c
 
 # libc: freestanding C library for userland (POSIX I/O, heap, mmap, termios).
-# Built as a static archive; programs opt in (see ltest link rule).
+# Built as a static archive; programs opt in (see the frotz link rule).
 LIBC_SRCS       := libc/src/string.c libc/src/stdlib.c \
                    libc/src/stdio.c libc/src/malloc.c libc/src/unistd.c \
-                   libc/src/syscall.c libc/src/mman.c libc/src/errno.c libc/src/time.c \
-                   libc/src/signal.c libc/src/termios.c libc/src/ioctl.c
-LIBC_OBJS       := $(patsubst %.c,$(BUILD_DIR)/obj/%.o,$(LIBC_SRCS))
-LIBC_HEADERS    := $(wildcard libc/include/*.h libc/include/sys/*.h)
+                   libc/src/syscall.c libc/src/mman.c libc/src/errno.c \
+                   libc/src/signal.c libc/src/termios.c libc/src/ioctl.c \
+                   libc/src/setjmp.c libc/src/locale.c
+# Floating point is confined to these libc objects: the userland policy is
+# integer-only (-mgeneral-regs-only), and they are the only exceptions, compiled
+# with that flag filtered out exactly like the TinyGL port. Everything else in
+# libc.a reaches them through plain integer-callable entry points
+# (__fcvt, strtod, the math functions), so a program that never asks for a
+# float conversion never executes an FP instruction. time.c is here for one
+# reason: difftime returns a double, which needs an FP return register.
+LIBC_FP_SRCS    := libc/src/math.c libc/src/printf_flo.c libc/src/strtod.c \
+                   libc/src/time.c
+FP_CFLAGS       = $(filter-out -mgeneral-regs-only,$(USER_CFLAGS))
+LIBC_OBJS       := $(patsubst %.c,$(BUILD_DIR)/obj/%.o,$(LIBC_SRCS) $(LIBC_FP_SRCS))
+LIBC_HEADERS    := $(wildcard libc/include/*.h libc/include/sys/*.h \
+                          libc/src/*.h)
 LIBC_A          := $(BUILD_DIR)/userland/libc.a
 # Top-level sysroot: the C SDK lives at sysroot/usr/{include,lib} (see
 # sysroot/README.md).  `make sdk` (re)populates it in-tree; toolchain/
@@ -216,34 +228,35 @@ PPM_EMBED       := $(BUILD_DIR)/obj/userland/testppm.bin.o
 # with a standard main(argc, argv). Installed into the root fs by initramfs.
 PROG_NAMES      := ls cat echo mkdir rmdir rm mv touch pwd clear uname \
                     hostname whoami id date uptime ps kill sleep free df \
-                    wc head grep find sort img vid ltest about newfetch desktop newpkg kilo frotz
+                    wc head grep find sort img vid about newfetch desktop newpkg frotz
 PROG_OBJS       := $(patsubst %,$(BUILD_DIR)/userland/%.o,$(PROG_NAMES))
 PROG_BINS       := $(patsubst %,$(BUILD_DIR)/userland/%.elf,$(PROG_NAMES))
 PROG_EMBEDS     := $(patsubst %,$(BUILD_DIR)/obj/userland/%.bin.o,$(PROG_NAMES))
-NANO_BIN        := $(BUILD_DIR)/userland/nano.elf
+# Host-built static Linux/musl programs (same model as /bin/busybox). Their
+# sources live in ports/tcc and ports/nano; the checked-in binaries keep a
+# normal image build offline. See scripts/build-tcc.sh / build-nano.sh.
+NANO_BIN        := ports/nano/nano
 NANO_EMBED      := $(BUILD_DIR)/obj/userland/nano.bin.o
+TCC_BIN         := ports/tcc/tcc
+TCC_EMBED       := $(BUILD_DIR)/obj/userland/tcc.bin.o
+# VOXEL (MIT): software graphics stack + classic desktop. Built from the
+# vendored source with the host compiler against the NEWOS sysroot.
+VOXEL_DIR       := ports/voxel
+VOXEL_SRCS      := $(wildcard $(VOXEL_DIR)/demo/*.c $(VOXEL_DIR)/src/*/*.c \
+                     $(VOXEL_DIR)/src/*/*/*.c $(VOXEL_DIR)/apps/*/*.c)
+VOXEL_BIN       := $(BUILD_DIR)/voxel.elf
+VOXEL_EMBED     := $(BUILD_DIR)/obj/userland/voxel.bin.o
 
 # newpkg carries a second translation unit: the portable `.new` format core
-# (shared with the host test driver). Linked explicitly like ltest+libc.
+# (shared with the host test driver). Linked explicitly with libc.a.
 NEWPKG_FORMAT_OBJ := $(BUILD_DIR)/userland/newpkg_format.o
 
-# Nova-derived, integer-only NTK slice used by the NEWOS desktop. Every module
-# is caller-owned and allocation-free; the desktop composes through this
-# painter/style/widget layer instead of ad-hoc drawing helpers.
-NOVA_NTK_DIR      := user/programs/desktop/nova
-NOVA_NTK_SRCS     := ntk_color.c ntk_gradient.c ntk_painter.c ntk_style.c \
-                     ntk_progress.c ntk_button.c ntk_scrollbar.c \
-                     ntk_separator.c
-NOVA_NTK_OBJS     := $(patsubst %.c,$(BUILD_DIR)/userland/nova_%.o,$(NOVA_NTK_SRCS))
-NOVA_NTK_HEADERS  := $(NOVA_NTK_DIR)/ntk_color.h \
-                     $(NOVA_NTK_DIR)/ntk_types.h \
-                     $(NOVA_NTK_DIR)/ntk_gradient.h \
-                     $(NOVA_NTK_DIR)/ntk_painter.h \
-                     $(NOVA_NTK_DIR)/ntk_style.h \
-                     $(NOVA_NTK_DIR)/ntk_progress.h \
-                     $(NOVA_NTK_DIR)/ntk_button.h \
-                     $(NOVA_NTK_DIR)/ntk_scrollbar.h \
-                     $(NOVA_NTK_DIR)/ntk_separator.h
+# Desktop drawing layer: one clipped XRGB surface plus caller-owned widgets.
+# Both are NEWOS code (integer-only, allocation-free) and are compiled by the
+# desktop pattern rule below.
+DESKTOP_UI_SRCS   := desktop_surface.c desktop_widgets.c
+DESKTOP_UI_HEADERS := user/programs/desktop/desktop_surface.h \
+                      user/programs/desktop/desktop_widgets.h
 
 # Desktop modules. desktop_main.c stays the entry point; the rest is split by
 # responsibility so the compositor, shell and applications can evolve without
@@ -251,7 +264,7 @@ NOVA_NTK_HEADERS  := $(NOVA_NTK_DIR)/ntk_color.h \
 DESKTOP_DIR       := user/programs/desktop
 DESKTOP_SRCS      := desktop_state.c desktop_gfx.c desktop_wm.c desktop_theme.c \
                      desktop_shell.c desktop_apps.c desktop_input.c \
-                     desktop_compositor.c
+                     desktop_compositor.c $(DESKTOP_UI_SRCS)
 DESKTOP_OBJS      := $(patsubst %.c,$(BUILD_DIR)/userland/%.o,$(DESKTOP_SRCS))
 
 # Sample `.new` package embedded for live QEMU exercises (/tmp/*.new).
@@ -276,6 +289,12 @@ NSH_RC_SRC        := user/rootfs/nsh.rc
 NSH_RC            := $(BUILD_DIR)/nsh.rc
 NSH_RC_EMBED      := $(BUILD_DIR)/obj/userland/nsh_rc.bin.o
 
+# System nano configuration. nano's compiled-in SYSCONFDIR is /usr/etc, so
+# initramfs installs this blob as /usr/etc/nanorc (syntax colors + defaults).
+NANORC_SRC        := user/rootfs/nanorc
+NANORC            := $(BUILD_DIR)/nanorc
+NANORC_EMBED      := $(BUILD_DIR)/obj/userland/nanorc.bin.o
+
 # --- GNU tools (host-built, static musl) ---------------------------------
 # The optional upstream GNU package is cross-built on the host against musl.
 # These static Linux ET_EXEC files can be mapped by elf_loader.c, but their
@@ -295,6 +314,14 @@ GNU_STAGE_INPUTS := $(wildcard $(GNU_STAGE)/*)
 GNU_PKG_VERSION := 9.7
 GNU_PKG         := $(BUILD_DIR)/gnu-coreutils.new
 GNU_PKG_EMBED   := $(BUILD_DIR)/obj/userland/gnu_coreutils.bin.o
+
+# NEWOS C SDK package: the generated sysroot (libc headers, libc.a, libnsh.a,
+# crt0.o, app.ld) plus TinyCC's own include/ directory, packed with the same
+# `.new` builder the package manager uses and staged at /tmp. Installing it
+# is what turns `/bin/tcc -c` into a full on-board compile+link:
+#   newpkg install /tmp/newos-sdk.new
+SDK_PKG         := $(BUILD_DIR)/newos-sdk.new
+SDK_PKG_EMBED   := $(BUILD_DIR)/obj/userland/newos_sdk.bin.o
 
 # Complete upstream BusyBox (official 1.35.0 x86_64-linux-musl build,
 # 402 applets).  It is a static ET_EXEC and now runs on NEWOS through the
@@ -334,6 +361,17 @@ $(GNU_PKG_EMBED): $(GNU_PKG)
 	$(E) "  GEMB $(notdir $<)"
 	$(Q)cd $(BUILD_DIR) && $(LD) -r -b binary -o obj/userland/gnu_coreutils.bin.o gnu-coreutils.new
 
+# SDK archive: depends on the generated sysroot, so `make` populates it first.
+$(SDK_PKG): $(SDK_HEADERS) $(SDK_LIBC) $(SDK_LIBNSH) $(SDK_CRT0) $(SDK_LD) \
+    scripts/pack-sdk.sh tools/newpkg/newpkg-build.py | dirs
+	$(E) "  SDK $(notdir $@)"
+	$(Q)bash scripts/pack-sdk.sh $(SDK_ROOT) $@ $(NEWOS_VERSION)
+
+$(SDK_PKG_EMBED): $(SDK_PKG)
+	$(Q)mkdir -p $(dir $@)
+	$(E) "  EMB newos-sdk.new"
+	$(Q)cd $(BUILD_DIR) && $(LD) -r -b binary -o obj/userland/newos_sdk.bin.o newos-sdk.new
+
 # The binary is an opaque ET_EXEC blob (not linked into the kernel); only the
 # initramfs copies it to /bin/busybox.  Keep the embed name stable for the
 # _binary_busybox_elf_* symbols used by the VFS initializer.
@@ -364,7 +402,7 @@ ports-assets:
 # $(KERNEL_BIN) goes the same way: `make all` reaches it through the ISO
 # chain, and a plain `make all` would otherwise remove the -kernel image
 # that `make qemu`/scripts/qemu-shell.py boot.
-.SECONDARY: $(PROG_BINS) $(NANO_BIN) $(GLXGEARS_BIN) $(KERNEL_BIN)
+.SECONDARY: $(PROG_BINS) $(GLXGEARS_BIN) $(KERNEL_BIN)
 
 OBJS_C          := $(patsubst %.c,$(BUILD_DIR)/obj/%.o,$(KERNEL_SRCS_C) $(ARCH_SRCS_C))
 OBJS_ASM        := $(patsubst %.S,$(BUILD_DIR)/obj/%.o,$(ARCH_SRCS_ASM))
@@ -372,7 +410,8 @@ OBJS            := $(OBJS_C) $(OBJS_ASM) $(HELLO_EMBED) $(INIT_EMBED) \
                    $(PROG_EMBEDS) $(SPLASH_EMBED) $(PPM_EMBED) \
                    $(SAMPLE_NEW_EMBED) $(NSH_RC_EMBED) $(GNU_PKG_EMBED) \
                    $(NANO_EMBED) $(BUSYBOX_EMBED) $(GLXGEARS_EMBED) \
-                   $(MINI_Z3_EMBED)
+                   $(TCC_EMBED) $(VOXEL_EMBED) $(SDK_PKG_EMBED) $(MINI_Z3_EMBED) \
+                   $(NANORC_EMBED)
 
 INCLUDE         := -Iinclude -I. -Ilib/kernel -Iarch/$(ARCH)/include \
                    -I$(BUILD_DIR)
@@ -457,29 +496,22 @@ $(BUILD_DIR)/userland/$(1).o: user/programs/$(1)/$(1)_main.c user/lib/nshlib.h
 endef
 $(foreach p,$(PROG_NAMES),$(eval $(call PROG_COMPILE_RULE,$(p))))
 
-# NTK modules are compiled separately and linked only into the desktop.
-$(BUILD_DIR)/userland/desktop.o: $(NOVA_NTK_HEADERS) \
+$(BUILD_DIR)/userland/desktop.o: $(DESKTOP_UI_HEADERS) \
     user/programs/desktop/font8x8.h user/programs/desktop/desktop.h
 
 $(BUILD_DIR)/userland/desktop_%.o: $(DESKTOP_DIR)/desktop_%.c \
-    $(DESKTOP_DIR)/desktop.h $(NOVA_NTK_HEADERS) \
+    $(DESKTOP_DIR)/desktop.h $(DESKTOP_UI_HEADERS) \
     user/programs/desktop/font8x8.h
 	$(Q)mkdir -p $(dir $@)
 	$(E) "  UCC $< (desktop module)"
 	$(Q)$(CC) $(USER_CFLAGS) -o $@ $<
 
-$(BUILD_DIR)/userland/nova_%.o: $(NOVA_NTK_DIR)/%.c $(NOVA_NTK_HEADERS) \
-    user/programs/desktop/font8x8.h
-	$(Q)mkdir -p $(dir $@)
-	$(E) "  UCC $< (Nova NTK)"
-	$(Q)$(CC) $(USER_CFLAGS) -I$(NOVA_NTK_DIR) -o $@ $<
-
 $(BUILD_DIR)/userland/desktop.elf: $(BUILD_DIR)/userland/desktop.o \
-    $(DESKTOP_OBJS) $(NOVA_NTK_OBJS) $(NSHLIB_OBJ) $(START_OBJ) $(APP_LD)
+    $(DESKTOP_OBJS) $(NSHLIB_OBJ) $(START_OBJ) $(APP_LD)
 	$(Q)mkdir -p $(dir $@)
-	$(E) "  ULD $@ +Nova NTK"
+	$(E) "  ULD $@"
 	$(Q)$(LD) -n -static -nostdlib -T $(APP_LD) -o $@ \
-	  $(BUILD_DIR)/userland/desktop.o $(DESKTOP_OBJS) $(NOVA_NTK_OBJS) \
+	  $(BUILD_DIR)/userland/desktop.o $(DESKTOP_OBJS) \
 	  $(NSHLIB_OBJ) $(START_OBJ)
 
 # --- TinyGL glxgears ---------------------------------------------------
@@ -520,22 +552,37 @@ $(BUILD_DIR)/obj/userland/%.bin.o: $(BUILD_DIR)/userland/%.elf
 	$(E) "  EMB $<"
 	$(Q)cd $(BUILD_DIR) && $(LD) -r -b binary -o obj/userland/$*.bin.o $*.elf
 
-# nano is the familiar command name for the already-ported Kilo terminal
-# editor. Reuse the same tested binary instead of carrying a second fork.
-$(NANO_BIN): $(BUILD_DIR)/userland/kilo.elf
-	$(Q)mkdir -p $(dir $@)
-	$(Q)cp $< $@
-
+# GNU nano and tcc are checked-in static Linux/musl binaries built from the
+# vendored forks in ports/. They are data blobs to the kernel: initramfs
+# exposes them as /bin/nano and /bin/tcc, and they run through the same
+# Linux-compatible SYSCALL path as /bin/busybox.
 $(NANO_EMBED): $(NANO_BIN)
 	$(Q)mkdir -p $(dir $@)
 	$(Q)cp $< $(BUILD_DIR)/nano.elf
-	$(E) "  EMB nano (Kilo editor)"
+	$(E) "  EMB nano ($(notdir $(NANO_BIN)))"
 	$(Q)cd $(BUILD_DIR) && $(LD) -r -b binary -o obj/userland/nano.bin.o nano.elf
+
+$(TCC_EMBED): $(TCC_BIN)
+	$(Q)mkdir -p $(dir $@)
+	$(Q)cp $< $(BUILD_DIR)/tcc.elf
+	$(E) "  EMB tcc ($(notdir $(TCC_BIN)))"
+	$(Q)cd $(BUILD_DIR) && $(LD) -r -b binary -o obj/userland/tcc.bin.o tcc.elf
+
+# VOXEL is NEWOS-native source (no libc dependency of its own): compile it
+# against the sysroot and expose the demo as /bin/voxel.
+$(VOXEL_BIN): $(VOXEL_SRCS) scripts/build-voxel.sh | $(SDK_LIBC) $(SDK_LIBNSH) $(SDK_CRT0) $(SDK_LD)
+	$(E) "  VOXEL $(notdir $@)"
+	$(Q)CC="$(CC)" bash scripts/build-voxel.sh $@
+
+$(VOXEL_EMBED): $(VOXEL_BIN)
+	$(Q)mkdir -p $(dir $@)
+	$(E) "  EMB voxel"
+	$(Q)cd $(BUILD_DIR) && $(LD) -r -b binary -o obj/userland/voxel.bin.o voxel.elf
 
 # --- newpkg: toolbox tool + portable format core -------------------------
 # newpkg_main.c comes from the data-driven rule above; the format core is
 # an extra object linked explicitly (explicit rules win over the pattern
-# rule, same mechanism as ltest+libc below).
+# rule, same mechanism as frotz+libc below).
 
 $(NEWPKG_FORMAT_OBJ): user/programs/newpkg/newpkg_format.c \
     user/programs/newpkg/newpkg_format.h user/lib/nshlib.h
@@ -584,6 +631,16 @@ $(BUILD_DIR)/obj/libc/%.o: libc/%.c $(LIBC_HEADERS) | dirs
 	$(E) "  UCC $<"
 	$(Q)$(CC) $(USER_CFLAGS) -o $@ $<
 
+# The FP-capable libc objects (math, float printf, strtod, time) override the
+# userland integer policy. The target must be the object, not the source.
+define LIBC_FP_RULE
+$(BUILD_DIR)/obj/$(1:.c=.o): $(1) $(LIBC_HEADERS) | dirs
+	$(Q)mkdir -p $$(dir $$@)
+	$(E) "  UFCC $$<"
+	$(Q)$$(CC) $$(FP_CFLAGS) -o $$@ $$<
+endef
+$(foreach f,$(LIBC_FP_SRCS),$(eval $(call LIBC_FP_RULE,$(f))))
+
 $(LIBC_A): $(LIBC_OBJS) | dirs
 	$(Q)mkdir -p $(dir $@)
 	$(E) "  AR  $@"
@@ -618,24 +675,16 @@ $(SDK_LD): user/lib/app.ld
 sdk: $(SDK_HEADERS) $(SDK_LIBC) $(SDK_LIBNSH) $(SDK_CRT0) $(SDK_LD)
 	$(E) "NEWOS sysroot ready: $(SDK_ROOT)"
 
-# ltest proves libc: same recipe as the toolbox pattern rule plus libc.a
-# (explicit rules win over pattern rules).
-$(BUILD_DIR)/userland/ltest.elf: $(BUILD_DIR)/userland/ltest.o \
-    $(NSHLIB_OBJ) $(START_OBJ) $(LIBC_A) $(APP_LD)
-	$(Q)mkdir -p $(dir $@)
-	$(E) "  ULD $@ +libc"
-	$(Q)$(LD) -n -static -nostdlib -T $(APP_LD) -o $@ $(filter %.o,$^) $(filter %.a,$^)
-$(BUILD_DIR)/userland/ltest.o $(BUILD_DIR)/userland/kilo.o: $(LIBC_HEADERS)
-$(BUILD_DIR)/userland/kilo.elf: $(BUILD_DIR)/userland/kilo.o \
-    $(NSHLIB_OBJ) $(START_OBJ) $(LIBC_A) $(APP_LD)
-	$(Q)mkdir -p $(dir $@)
-	$(E) "  ULD $@ +libc"
-	$(Q)$(LD) -n -static -nostdlib -T $(APP_LD) -o $@ $(filter %.o,$^) $(filter %.a,$^)
+# `.new` archive of the same sysroot, embedded at /tmp for the on-board tcc.
+sdk-pkg: $(SDK_PKG)
+	$(Q)ls -la $(SDK_PKG)
+
+.PHONY: sdk-pkg
 
 # --- frotz: Z-machine interpreter (upstream Frotz 2.44, GPL-2+) -----------
 # Ported source lives in user/programs/frotz/ (one TU per upstream file);
 # frotz_main.c is the NEWOS toolbox entry, frotz_run.c is the renamed
-# upstream main.c. Like ltest, it links NEWOS libc.a explicitly.
+# upstream main.c. It links NEWOS libc.a explicitly.
 # gnu99: upstream is ANSI C (typedef's bool, K&R-era syntax); the default
 # -std=c23 breaks it. -Wno-error=unterminated-string-initialization keeps
 # the upstream exact-6-byte game serial records intact. -fcommon: upstream
@@ -715,6 +764,18 @@ $(NSH_RC_EMBED): $(NSH_RC)
 	$(E) "  EMB $<"
 	$(Q)cd $(BUILD_DIR) && $(LD) -r -b binary -o obj/userland/nsh_rc.bin.o nsh.rc
 
+# System nanorc: copied under its fixed name so the blob symbol stays
+# nanorc -> _binary_nanorc_{start,end}.
+$(NANORC): $(NANORC_SRC)
+	$(Q)mkdir -p $(dir $@)
+	$(E) "  RC  $<"
+	$(Q)cp $< $@
+
+$(NANORC_EMBED): $(NANORC)
+	$(Q)mkdir -p $(dir $@)
+	$(E) "  EMB $<"
+	$(Q)cd $(BUILD_DIR) && $(LD) -r -b binary -o obj/userland/nanorc.bin.o nanorc
+
 # fb.c needs the generated font header.
 $(BUILD_DIR)/obj/drivers/graphics/fb.o: $(FONT_HDR)
 
@@ -723,7 +784,7 @@ $(BUILD_DIR)/obj/drivers/graphics/fb.o: $(FONT_HDR)
 # ---------------------------------------------------------------------------
 .PHONY: all bootstrap bootstrap-fast fast clean qemu qemu-debug qemu-test qemu-network qemu-disk iso \
         qemu-limine qemu-limine-gui qemu-limine-test limine toolchain sdk check-config dirs ports-assets \
-        lint-layers check-newpkg check-nova check-frotz check-web web brand qemu-shell \
+        lint-layers check-newpkg check-frotz check-web web brand qemu-shell \
         build-info help system-image-build \
         vbox vbox-setup vbox-test FORCE
 
@@ -740,7 +801,6 @@ all: bootstrap
 	$(Q)$(MAKE) --no-print-directory toolchain
 	$(Q)PATH="$(CURDIR)/toolchain/out/bin:$$PATH" $(MAKE) --no-print-directory CROSS_PREFIX=x86_64-elf- system-image-build
 	$(Q)PATH="$(CURDIR)/toolchain/out/bin:$$PATH" $(MAKE) --no-print-directory CROSS_PREFIX=x86_64-elf- glxgears-newos glxgears-pkg
-	$(Q)echo "Nova source is pinned under ports/nova; the NEWOS NTK alpha is built, the upstream compositor remains deferred."
 
 # Initialize every first-party and nested source repository at its pinned SHA.
 # Build products are kept in build/ and toolchain/out/ inside this checkout.
@@ -791,8 +851,9 @@ help:
 	@echo "  make qemu-network      boot with user-mode networking"
 	@echo "  make qemu-disk         boot from a 64 MiB raw disk image"
 	@echo "  make check-newpkg      package system tests (no QEMU needed)"
+	@echo "  make sdk               populate sysroot/ (headers, libc.a, crt0.o)"
+	@echo "  make sdk-pkg           pack the SDK as the .new embedded at /tmp"
 	@echo "  make glxgears-pkg      package the TinyGL demo as a native .new"
-	@echo "  make check-nova        Nova NTK color component host tests"
 	@echo "  make check-frotz       frotz port host tests (mini.z3 story)"
 	@echo "  make check-web         validate website links and assets"
 	@echo "  make web               serve web/ at http://localhost:8000"
@@ -832,27 +893,6 @@ check-newpkg: $(NEWPKG_SAMPLE_NEW) | dirs
 	  user/programs/newpkg/newpkg_main.c tools/newpkg/posix-shim.c
 	$(Q)NEWPKG_HOST_BIN=$(BUILD_DIR)/newpkg-host \
 	  python3 tools/newpkg/tests/test_newpkg.py
-
-# Exercise the adapted Nova NTK color API on the host. This complements, but
-# does not replace, the cross-compiled desktop build in `make all`.
-check-nova: | dirs
-	$(Q)gcc -std=c11 -Wall -Wextra -Werror \
-	  -o $(BUILD_DIR)/nova-ntk-color-test \
-	  user/programs/desktop/nova/ntk_color.c \
-	  user/programs/desktop/nova/tests/ntk_color_test.c
-	$(Q)$(BUILD_DIR)/nova-ntk-color-test
-	$(Q)gcc -std=c11 -Wall -Wextra -Werror \
-	  -o $(BUILD_DIR)/nova-ntk-widgets-test \
-	  user/programs/desktop/nova/ntk_color.c \
-	  user/programs/desktop/nova/ntk_gradient.c \
-	  user/programs/desktop/nova/ntk_painter.c \
-	  user/programs/desktop/nova/ntk_style.c \
-	  user/programs/desktop/nova/ntk_progress.c \
-	  user/programs/desktop/nova/ntk_button.c \
-	  user/programs/desktop/nova/ntk_scrollbar.c \
-	  user/programs/desktop/nova/ntk_separator.c \
-	  user/programs/desktop/nova/tests/ntk_widgets_test.c
-	$(Q)$(BUILD_DIR)/nova-ntk-widgets-test
 
 # check-frotz: host functional test for the /bin/frotz port (upstream
 # Frotz 2.44, GPL-2+). Compiles the ported units against the host libc

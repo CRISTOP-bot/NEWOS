@@ -21,10 +21,6 @@ reviews:
     enabled: true
     drafts: false
     auto_incremental_review: true
-    ignore_usernames:
-      - "coderabbitai[bot]"
-      - "dependabot[bot]"
-      - "renovate[bot]"
 
   finishing_touches:
     autofix:

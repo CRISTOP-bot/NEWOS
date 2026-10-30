@@ -50,9 +50,9 @@ builds the cross compiler by itself.
 `malloc`/`free`/`calloc`/`realloc` over a static 256 KiB arena (no `sbrk` yet:
 exhaustion returns NULL). `libc/src/math.c` is a small freestanding float shim
 used by TinyGL (`glxgears`); it is not a complete libm. Built as
-`build/userland/libc.a`; programs opt in via an explicit link rule (see
-`ltest`). The lint knows a `LIBC` class (`ABI` + self only); the kernel never
-imports it.
+`build/userland/libc.a`; programs opt in via an explicit link rule (see the
+frotz port). The lint knows a `LIBC` class (`ABI` + self only); the kernel
+never imports it.
 
 ## Repository components and bootstrap
 
@@ -69,17 +69,13 @@ make check-newpkg    # optional test suite
 
 `make bootstrap` can be run alone to fetch all first-party and nested source
 modules without compiling. This includes the pinned GCC source checkout,
-Nova, glxgears-newos, and TinyGL; submodules are checked out at recorded SHAs,
+glxgears-newos, and TinyGL; submodules are checked out at recorded SHAs,
 not updated to floating branch heads.
 
-Nova is pinned as `ports/nova`; full `make` fetches that source but
-intentionally does not compile the upstream compositor until its BoredOS-specific
-SDK, framebuffer/VT, UNIX-socket, shared-memory, process, and threading interfaces
-have real NEWOS adapters. The active desktop incorporates the modular NTK slice
-(painter, style, color, gradient, progress, button, scrollbar, separator) and a
-damage-based compositor described in [`nova-porting.md`](nova-porting.md);
-it provides six windows, including the Nova NTK preview. Nova's upstream
-compositor, protocol, widgets and window manager remain unported. Both `make`
+The desktop is built entirely from NEWOS code: `desktop_surface` (clipped XRGB
+canvas) and `desktop_widgets` (button, progress, scrollbar, separator) feed a
+damage-based compositor, and it provides five windows. No external widget
+toolkit or compositor source is linked into it. Both `make`
 and `make fast` compile `glxgears-newos` with its pinned TinyGL source, embed
 it as `/bin/glxgears`, and leave `build/userland/glxgears-newos.elf` for direct
 inspection; `make glxgears-pkg` also creates its `.new` package. The demo uses
@@ -102,10 +98,11 @@ make qemu-limine-test  self-tests through the Limine ISO (exit 1 = PASS)
 make qemu-limine      boot the Limine ISO (text shell; GUI is a menu entry)
 make qemu-limine-gui  boot the Limine GUI entry (gui=1)
 make glxgears-pkg   build the standalone TinyGL .new package
-make check-nova     Nova NTK color + widget host tests
 make qemu-network   boot with user-mode networking
 make qemu-disk      boot from a 64 MiB raw disk image
 make check-newpkg   package system tests (C unit driver + end-to-end suite)
+make sdk            populate sysroot/ (libc headers, libc.a, libnsh.a, crt0.o, app.ld)
+make sdk-pkg        pack that sysroot as the .new embedded at /tmp for /bin/tcc
 make lint-layers    enforce the dependency contract only
 make help           list targets and options
 make check-config   verify configs/<arch>/debug.config exists

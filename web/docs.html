@@ -91,7 +91,7 @@ NEWOS: boot complete.</pre>
 <h3 class="sec" id="shell">Shell nsh y gráficos userland</h3>
 <div class="grid g2">
 <div class="card"><h3>nsh (/init, /bin/sh · 534 líneas)</h3><p>Edición UTF-8: flechas, Home/End, Delete, historial 16, <kbd>Ctrl</kbd>+<kbd>A</kbd>/<kbd>E</kbd>/<kbd>U</kbd>/<kbd>W</kbd>/<kbd>K</kbd>/<kbd>Y</kbd>/<kbd>V</kbd>/<kbd>C</kbd>/<kbd>D</kbd>/<kbd>L</kbd>, kill-ring, quoting, builtins <span class="mono">cd exit help history clear</span>, externos vía spawn2/waitpid. Prompt <span class="mono">root@newos:&lt;cwd&gt;#</span>.</p></div>
-<div class="card"><h3>img · vid · desktop · glxgears (solo Limine FB)</h3><p><span class="mono">img</span>: BMP 24/32 sin compresión + PPM P6 (JPEG/PNG rechazados con mensaje: falta decodificador). <span class="mono">vid</span>: animación procedural 60 frames ~15 fps (bola + plasma) vía FBWRITE+SLEEP. <span class="mono">desktop</span>: compositor modular con seis ventanas (System, Files, Mouse, About, Log, Nova), drag/resize/max/min/close, dock, menú, ayuda, temas BoredOS/Win95, iconos Win95, fuente 8×8, cursor overlay, repintado por rectángulos sucios y <span class="mono">SYS_CONSOLE_GUI</span>. <span class="mono">glxgears</span>: demo TinyGL de 300 frames embebido en <span class="mono">/bin</span>.</p></div>
+<div class="card"><h3>img · vid · desktop · glxgears (solo Limine FB)</h3><p><span class="mono">img</span>: BMP 24/32 sin compresión + PPM P6 (JPEG/PNG rechazados con mensaje: falta decodificador). <span class="mono">vid</span>: animación procedural 60 frames ~15 fps (bola + plasma) vía FBWRITE+SLEEP. <span class="mono">desktop</span>: compositor modular con cinco ventanas (System, Files, Mouse, About, Log), drag/resize/max/min/close, dock, menú, ayuda, temas BoredOS/Win95, iconos Win95, fuente 8×8, cursor overlay, repintado por rectángulos sucios y <span class="mono">SYS_CONSOLE_GUI</span>. Superficies y widgets propios en <span class="mono">desktop_surface</span>/<span class="mono">desktop_widgets</span>. <span class="mono">glxgears</span>: demo TinyGL de 300 frames embebido en <span class="mono">/bin</span>.</p></div>
 </div>
 <div class="ok-box">Logo oficial = el de <span class="mono">newfetch</span> (3 líneas de bloques) + datos vivos: OS/Kernel/Uptime/Memory/Shell:nsh/Display/Packages. MOTD: <i>"NEWOS 0.3.0-gui (x86_64) - nsh shell / Type 'help' for commands."</i></div>
 
@@ -103,8 +103,8 @@ make build/images/newos-x86_64-limine.iso   # ISO híbrida BIOS+UEFI
 make qemu           # interactivo serie
 make qemu-test      # suite PVH 20 tests (exit 1 = PASS)
 make qemu-limine-test / make qemu-limine / make qemu-limine-gui
-make check-nova     # tests host de los widgets Nova NTK
 make check-newpkg   # paquetes sin QEMU (80+ asserts + 19 e2e)
+bash scripts/build-voxel.sh   # /bin/voxel (MIT, ports/voxel)
 make toolchain      # binutils 2.44 + GCC 16.1.0 C-only (~20-40 min)
 make clean          # borra build/ entero</pre>
 <p class="sub">Flags kernel: <span class="mono">-ffreestanding -nostdlib -fno-pic -fno-pie -mno-red-zone -mno-sse -mgeneral-regs-only -mcmodel=kernel -O2 -Werror</span>, link con PHDRS explícitos (ningún PT_LOAD RWE). Userland: ELF estático en <span class="mono">0x400000</span>, stack 1 MiB bajo <span class="mono">0x7fffffffe000</span>, embebido vía <span class="mono">ld -r -b binary</span> → initramfs <span class="mono">/bin/*</span>.</p>

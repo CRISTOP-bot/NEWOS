@@ -21,10 +21,11 @@ and every milestone must keep `BUILD=PASS`, `BOOT=PASS`, `QEMU=PASS`
   `/proc` exposes live identity/uptime/memory/mounts/cmdline, `/sys`
   exposes kernel identity and the PCI inventory; `free`, `df` and `uptime`
   consume `/proc` with a syscall fallback.
-  The built-in desktop is a modular Nova NTK alpha: six windows (including the
-  Nova preview), dock, start menu, help, BoredOS/Win95 themes, a Win95 icon
-  family and a damage-based compositor that uploads only dirty rectangles.
-  The upstream Nova compositor, protocol and app suite remain future work.
+  The built-in desktop is a modular five-window session: System, Files, Mouse,
+  About and Log, plus dock, start menu, help, Midnight/Win95 themes, a Win95
+  icon family and a damage-based compositor that uploads only dirty rectangles.
+  Its drawing layer (`desktop_surface`) and widgets (`desktop_widgets`) are
+  NEWOS code.
 - **Honest gaps:** no disk driver (RAM-only FS), no IP stack
   (PCnet loopback only), no file-backed `mmap`, signal delivery or native
   `sbrk` allocator (`truncate` is path/fd-based for writable backends), no
@@ -84,8 +85,8 @@ Goal: real userspace memory management.
   mounts/cmdline: add a process provider for `ps` (the FS layer cannot
   reach `process/` directly), per-process files and live socket stats.
   `free`/`df`/`uptime` already read `/proc` with a syscall fallback.
-- Acceptance: `img photo.jpg` works; `ltest` heap stress passes;
-  no regressions in phase-2 `usercopy`/`address-spaces` tests.
+- Acceptance: `img photo.jpg` works; no regressions in phase-2
+  `usercopy`/`address-spaces` tests.
 
 ### v0.5 — Network ("talk to the world")
 

@@ -23,10 +23,10 @@ make check-newpkg
 make all
 ```
 
-The top-level command intentionally omits `--recursive`: the default build needs no third-party checkout. GCC source is optional and shallow; the toolchain script has a release-tarball fallback. Nova and the `glxgears-newos` demo are nested modules in `ports`; initialize each only for source inspection or an explicit port/demo build. The checked-in port data is retained as compressed assets and restored automatically by `make` before GNU packaging.
+The top-level command intentionally omits `--recursive`: the default build needs no third-party checkout. GCC source is optional and shallow; the toolchain script has a release-tarball fallback. The `glxgears-newos` demo is a nested module in `ports`; initialize it only for source inspection or an explicit demo build. The checked-in port data is retained as compressed assets and restored automatically by `make` before GNU packaging.
 
 ## Pinned component revisions for this import
 
-The superproject uses Git gitlinks (not branch names) to pin `NEWOS-kernel` `711b9097ab989c67dbe3961147b2ce1d19802bf4`, `NEWOS-userland` `3d5c36b567979507db291fda0835546cea508894`, `NEWOS-toolchain` `93745ade464ae04e5e18bc594ad130b4679ab50b`, and `NEWOS-ports` `9514ef27092ae40c1966e9ea39c2195233614ef5`. Nested refs are likewise explicit: GCC `6afcc4f6da931eb93f3ab001a0dd9650ea71d1ea`, `glxgears-newos` `5a890511567cb8dc3da5bed7c409aeb51f7653d3`, TinyGL `c2e48591a6bfba1a85f1b87a78dcf1abf7dff57a`, Nova `d586f1bfc4687172ca097298ba3c91d6f7d40069`.
+The superproject uses Git gitlinks (not branch names) to pin `NEWOS-kernel` `711b9097ab989c67dbe3961147b2ce1d19802bf4`, `NEWOS-userland` `3d5c36b567979507db291fda0835546cea508894`, `NEWOS-toolchain` `93745ade464ae04e5e18bc594ad130b4679ab50b`, and `NEWOS-ports` `9514ef27092ae40c1966e9ea39c2195233614ef5`. Nested refs are likewise explicit: GCC `6afcc4f6da931eb93f3ab001a0dd9650ea71d1ea`, `glxgears-newos` `5a890511567cb8dc3da5bed7c409aeb51f7653d3`, TinyGL `c2e48591a6bfba1a85f1b87a78dcf1abf7dff57a`.
 
 Component content was imported as source snapshots from the existing NEWOS PR branch; the original monorepo history was not rewritten into each new repository.

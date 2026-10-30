@@ -44,7 +44,7 @@ is split between `syscall/syscall_dispatch.c` (core and vendor calls) and
 | 4 | `SYS_STAT` | path metadata (`nsh_stat`) |
 | 5 | `SYS_FSTAT` | metadata for an open fd |
 | 6 | `SYS_LSTAT` | same as `stat`; symlinks are not implemented |
-| 7 | `SYS_POLL` | compatibility no-op: reports timeout (0), no readiness engine |
+| 7 | `SYS_POLL` | console/pipe readiness with a millisecond timeout; VFS files are always ready |
 | 8 | `SYS_LSEEK` | `SEEK_SET`/`SEEK_CUR`/`SEEK_END` |
 | 9 | `SYS_MMAP` | anonymous mappings from the per-process bump cursor |
 | 10 | `SYS_MPROTECT` | updates VMM permission flags |
@@ -55,6 +55,7 @@ is split between `syscall/syscall_dispatch.c` (core and vendor calls) and
 | 20 | `SYS_WRITEV` | gather write through the existing per-fd write path |
 | 21 | `SYS_ACCESS` | existence check for a user path |
 | 22 | `SYS_PIPE` | creates a pipe fd pair |
+| 23 | `SYS_SELECT` | legacy select on fds 0..63; timeval timeout, console/pipe readiness |
 | 28 | `SYS_MADVISE` | accepted no-op |
 | 32 | `SYS_DUP` | duplicates an fd into the first free slot |
 | 33 | `SYS_DUP2` | duplicates into a specific slot |
@@ -65,6 +66,7 @@ is split between `syscall/syscall_dispatch.c` (core and vendor calls) and
 | 62 | `SYS_KILL` | pid 0/1 are refused; no signal delivery beyond termination |
 | 63 | `SYS_UNAME` | `NEWOS`, `NEWOS_VERSION`, `x86_64` |
 | 72 | `SYS_FCNTL` | fd flags subset |
+| 74/75 | `SYS_FSYNC`/`SYS_FDATASYNC` | no-op success (the VFS is RAM-backed) |
 | 76 | `SYS_TRUNCATE` | path-based truncation for backends with `truncate` |
 | 77 | `SYS_FTRUNCATE` | fd-based truncation |
 | 79 | `SYS_GETCWD` | fails when the buffer is too small |
@@ -72,6 +74,9 @@ is split between `syscall/syscall_dispatch.c` (core and vendor calls) and
 | 82 | `SYS_RENAME` | writable in-memory trees only (tmpfs and VFS core directories) |
 | 83 | `SYS_MKDIR` | one directory level |
 | 87 | `SYS_UNLINK` | files and empty directories; refuses non-empty ones and synthetic trees |
+| 89 | `SYS_READLINK` | always `-EINVAL`: the VFS has no symlinks (what `realpath` expects) |
+| 90/91 | `SYS_CHMOD`/`SYS_FCHMOD` | records the mode on the inode; enforcement is future work |
+| 92/93 | `SYS_CHOWN`/`SYS_FCHOWN` | accepted no-ops (single-user model) |
 | 95 | `SYS_UMASK` | accepted; reports the fixed 022 mask |
 | 96 | `SYS_GETTIMEOFDAY` | real CMOS wall clock |
 | 100 | `SYS_TIMES` | process times subset |
@@ -86,6 +91,7 @@ is split between `syscall/syscall_dispatch.c` (core and vendor calls) and
 | 228 | `SYS_CLOCK_GETTIME` | monotonic/realtime clock subset |
 | 231 | `SYS_EXIT_GROUP` | same exit path as `SYS_EXIT` |
 | 262 | `SYS_NEWFSTATAT` | `(dirfd, path, stat, flags)` metadata |
+| 270 | `SYS_PSELECT6` | what musl's `select()` uses: fds 0..63, timespec timeout |
 | 318 | `SYS_GETRANDOM` | xorshift-seeded kernel bytes |
 | 450 | `SYS_SPAWN` | legacy spawn without argv |
 | 451 | `SYS_SPAWN2` | spawn with real argc/argv (up to 16 x 128 chars) |
@@ -115,9 +121,12 @@ cursor from appearing over `desktop` or `glxgears`. Text programs launched by
 the desktop release the claim first. Process teardown releases it
 automatically, including after a crash.
 
-Not implemented: `fork`, `execve` and `readlink` return an error. Signal
+Not implemented: `fork` and `execve` return an error. `readlink` always
+returns `-EINVAL` (there are no symlinks). Signal
 setup calls are accepted as no-ops; the cooperative kernel never delivers a
-signal. `poll` only reports timeout. There is no socket ABI or network stack.
+signal. `poll`/`select`/`pselect6` report console and pipe readiness but are
+not a general event engine (only fds 0..63, no epoll). There is no socket ABI
+or network stack.
 `SYS_RMDIR` is defined but not dispatched; userland removes empty
 directories through `unlink`. Conventional file descriptors exist in
 `abi/syscall_abi.h` (`STDOUT_FILENO = 1`); open flags (`O_READ`/`O_WRITE`/

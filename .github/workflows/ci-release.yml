@@ -56,8 +56,6 @@ jobs:
       - name: Test package manager
         run: make check-newpkg
 
-      - name: Test Nova NTK color component
-        run: make check-nova
 
       - name: Test the frotz port (host story run)
         run: make check-frotz

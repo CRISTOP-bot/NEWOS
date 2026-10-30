@@ -36,7 +36,7 @@ make fast       # host-compiler kernel+ISO build; quickest full-image iteration
 make qemu-test  # automated in-QEMU suite (11 phase-1 + 16 phase-2 tests); must be 0 failures
 make lint-layers            # layering contract only
 make check-newpkg           # package system tests, no QEMU (host build)
-make check-nova / check-web # component/apps + website checks (CI runs both)
+make check-web               # website links/assets check (CI runs it)
 ```
 
 Automated test mode (what `make qemu-test` runs; `run_qemu_test.sh` uses a
@@ -122,7 +122,7 @@ qemu-system-x86_64 -kernel build/images/newos-x86_64.elf \
 ## CI / workflow expectations
 
 - Every push: `git diff --check` (no trailing whitespace/conflict markers),
-  lint-layers, check-newpkg, check-nova, check-web, full cross build, multiboot2
+  lint-layers, check-newpkg, check-web, full cross build, multiboot2
   header validation, QEMU boot tests (`.github/workflows/ci-release.yml`).
   PRs run the same checks without publishing.
 - The maintainer's working style from `AGENT.md` worth honoring: audit before
@@ -139,5 +139,5 @@ qemu-system-x86_64 -kernel build/images/newos-x86_64.elf \
 - `AGENT.md` — verified subsystem deep notes (Spanish), debug/QEMU recipes.
 - `docs/build.md` (prereqs, build flow), `docs/architecture.md`,
   `docs/boot.md` (boot protocols), `docs/abi.md`,
-  `docs/development/layering.md`, `docs/nova-porting.md` (GUI porting limits),
+  `docs/development/layering.md`, `docs/porting-roadmap.md` (port limits),
   `ROADMAP.md` (what not to duplicate work on).

@@ -57,7 +57,8 @@ loop, `print`/`new_line`, one line read (V3 status line included), and
 
 The root `Makefile` compiles the port under `FROTZ_CFLAGS`
 (`-std=gnu99 -fcommon`, scoped `-Wno-error` for upstream's exact-6-byte
-serial records), links it like `ltest` (libc.a + nshlib + start + app.ld)
+serial records), links it like the other libc programs (libc.a + nshlib +
+start + app.ld)
 and embeds the binary via the generic `/bin` embed path. The initramfs
 maps `/bin/frotz` (bin table) and installs `mini.z3` at
 `/usr/share/zcode/mini.z3`.

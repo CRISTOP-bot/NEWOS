@@ -82,7 +82,7 @@ PASS, >= 3 = fallo). Sin `test_mode` arranca `/init` (shell interactiva).
 - Userland: `user/programs/<cmd>/<cmd>_main.c` + registrar en
   `PROG_NAMES` (Makefile) y `bin_table` (`fs/initramfs/initramfs.c`).
   `libc/` (string/stdlib/stdio/malloc, arena 256 KiB, sin FPU/threads;
-  clase lint `LIBC`, solo auto+ABI) + `libc.a`; `ltest` la ejercita.
+  clase lint `LIBC`, solo auto+ABI) + `libc.a`; el port `frotz` la ejercita.
   `-mgeneral-regs-only` (sin SSE/FPU) en kernel Y userland.
 - Toolchain cruzada opcional: `toolchain/build.sh` → `toolchain/out`
   (binutils+GCC x86_64-elf); usar con `make CROSS_PREFIX=x86_64-elf-`.
@@ -97,6 +97,40 @@ PASS, >= 3 = fallo). Sin `test_mode` arranca `/init` (shell interactiva).
   girando corrompe `rip` (doble-rewind) y el slot ajeno. Guardias
   permanentes: `YIELD-REWIND` (verifica `cd 80`), `SLOT-MISMATCH`.
   `SLEEP` usa deadline persistente (`thread.sleep_due/sleeping`).
+- **TLS/FS base en handoff** (`arch/x86_64/interrupts/x86_interrupt.S`):
+  al cambiar de hilo el epílogo debe escribir `g_sched_next_fsbase`
+  SIEMPRE; el chequeo de anillo (`cs & 3`) solo vale para la trama que
+  retorna a sí misma. Comprobar el anillo de la trama que se ABANDONA
+  (ring 0 en un syscall bloqueante) saltaba el `wrmsr` y el hilo destino
+  seguía con el FS base anterior: `nano`/`tcc` faultaban en `%fs:0`
+  (`USER PAGE FAULT at 0x0`). Los hilos de kernel llevan fsbase 0.
+- **`SYS_READ` de ficheros regulares**: rellena toda la petición (bucle
+  sobre el bounce buffer de 512 B), como Linux; pipes y `/dev/serial`
+  conservan lecturas cortas. Un `read()` corto rompía el loader de
+  archivos de `tcc` (`tcc_load_alacarte` hace una lectura sin comprobar
+  y devuelve -1 en silencio, sin mensaje).
+- **VOXEL** (`ports/voxel`, MIT): stack de superficies/compositor y demo de
+  escritorio clásico embebido como `/bin/voxel`. Se compila con el compilador
+  del host contra `sysroot/` (`scripts/build-voxel.sh`), no con el cross
+  `toolchain/`; el `Makefile` lo rebuilda solo cuando cambian sus fuentes.
+  Su `app.ld` deja un PT_LOAD RWX (aviso de `ld`, esperado) y su `.bss` son
+  ~13 MiB (~3200 páginas), de ahí `segments=3191` en el log de `proc`.
+  No tiene API de teclado GUI: el texto se escribe con el teclado en pantalla.
+  `voxel --frames N` imprime el marcador de fin y sale (lo usa la verificación
+  en QEMU); el escritorio de sesión sigue siendo `user/programs/desktop`.
+- **`nsh` redirecciones**: `>` abre con `O_TRUNC`, pero `>>` debe abrir
+  con `O_APPEND` (y luego `lseek` al final). Abrir `>>` con `O_TRUNC`
+  vaciaba el fichero, el seek caía en 0 y lo añadido sustituía todo el
+  contenido.
+- **`tcc -static`**: en x86-64 toda llamada es `R_X86_64_PLT32`, así que
+  tcc creaba un stub PLT + slot GOT incluso para símbolos definidos. Sin
+  loader dinámico nadie rellena el GOT y `relocate_plt()` solo corre en
+  salida dinámica: el stub saltaba a datos sin relocalizar (fallo con
+  `RIP` basura, p. ej. `0x2825ffffff`). El parche
+  `ports/tcc/patches/0002` reescribe `PLT32`→`PC32` en enlaces estáticos.
+  El parche 0001 (rutas del SDK) debe llamar a `tcc_add_library_path()`
+  **después** de `tccpp_new()` (inicializa el allocator CString); si no,
+  el propio `tcc` recién compilado peta en `tal_realloc_impl()`.
 - **copy_user_string**: copiar byte a byte (el bloque argv termina con
   padding bajo `USER_STACK_TOP`; chunks fijos sobre-leen a páginas sin
   mapear).

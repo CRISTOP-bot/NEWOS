@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Generate the NEWOS brand family.
 
-The visual language is Windows 95 meets BoredOS: a four-pane waving flag in
-the BoredOS rainbow, chunky beveled icon tiles, and a dark navy boot/wallpaper
+The visual language is Windows 95 meets NEWOS: a four-pane waving flag in
+the NEWOS rainbow, chunky beveled icon tiles, and a dark navy boot/wallpaper
 plate with angular shards. Every SVG under brand/ is emitted from this file so
 the desktop, website and boot assets stay in sync.
 """
@@ -17,7 +17,7 @@ ICONS = os.path.join(BRAND, "app-icons")
 CONCEPTS = os.path.join(BRAND, "concepts")
 WEB = os.path.join(ROOT, "..", "web")
 
-# Windows 95 face colours plus the BoredOS rainbow.
+# Windows 95 face colours plus the NEWOS rainbow.
 BLACK = "#000000"
 DARK = "#404040"
 SHADOW = "#808080"
@@ -37,6 +37,7 @@ RED = "#C42B1C"
 SKY = "#5AA9E6"
 DARKBLUE = "#102040"
 PERI = "#A1A5BB"
+TEAL = "#008080"
 
 # Waving four-pane flag, 512x512 coordinates.
 PANES = {
@@ -210,14 +211,6 @@ def icon_vid():
     return icon_tile(g)
 
 
-def icon_kilo():
-    g = R(7, 3, 18, 26, WHITE)
-    for y in (7, 11, 15, 19):
-        g += R(9, y, 14, 1, BLUE)
-    g += R(21, 5, 2, 20, GOLD) + P("21,25 25,21 25,27", ORANGE)
-    return icon_tile(g)
-
-
 def icon_newpkg():
     g = (P("4,12 16,6 28,12 16,18", GOLD) +
          P("4,12 16,18 16,28 4,22", FACE) +
@@ -231,6 +224,15 @@ def icon_newfetch():
          R(8, 8, 5, 5, ORANGE) + R(14, 8, 5, 5, LIME) +
          R(8, 14, 5, 4, CYAN) + R(14, 14, 5, 4, BLUE) +
          R(13, 23, 6, 3, FACE) + R(9, 26, 14, 2, FACE))
+    return icon_tile(g)
+
+
+def icon_voxel():
+    g = (R(4, 4, 24, 20, TEAL) +
+         R(5, 5, 22, 4, FACE) + R(6, 6, 12, 2, BLUE) +
+         R(6, 11, 20, 11, FACE) + R(7, 12, 18, 3, BLUE) +
+         R(8, 17, 10, 2, SHADOW) + R(8, 20, 14, 2, SHADOW) +
+         R(4, 25, 24, 3, FACE))
     return icon_tile(g)
 
 
@@ -250,9 +252,9 @@ ICON_BUILDERS = {
     "ps": icon_ps,
     "img": icon_img,
     "vid": icon_vid,
-    "kilo": icon_kilo,
     "newpkg": icon_newpkg,
     "newfetch": icon_newfetch,
+    "voxel": icon_voxel,
     "tinygl": icon_tinygl,
 }
 

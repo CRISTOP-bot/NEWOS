@@ -48,12 +48,14 @@
 
 <section class="band"><div class="wrap">
   <h2>Capturas reales <span class="tag">QEMU · ISO Limine</span></h2>
-  <p class="sub">Sin mockups: estas imágenes salieron del framebuffer del propio NEWOS (1280×800 x32), capturadas por el puerto de monitor de QEMU mientras el sistema corría de verdad — boot, <span class="mono">newfetch</span> tecleado por PS/2 y el compositor <span class="mono">desktop</span>.</p>
+  <p class="sub">Sin mockups: estas imágenes salieron del framebuffer del propio NEWOS (1280×800 x32), capturadas por el puerto de monitor de QEMU mientras el sistema corría de verdad — boot, <span class="mono">newfetch</span> tecleado por PS/2, el compositor <span class="mono">desktop</span> y el demo <span class="mono">voxel</span>.</p>
   <div class="shots">
     <figure class="shot"><img src="assets/boot.png" alt="Arranque de NEWOS en framebuffer: log del kernel, tests PASS y prompt nsh" loading="lazy"><figcaption><b>Arranque.</b> Log en fbcon, PCI enumerado, 20/20 tests PASS, prompt <span class="mono">root@newos:/#</span>.<span class="real">REAL</span></figcaption></figure>
     <figure class="shot"><img src="assets/newfetch.png" alt="newfetch ejecutado en NEWOS mostrando logo, memoria y paquetes" loading="lazy"><figcaption><b>newfetch.</b> Logo, 37/254 MiB, Display 1280×800 x32, 39 paquetes (/bin).<span class="real">REAL</span></figcaption></figure>
-    <figure class="shot"><img src="assets/desktop.png" alt="Compositor desktop de NEWOS con seis ventanas, dock, launcher y cursor" loading="lazy"><figcaption><b>desktop.</b> Seis ventanas (System, Files, Mouse, About, Log y Nova), dock, temas BoredOS/Win95, cursor con backing store, compositor por daños, teclado PS/2 (Tab, 1–6, flechas, Enter, ?) y botones FILES/ABOUT/GEARS del preview Nova.<span class="real">REAL</span></figcaption></figure>
+    <figure class="shot"><img src="assets/desktop.png" alt="Compositor desktop de NEWOS con seis ventanas, dock, launcher y cursor" loading="lazy"><figcaption><b>desktop.</b> Cinco ventanas (System, Files, Mouse, About y Log), dock, temas BoredOS/Win95, cursor con backing store, compositor por daños, teclado PS/2 (Tab, 1–5, flechas, Enter, ?) y botones FILES/ABOUT/GEARS del dock.<span class="real">REAL</span></figcaption></figure>
     <figure class="shot"><img src="assets/desktop-win95.png" alt="Tema Win95 del escritorio de NEWOS con ventanas grises, barras azules e iconos bevelados" loading="lazy"><figcaption><b>desktop · Win95.</b> El mismo compositor con el tema claro de Windows 95: caras grises, barras de título azul marino e iconos bevelados.<span class="real">REAL</span></figcaption></figure>
+    <figure class="shot"><img src="assets/voxel.png" alt="VOXEL ejecutándose en NEWOS: escritorio teal, iconos, File Explorer y taskbar" loading="lazy"><figcaption><b>voxel.</b> El stack MIT <span class="mono">ports/voxel</span> en <span class="mono">/bin/voxel</span>: escritorio teal, iconos, File Explorer y taskbar sobre las syscalls de framebuffer y ratón.<span class="real">REAL</span></figcaption></figure>
+    <figure class="shot"><img src="assets/nano-color.png" alt="GNU nano 8.4 en NEWOS editando /etc/tcc-hello.c con colores, números de línea y resaltado C" loading="lazy"><figcaption><b>nano · colores.</b> <span class="mono">TERM=linux</span>, 8 colores SGR implementados en <span class="mono">fbcon</span> (16 + 256 + bold/reverse), cursor real, <span class="mono">/usr/etc/nanorc</span> con autoindent, números de línea y resaltado C/C++/shell/Makefile; archivo <span class="mono">/etc/tcc-hello.c</span> abierto.<span class="real">REAL</span></figcaption></figure>
   </div>
 </div></section>
 
@@ -63,9 +65,10 @@
   <div class="app-grid">
     <figure class="app"><img src="assets/app-icons/shell.svg" alt="Icono de nsh" loading="lazy"><figcaption>nsh</figcaption></figure>
     <figure class="app"><img src="assets/app-icons/desktop.svg" alt="Icono del escritorio" loading="lazy"><figcaption>desktop</figcaption></figure>
+    <figure class="app"><img src="assets/app-icons/voxel.svg" alt="Icono de VOXEL, escritorio clásico teal" loading="lazy"><figcaption>voxel</figcaption></figure>
     <figure class="app"><img src="assets/app-icons/img.svg" alt="Icono de img" loading="lazy"><figcaption>img</figcaption></figure>
     <figure class="app"><img src="assets/app-icons/vid.svg" alt="Icono de vid" loading="lazy"><figcaption>vid</figcaption></figure>
-    <figure class="app"><img src="assets/app-icons/kilo.svg" alt="Icono del editor kilo/nano" loading="lazy"><figcaption>kilo</figcaption></figure>
+    <figure class="app"><img src="assets/app-icons/nano.svg" alt="Icono del editor nano" loading="lazy"><figcaption>nano</figcaption></figure>
     <figure class="app"><img src="assets/app-icons/newpkg.svg" alt="Icono de newpkg" loading="lazy"><figcaption>newpkg</figcaption></figure>
     <figure class="app"><img src="assets/app-icons/newfetch.svg" alt="Icono de newfetch" loading="lazy"><figcaption>newfetch</figcaption></figure>
     <figure class="app"><img src="assets/app-icons/about.svg" alt="Icono de about" loading="lazy"><figcaption>about</figcaption></figure>

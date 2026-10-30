@@ -6,6 +6,25 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- `nano` is now color-capable on the framebuffer console. The port falls back
+  to `TERM=linux` when the shell passes no environment, and fbcon implements
+  the ANSI/VT100 subset ncurses emits: SGR 16/256-color foreground and
+  background, bold, reverse, cursor movement/positioning, erase display/line,
+  insert/delete line and character, save/restore cursor and DECTCEM. The old
+  ghost cursor is replaced by a real reverse-video block cursor, and C0
+  controls such as SI are dropped instead of being painted as `?`. initramfs
+  installs `/usr/etc/nanorc` (autoindent, line numbers and C/C++/shell/
+  Makefile/nanorc highlighting) from `user/rootfs/nanorc`.
+- VOXEL (`ports/voxel`, MIT) is vendored and shipped as `/bin/voxel`: the
+  software surface/compositor stack plus its classic-desktop demo (taskbar,
+  Start menu, File Explorer, Editor, Terminal, Settings and more), built from
+  source with the host compiler against the NEWOS sysroot
+  (`scripts/build-voxel.sh`) and embedded by `initramfs`. It uses the public
+  framebuffer/mouse syscalls only; `--frames N` renders N frames, prints a
+  completion marker and exits, which is what the QEMU check runs. One
+  `patches/0001` diff records the fixes needed for current GCC under
+  `-Werror` (unused variables, a stale identifier, a hook signature and
+  `-Wmisleading-indentation`).
 - Legacy-PIO ATA driver (`kernel/drivers/block/ata.c`) exposing the
   primary-master disk as the `disk0` block device: polling-only command
   completion with nIEN set (no IRQ14 path, no DMA, no PCI programming),
@@ -94,6 +113,19 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   names because the VFS has no symlinks. Applets that need Linux kernel
   interfaces NEWOS still lacks are documented in `ports/busybox/README.md`.
   Provenance, GPLv2 text and SHA-256 checksums live in the same directory.
+- GNU nano 8.4 at `/bin/nano`, a static x86_64-linux-musl `ET_EXEC` linked
+  against a static ncursesw 6.5 with `vt220`/`xterm`/`linux` terminfo
+  fallbacks compiled in, and the `doc/`+`po/` trees dropped from the build.
+  Full-screen editing over the serial/VGA console works (opening a file
+  reads it through the VFS and `Ctrl+X` exits); external commands and
+  syntax highlighting stay out of scope (`ports/nano/README.md`).
+- TinyCC 0.9.27 at `/bin/tcc`, the on-system C compiler: static
+  x86_64-linux-musl `ET_EXEC`, upstream source with only the SDK search
+  paths patched (`ports/tcc/patches/`). `tcc -c` and `tcc -nostdlib -run`
+  work out of the box; full links use the C SDK package
+  (`newpkg install /tmp/newos-sdk-*.new`) with `crt0.o`, `libnsh.a`,
+  `libc.a` and tcc's `libtcc1.a`. `/etc/tcc-hello.c` is the freestanding
+  demo.
 - A built-in `/bin/glxgears` TinyGL demo, compiled with the host/newos
   toolchain and embedded into every ISO by both `make` and `make fast`. It
   clears the panel, renders a 300-frame 640x480 gear scene, exposes
@@ -105,24 +137,20 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   kernel mouse arrow while it owns the panel. Text apps launched from the
   desktop release the claim; graphical apps keep it; process teardown releases
   it automatically. Phase-1 test `fbcon-gui` covers ownership and crash release.
-- Desktop/Nova preview (`WNOVA`) as a sixth window: adapted NTK painter and
-  gradient card, progress bar, font preview and FILES/ABOUT/GEARS actions that
-  open the real Files/About windows and `/bin/glxgears`. The desktop now also
-  exposes BusyBox and glxgears in its `/bin` metadata and start menu.
-- The desktop is now a modular Nova NTK alpha instead of one translation unit:
-  `desktop_main`, `state`, `gfx`, `wm`, `theme`, `shell`, `apps`, `input` and a
-  damage-based `compositor`. Cursor motion, hover, clock/memory updates and
-  toast expiry repaint only dirty rectangles; `SYS_FBWRITE` receives 16-row
-  chunks instead of a full frame. Startup, theme and structural changes are the
-  only full redraws.
-- The Nova NTK slice grew from color-only to painter, gradient, style,
-  progress, button, scrollbar and separator modules. Every module is linked
-  into the desktop and covered by `make check-nova`, which now runs both the
-  color test and a host widget test for clipping, gradients, scrollbar geometry,
-  separators, progress and button hit testing.
-- BoredOS/Win95 visual language: a four-pane waving flag logo, a Win95-beveled
-  icon family for the desktop and every `/bin` app, BoredOS navy/indigo wallpaper
-  shards, `BoredOS`/`Win95`/`Periwinkle` themes, a 1920x1080 Limine wallpaper
+- The desktop is now a modular five-window session instead of one translation
+  unit: `desktop_main`, `state`, `gfx`, `surface`, `widgets`, `wm`, `theme`,
+  `shell`, `apps`, `input` and a damage-based `compositor`. Cursor motion,
+  hover, clock/memory updates and toast expiry repaint only dirty rectangles;
+  `SYS_FBWRITE` receives 16-row chunks instead of a full frame. Startup, theme
+  and structural changes are the only full redraws.
+- NEWOS-owned desktop drawing layer: `desktop_surface` (clipped XRGB canvas
+  with alpha blending, rounded rectangles, circles and lines) and
+  `desktop_widgets` (caller-owned button, progress, scrollbar and separator).
+  Both are integer-only, allocation-free and linked into `desktop`, replacing
+  the borrowed widget toolkit and its separate host-test target.
+- Win95 visual language: a four-pane waving flag logo, a Win95-beveled
+  icon family for the desktop and every `/bin` app, navy/indigo wallpaper
+  shards, `Midnight`/`Win95`/`Periwinkle` themes, a 1920x1080 Limine wallpaper
   with `interface_branding`, a 2-second branded boot menu at 1280x800, and a
   regenerated 640x400 splash. The website favicon, header mark, app-icon copies
   and 1024px brand image use the same generated assets.
@@ -136,7 +164,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Desktop keyboard input through the new `SYS_KBD_GRAB` (460) and
   `SYS_KBD_READ` (461) ABI: a foreground session owns the PS/2 keyboard
   without stealing serial input, while the kernel releases the grab on
-  process teardown. The desktop uses it for `Tab`/`1`–`6` focus, arrow-key
+  process teardown. The desktop uses it for `Tab`/`1`–`5` focus, arrow-key
   `/bin` selection, `Enter` launch and a `?` shortcut card; spawned text
   programs get the keyboard back for their lifetime.
 - The first user process now receives its `argc`/`argv` correctly:
@@ -255,6 +283,38 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   second NIC (`-netdev user,id=net1 -device e1000,netdev=net1`). Phase-2
   suite is now 16 tests (27 total).
 ### Fixed
+- `nsh` append redirection (`cmd >> file`) opened the target with `O_TRUNC`,
+  so the file was emptied before the seek-to-end, which then landed at
+  offset 0 and made the appended text replace the whole file. It now opens
+  with `O_APPEND`; `>` still truncates.
+- Static links made by the on-board `tcc` faulted on the first libc call
+  (`USER PAGE FAULT` at a bogus RIP such as `0x2825ffffff`). On x86-64 every
+  call is an `R_X86_64_PLT32` relocation, so tcc emitted a PLT stub and a
+  GOT slot, but a `-static` binary has no dynamic loader to fill that slot
+  and `relocate_plt()` only runs for dynamic output; the stub therefore
+  jumped through unrelocated PLT bytes. Static links now resolve `PLT32`
+  directly as `PC32` (`ports/tcc/patches/0002`). Undefined functions now
+  fail the final relocation instead of producing a binary that crashes.
+- The tcc port's SDK search-path patch ran `tcc_add_sysinclude_path()` /
+  `tcc_add_library_path()` before `tccpp_new()`, which initialises the
+  CString allocator those helpers use. A binary rebuilt from `ports/tcc/src`
+  therefore segfaulted in `tal_realloc_impl()` before even printing `-v`.
+  The calls now run after `tccpp_new()`, and only `/usr/lib` is added
+  (`/usr/include` already comes from `CONFIG_TCC_SYSINCLUDEPATHS`).
+- Scheduler handoff resumed a TLS thread with the previous thread's FS base:
+  the epilogue's ring check examined the frame being *left* (ring 0 for a
+  blocking syscall) instead of the frame being *resumed*, so the
+  `MSR_FS_BASE` write was skipped and `nano`/`tcc` faulted on the next
+  `%fs:0` errno access (`USER PAGE FAULT at 0x0`). The handoff path now
+  always installs `g_sched_next_fsbase`; only the no-handoff path tests the
+  ring.
+- `read()` on a regular file was capped at the kernel's 512-byte bounce
+  buffer, returning a short count where Linux returns the whole request.
+  tcc's archive loader does a single unchecked `read()` for the `ar` symbol
+  table and fails silently in that case, so linking `/usr/lib/libnsh.a`
+  exited 1 with no message and no output file. `SYS_READ` now loops over
+  the bounce buffer (pipes and the serial console keep their short-read
+  semantics).
 - Cursor ghosting had two independent causes: the kernel kept painting its
   own `fb_mouse_place` arrow and restoring old text cells while the compositor
   drew a second pointer, and the compositor could leave its previous sprite in
@@ -344,6 +404,19 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `web/dl`; `make web` serves it locally.
 
 ### Removed
+- Nova: the pinned `ports/nova` submodule (BoredOS compositor, GPL-3.0), the
+  adapted NTK slice under `user/programs/desktop/nova`, the `WNOVA` preview
+  window, `docs/nova-porting.md` and the `check-nova` host tests. The NTK code
+  was GPL-3.0-only inside an otherwise MIT tree; the desktop now draws through
+  `desktop_surface`/`desktop_widgets`. NEWOS's graphics direction is the
+  separate MIT VOXEL stack (<https://github.com/CRISTOP-bot/voxel>), which is
+  not integrated into this image.
+- `/bin/kilo`: superseded by the genuine GNU nano 8.4 port at `/bin/nano`.
+- `/bin/ltest`: the ad-hoc libc/loader test program. libc stays exercised by
+  the phase-2 QEMU suite and by the frotz/nano/tcc ports.
+- Native-GCC plans: `docs/porting-roadmap.md` no longer lists a native GCC
+  milestone. `toolchain/` remains a host-only `x86_64-elf` cross compiler and
+  TinyCC is the on-system compiler.
 - The fake IPv4 socket syscall block (`SYS_SOCKET` through `SYS_RECV`) that
   allocated state but returned dummy data and carried `TODO: actual network
   transmit`, together with its ABI numbers and per-process socket record.
