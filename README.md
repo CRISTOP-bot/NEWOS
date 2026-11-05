@@ -57,6 +57,22 @@ The x86_64 kernel reaches `BUILD=PASS`, `BOOT=PASS`, and `QEMU=PASS`:
   program in place (`tcc -nostdlib -run /etc/tcc-hello.c`). Both are vendored
   forks under `ports/` (see `ports/nano/README.md`, `ports/tcc/README.md`).
 
+## Screenshots
+
+Real captures from QEMU (Limine framebuffer) and the serial console. Each
+image is a genuine boot, not a mockup.
+
+| | |
+| --- | --- |
+| ![Arranque de NEWOS en framebuffer](web/assets/boot.png) | ![newfetch en NEWOS](web/assets/newfetch.png) |
+| **Arranque.** Log en fbcon, PCI enumerado, 20/20 tests PASS, prompt `root@newos:/#`. | **newfetch.** Logo, memoria, Display 1280×800 x32, paquetes en `/bin`. |
+| ![Escritorio compositor de NEWOS](web/assets/desktop.png) | ![Tema Win95 del escritorio](web/assets/desktop-win95.png) |
+| **desktop.** Cinco ventanas (System, Files, Mouse, About, Log), dock, temas Midnight/Win95, cursor con backing store, compositor por daños, teclado PS/2 (Tab, 1–5, flechas, Enter, ?). | **desktop · Win95.** Mismo compositor con tema claro Windows 95: caras grises, barras de título azul marino e iconos bevelados. |
+| ![VOXEL en NEWOS](web/assets/voxel.png) | ![GNU nano con colores](web/assets/nano-color.png) |
+| **voxel.** Stack MIT `ports/voxel` en `/bin/voxel`: escritorio teal, iconos, File Explorer y taskbar sobre las syscalls de framebuffer y ratón. | **nano · colores.** `TERM=linux`, SGR 16/256 + bold/reverse en fbcon, cursor real, `/usr/etc/nanorc` con resaltado C/C++/shell/Makefile. |
+| ![GNU nano pantalla completa](web/assets/nano-full.png) | ![DOOM 1.10 en NEWOS](web/assets/doom.png) |
+| **nano · pantalla completa.** Barra de título `[ GNU nano 8.4 ]`, números de línea, barra de atajos `^G Help` / `^X Write Out`. | **doom.** Motor id Software DOOM 1.10 con IWAD embebido (shareware E1M1) en `/bin/doom`, renderizado por el framebuffer de NEWOS. |
+
 ## Build & run
 
 For a fresh clone, `make` bootstraps every pinned recursive source submodule
