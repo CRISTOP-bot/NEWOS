@@ -35,7 +35,9 @@ qemu-system-x86_64 -cdrom build/images/newos-x86_64-limine.iso -boot order=d \
 ```
 
 `qemu-test` usa `-append "test_mode=1"` + `isa-debug-exit` (exit 1 = todo
-PASS, >= 3 = fallo). Sin `test_mode` arranca `/init` (shell interactiva).
+PASS, >= 3 = fallo). Sin `test_mode` el kernel arranca la cadena de PID 1:
+`/sbin/openrc-init` → `/bin/sh` → `/init`; el manager OpenRC supervisa la
+consola interactiva (ver `docs/development/openrc.md`).
 
 ## Depurar con QEMU (headless)
 
@@ -49,6 +51,13 @@ PASS, >= 3 = fallo). Sin `test_mode` arranca `/init` (shell interactiva).
 - Entrada serie desde pipe: `(sleep 15; printf 'cmd\n'; sleep N) | qemu ... -serial stdio`
   (esperar ~10-15 s al boot; el tipado es lento por redibujado).
 - `read` del agente SÍ lee imágenes PNG.
+- Sesión **gráfica** headless: solo Limine da framebuffer, así que hay que
+  arrancar la ISO, no `-kernel`. `make CROSS_PREFIX= LIMINE_CMDLINE=gui=1
+  build/images/newos-x86_64-limine.iso` y luego
+  `scripts/qemu-shell.py - cmds.txt --cdrom <iso> --hold 60 -monitor
+  unix:/tmp/mon,server,nowait`; durante la ventana de hold se captura con
+  `screendump` por el socket (sin `socat`: un cliente unix pequeño en python).
+  `scripts/qemu-shell.py` cuenta como fallo un arranque que no llega a prompt.
 
 ## Arquitectura (verificado en código)
 
@@ -118,6 +127,37 @@ PASS, >= 3 = fallo). Sin `test_mode` arranca `/init` (shell interactiva).
   No tiene API de teclado GUI: el texto se escribe con el teclado en pantalla.
   `voxel --frames N` imprime el marcador de fin y sale (lo usa la verificación
   en QEMU); el escritorio de sesión sigue siendo `user/programs/desktop`.
+- **OpenRC** (`userland/user/programs/openrc/`, PID 1 = `/sbin/openrc-init`):
+  el árbol `/etc` de OpenRC **lo instala el kernel** desde el blob ORCF
+  (`scripts/pack-openrc.py` → `install_rc_tree()` en
+  `fs/initramfs/initramfs.c`), no un paso de userspace: así `openrc` y
+  `rc-status` funcionan aunque PID 1 caiga al `nsh` de respaldo.
+  `/run/openrc/current` lo escribe **solo** `/sbin/openrc` al entrar a cada
+  runlevel; si `openrc-init` también lo toca, `rc-status` reporta el nivel
+  equivocado (`"sysinit boot"`). El solver: `need`/`use` van en sentido
+  contrario a `before` (la dependencia arranca **antes**), y `pull_needs()`
+  trae al transaction los `need` de otro runlevel — sin deduplicar aparece un
+  ciclo falso (`bootmisc`/`localmount`). Un servicio ya arrancado imprime
+  ` * already started` en vez de arrancar dos veces.
+  Los scripts los ejecuta `/bin/sh` en modo servicio (`argv[1][0] == '/'`),
+  que es un intérprete real: bloques `nombre() { … }`, `${VAR}` desde
+  `/etc/conf.d/<svc>`, `SVCNAME`, y `&` final que desacopla y escribe
+  `/run/<svc>.pid` (no hay `daemon(8)`). Por eso `state_write()` guarda `pid=`
+  **solo** si existe ese pidfile: anotar el pid del `sh` transitorio (ya
+  muerto) sería mentira. Los enlaces de runlevel son ficheros de indirección
+  (el VFS no tiene symlinks). Ojo al enlazar: una asignación de struct del
+  tamaño de `rc_service_t` baja a `memcpy` y `/sbin` no linka libc → usar
+  `nmemcpy`.
+- **DOOM** (`userland/user/programs/doom/`): motor id Software DOOM 1.10
+  (GPL-2.0) con las I_ NEWOS (`i_video/i_sound/i_system/i_net` + `doom_main.c`)
+  y los 4 patches upstream→NEWOS. Puntos críticos: `-mgeneral-regs-only` se
+  quita (SSE `atan`/`FixedDiv`); `-std=gnu99 -fcommon -Wno-error`;
+  `-DLINUX -DNORMALUNIX`. `m_misc.c` pasa `default_t` a `void*`+`long` y las
+  teclas fire/strafe/speed a la columna izquierda (`q`/`a`/`z`) porque el
+  teclado entrega bytes decodificados. `i_sound.c` honesto (sin DMX/PCM) y
+  `i_net.c` rechaza `-net`. Render `SYS_FBINFO`/`SYS_CONSOLE_GUI`/
+  `SYS_FBWRITE`, sin double buffer (panel uncacheable → tearing inherente).
+  Headless sin panel. Docs: `docs/development/doom.md`.
 - **`nsh` redirecciones**: `>` abre con `O_TRUNC`, pero `>>` debe abrir
   con `O_APPEND` (y luego `lseek` al final). Abrir `>>` con `O_TRUNC`
   vaciaba el fichero, el seek caía en 0 y lo añadido sustituía todo el

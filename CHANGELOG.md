@@ -6,6 +6,38 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- **`/bin/doom`** — native port of id Software's released DOOM 1.10 engine
+  (GPL-2.0, `data/linuxdoom-1.10.tar.gz`) running the shareware episode from
+  the embedded IWAD (`/usr/share/doom/doom1.wad`). The engine keeps its own
+  translation units forked plus a NEWOS layer in the four `I_` files
+  (framebuffer blit via `SYS_FBWRITE`, PS/2 keyboard/mouse via
+  `SYS_KBD_*`/`SYS_MOUSE_GET`, `CLOCK_MONOTONIC` tic clock, quit paths) and
+  four patches that adapt the 1993 C to the NEWOS libc (`-std=gnu99`, 32-bit
+  WAD assumptions, sprite-name termination, defaults table + key bindings).
+  Headless run when no framebuffer panel is present; sound (no DMX/PCM) and
+  network (`-net`) honestly stubbed. Docs: `docs/development/doom.md`; patches
+  in `user/programs/doom/patches/`.
+- **OpenRC is the service manager.** A native implementation of OpenRC's data
+  model and semantics now owns PID 1: `/sbin/openrc-init` (inittab `sysinit`
+  entries, the runlevel chain, console supervision), `/sbin/openrc`
+  (`depend()` solver over `need`/`use`/`before`/`after`/`provide`/`keyword`,
+  Kahn topological order with cycle reporting, cross-runlevel `need` pulling,
+  idempotent starts, per-service `start|stop|restart|status|zap`), plus
+  `rc-status`, `rc-update` and `rc-service`, all sharing a new `librc`.
+  State is real: `/run/openrc/<level>/<svc>` and `/run/openrc/started/<svc>`
+  carry `runlevel=`/`started=` (CMOS clock) and the pid of a detached
+  service, and `/run/openrc/current` is written by the manager as it enters
+  each level. `/bin/sh` grew the interpreter half of an init script
+  (`name() { … }` blocks, `$VAR`/`${VAR}` from `/etc/conf.d/<svc>`,
+  `SVCNAME`, a trailing `&` that detaches and records `/run/<svc>.pid`), and
+  `/bin/kill` accepts `@<pidfile>`. The configuration tree
+  (`userland/user/rootfs/openrc/etc`: `rc.conf`, `inittab`, `init.d/`,
+  `runlevels/`, `conf.d/`) is packed by `scripts/pack-openrc.py` into an ORCF
+  blob that the **kernel** installs during initramfs setup, so the tools work
+  even when PID 1 falls back to plain nsh. Runlevels hold indirection files
+  instead of symlinks (the VFS has none); everything else follows upstream.
+  See `docs/development/openrc.md`, including the honest limits (no
+  `start-stop-daemon`, no per-service respawn, no `hostname`/`crashlog`).
 - `nano` is now color-capable on the framebuffer console. The port falls back
   to `TERM=linux` when the shell passes no environment, and fbcon implements
   the ANSI/VT100 subset ncurses emits: SGR 16/256-color foreground and

@@ -94,6 +94,11 @@ qemu-system-x86_64 -kernel build/images/newos-x86_64.elf \
   `bin_table` (`kernel/fs/initramfs/initramfs.c`) so it ships embedded in `/bin`.
 - New `*_EMBED` build variables must be declared BEFORE `OBJS :=` in the
   Makefile — it is immediately expanded.
+- OpenRC lives in `userland/user/programs/openrc/` (five `/sbin` tools +
+  `librc`, built by the generated `RC_*` rules) and its config tree in
+  `userland/user/rootfs/openrc/etc`. PID 1 is `/sbin/openrc-init`; init
+  scripts are run by `/bin/sh` in service mode, so touching that interpreter
+  touches the service manager. Details: `docs/development/openrc.md`.
 - Version comes from single source `VERSION` (Makefile embeds it kernel+userland).
 - Static VFS: no symlinks, so `nsh` runs unshadowed commands as
   `/bin/busybox <applet>` (static BusyBox 1.35.0 via the Linux-compatible
@@ -139,6 +144,11 @@ qemu-system-x86_64 -kernel build/images/newos-x86_64.elf \
 ## Where to look
 
 - `AGENT.md` — verified subsystem deep notes (Spanish), debug/QEMU recipes.
+- `docs/development/openrc.md` — the OpenRC service manager: runlevels, the
+  depend() solver, state files, init-script syntax, and the ORCF tree the
+  kernel installs.
+- `docs/development/doom.md` — the DOOM 1.10 engine port: usage, rendering,
+  input, sound and network seams, patches, and build integration.
 - `docs/build.md` (prereqs, build flow), `docs/architecture.md`,
   `docs/boot.md` (boot protocols), `docs/abi.md`,
   `docs/development/layering.md`, `docs/porting-roadmap.md` (port limits),

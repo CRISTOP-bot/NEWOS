@@ -70,7 +70,9 @@ together; they are the exception, not the rule.
 5. `core_init` mounts the root filesystem (initramfs over tmpfs, devfs,
    procfs and sysfs), initializes processes/threads, registers the syscall
    table, runs the in-kernel self-tests (11 phase-1 + 16 phase-2) and finally
-   launches `/init` (interactive shell) or `/bin/hello` in `test_mode`.
+   starts PID 1 from the chain `/sbin/openrc-init` → `/bin/sh` → `/init`
+   (`/bin/hello` in `test_mode`), so a broken service manager still leaves a
+   shell instead of a dead machine.
 
 See `docs/boot.md` for details and `docs/abi.md` for the user interface.
 
@@ -83,8 +85,20 @@ See `docs/boot.md` for details and `docs/abi.md` for the user interface.
 
 ## Shell and graphics
 
-- `nsh` (`/init`): UTF-8 line editing with history and `Ctrl+A/C/D/E/K/L/U/V/W/Y`
+- `nsh` — Newos Shell Hyper (`/init`): UTF-8 line editing with history and
+  `Ctrl+A/C/D/E/K/L/U/V/W/Y`
   (kill-ring clipboard for cut/paste), builtins plus spawned `/bin` tools.
+- OpenRC (`/sbin/openrc-init`, `/sbin/openrc`, `rc-status`, `rc-update`,
+  `rc-service`): the service manager that owns PID 1 — runlevels, a
+  dependency solver, `/run/openrc` state files and inittab console
+  supervision. `nsh` in service mode is the interpreter for `/etc/init.d`
+  scripts. See `docs/development/openrc.md`.
+- `/bin/doom` — native port of id Software's released DOOM 1.10 engine
+  (GPL-2.0): the engine fork under `user/programs/doom/` plus the NEWOS `I_`
+  layer in the four interface files (framebuffer blit, PS/2 keyboard/mouse,
+  tic clock, quit) and four upstream→NEWOS patches; ships the shareware IWAD
+  at `/usr/share/doom/doom1.wad`. Renders headless when no panel is present.
+  See `docs/development/doom.md`.
 - `img /etc/splash.bmp|*.ppm`: native BMP (24/32-bit) + PPM viewer on the
   Limine framebuffer (`FBINFO`/`FBWRITE`); `vid`: procedural animation
   player. JPEG/PNG need a userspace decoder that is not vendored yet and are

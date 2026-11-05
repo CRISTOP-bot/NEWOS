@@ -144,6 +144,8 @@ DRV_SRCS        := drivers/console/tty_console.c drivers/console/vga_text_consol
                      drivers/core/device_core.c \
                      drivers/core/driver_core.c drivers/qemu/qemu_debug.c \
                      drivers/block_dev.c drivers/graphics/fb.c \
+                     drivers/graphics/fbcon.c drivers/graphics/fbcon_draw.c \
+                     drivers/graphics/fbcon_csi.c \
                      drivers/block/ata.c \
                      drivers/input/ps2_keyboard.c drivers/input/ps2_mouse.c \
                      drivers/pci/pci_bus.c drivers/pci/pci_chipset.c \
@@ -170,7 +172,7 @@ LIBC_SRCS       := libc/src/string.c libc/src/stdlib.c \
                    libc/src/stdio.c libc/src/malloc.c libc/src/unistd.c \
                    libc/src/syscall.c libc/src/mman.c libc/src/errno.c \
                    libc/src/signal.c libc/src/termios.c libc/src/ioctl.c \
-                   libc/src/setjmp.c libc/src/locale.c
+                   libc/src/setjmp.c libc/src/locale.c libc/src/stat.c
 # Floating point is confined to these libc objects: the userland policy is
 # integer-only (-mgeneral-regs-only), and they are the only exceptions, compiled
 # with that flag filtered out exactly like the TinyGL port. Everything else in
@@ -212,9 +214,11 @@ INIT_OBJ        := $(BUILD_DIR)/userland/init.o
 INIT_BIN        := $(BUILD_DIR)/userland/init.elf
 INIT_EMBED      := $(BUILD_DIR)/obj/userland/init.bin.o
 
-# Shared userland library + entry stub, linked into every /bin tool.
-NSHLIB_SRC      := user/lib/nshlib.c
-NSHLIB_OBJ      := $(BUILD_DIR)/userland/nshlib.o
+# Shared userland library + entry stub, linked into every /bin tool. The
+# library is two translation units (syscall/string core + formatter), so the
+# object list is derived from the sources and the rules below iterate over it.
+NSHLIB_SRC      := user/lib/nshlib.c user/lib/nshfmt.c
+NSHLIB_OBJ      := $(patsubst user/lib/%.c,$(BUILD_DIR)/userland/%.o,$(NSHLIB_SRC))
 START_OBJ       := $(BUILD_DIR)/userland/start.o
 APP_LD          := user/lib/app.ld
 
@@ -224,6 +228,11 @@ TEST_PPM        := $(BUILD_DIR)/test.ppm
 SPLASH_EMBED    := $(BUILD_DIR)/obj/userland/splash.bin.o
 PPM_EMBED       := $(BUILD_DIR)/obj/userland/testppm.bin.o
 
+# Desktop wallpaper: a brand asset in the one raster format the NEWOS img
+# codec decodes (24-bit uncompressed BMP), embedded as /etc/wallpaper.bmp.
+WALLPAPER_BMP   := $(BUILD_DIR)/wallpaper.bmp
+WALLPAPER_EMBED := $(BUILD_DIR)/obj/userland/wallpaper.bin.o
+
 # The /bin toolbox: one directory per command, each holding <name>_main.c
 # with a standard main(argc, argv). Installed into the root fs by initramfs.
 PROG_NAMES      := ls cat echo mkdir rmdir rm mv touch pwd clear uname \
@@ -232,6 +241,29 @@ PROG_NAMES      := ls cat echo mkdir rmdir rm mv touch pwd clear uname \
 PROG_OBJS       := $(patsubst %,$(BUILD_DIR)/userland/%.o,$(PROG_NAMES))
 PROG_BINS       := $(patsubst %,$(BUILD_DIR)/userland/%.elf,$(PROG_NAMES))
 PROG_EMBEDS     := $(patsubst %,$(BUILD_DIR)/obj/userland/%.bin.o,$(PROG_NAMES))
+
+# --- OpenRC service manager (/sbin) --------------------------------------
+# Native port of OpenRC: /sbin/openrc solves runlevels and drives the init
+# scripts, /sbin/openrc-init is the PID 1 that supervises the console, and
+# rc-status/rc-update/rc-service are its operators. They are listed apart from
+# PROG_NAMES because each links a second object (librc) besides nshlib+crt0.
+# Declared BEFORE OBJS: `OBJS :=` expands immediately (see AGENT.md).
+RC_DIR          := user/programs/openrc
+RC_LIBRC        := $(BUILD_DIR)/userland/librc.o
+RC_NAMES        := openrc openrc-init rc-status rc-update rc-service
+RC_OBJS         := $(patsubst %,$(BUILD_DIR)/userland/%.o,$(RC_NAMES))
+RC_BINS         := $(patsubst %,$(BUILD_DIR)/userland/%.elf,$(RC_NAMES))
+RC_EMBEDS       := $(patsubst %,$(BUILD_DIR)/obj/userland/%.bin.o,$(RC_NAMES))
+
+# The OpenRC configuration tree (/etc/rc.conf, /etc/inittab, /etc/conf.d,
+# /etc/init.d, /etc/runlevels) packed into one blob that the kernel installs
+# at rootfs build time. scripts/pack-openrc.py walks the source directory, so
+# adding a service or a runlevel entry is a file operation, not a build edit.
+RC_ROOTFS_SRC   := user/rootfs/openrc
+RC_ROOTFS_TREE  := $(wildcard $(RC_ROOTFS_SRC)/etc/* $(RC_ROOTFS_SRC)/etc/*/* \
+                               $(RC_ROOTFS_SRC)/etc/*/*/*)
+ORCF            := $(BUILD_DIR)/images/openrc-rootfs.orcf
+ORCF_EMBED      := $(BUILD_DIR)/obj/userland/openrc_rootfs_orcf.bin.o
 # Host-built static Linux/musl programs (same model as /bin/busybox). Their
 # sources live in ports/tcc and ports/nano; the checked-in binaries keep a
 # normal image build offline. See scripts/build-tcc.sh / build-nano.sh.
@@ -262,9 +294,10 @@ DESKTOP_UI_HEADERS := user/programs/desktop/desktop_surface.h \
 # responsibility so the compositor, shell and applications can evolve without
 # growing one translation unit.
 DESKTOP_DIR       := user/programs/desktop
-DESKTOP_SRCS      := desktop_state.c desktop_gfx.c desktop_wm.c desktop_theme.c \
-                     desktop_shell.c desktop_apps.c desktop_input.c \
-                     desktop_compositor.c $(DESKTOP_UI_SRCS)
+DESKTOP_SRCS      := desktop_state.c desktop_gfx.c desktop_gfx_icons.c \
+                     desktop_wm.c desktop_theme.c desktop_shell.c \
+                     desktop_apps.c desktop_input.c desktop_compositor.c \
+                     desktop_wallpaper.c $(DESKTOP_UI_SRCS)
 DESKTOP_OBJS      := $(patsubst %.c,$(BUILD_DIR)/userland/%.o,$(DESKTOP_SRCS))
 
 # Sample `.new` package embedded for live QEMU exercises (/tmp/*.new).
@@ -281,6 +314,18 @@ SAMPLE_NEW_EMBED      := $(BUILD_DIR)/obj/userland/sample_new.bin.o
 # before OBJS on purpose: OBJS expands immediately (see AGENT.md).
 MINI_Z3_SRC      := tools/frotz/tests/mini.z3
 MINI_Z3_EMBED    := $(BUILD_DIR)/obj/userland/mini_z3.bin.o
+
+# The DOOM shareware IWAD that ships with the port (id Software's released
+# 1.9 shareware data; see user/programs/doom/data/doom1.wad.copyright).
+# initramfs installs it at /usr/share/doom/doom1.wad, which is where
+# /bin/doom's IWAD search looks first. Declared before OBJS for the same
+# reason as MINI_Z3_EMBED.
+DOOM_DIR         := user/programs/doom
+DOOM_MAIN        := $(BUILD_DIR)/userland/doom.o
+DOOM_BIN         := $(BUILD_DIR)/userland/doom.elf
+DOOM_EMBED       := $(BUILD_DIR)/obj/userland/doom.bin.o
+DOOM_WAD_SRC     := $(DOOM_DIR)/data/doom1.wad
+DOOM_WAD_EMBED   := $(BUILD_DIR)/obj/userland/doom1_wad.bin.o
 
 # Shell boot script (nsh runs /etc/nsh.rc before the prompt). Commented-out
 # by default so a normal boot stays interactive; edit it to script a session,
@@ -402,16 +447,17 @@ ports-assets:
 # $(KERNEL_BIN) goes the same way: `make all` reaches it through the ISO
 # chain, and a plain `make all` would otherwise remove the -kernel image
 # that `make qemu`/scripts/qemu-shell.py boot.
-.SECONDARY: $(PROG_BINS) $(GLXGEARS_BIN) $(KERNEL_BIN)
+.SECONDARY: $(PROG_BINS) $(RC_BINS) $(GLXGEARS_BIN) $(KERNEL_BIN)
 
 OBJS_C          := $(patsubst %.c,$(BUILD_DIR)/obj/%.o,$(KERNEL_SRCS_C) $(ARCH_SRCS_C))
 OBJS_ASM        := $(patsubst %.S,$(BUILD_DIR)/obj/%.o,$(ARCH_SRCS_ASM))
 OBJS            := $(OBJS_C) $(OBJS_ASM) $(HELLO_EMBED) $(INIT_EMBED) \
-                   $(PROG_EMBEDS) $(SPLASH_EMBED) $(PPM_EMBED) \
+                   $(PROG_EMBEDS) $(RC_EMBEDS) $(ORCF_EMBED) \
+                   $(SPLASH_EMBED) $(PPM_EMBED) $(WALLPAPER_EMBED) \
                    $(SAMPLE_NEW_EMBED) $(NSH_RC_EMBED) $(GNU_PKG_EMBED) \
                    $(NANO_EMBED) $(BUSYBOX_EMBED) $(GLXGEARS_EMBED) \
                    $(TCC_EMBED) $(VOXEL_EMBED) $(SDK_PKG_EMBED) $(MINI_Z3_EMBED) \
-                   $(NANORC_EMBED)
+                   $(NANORC_EMBED) $(DOOM_EMBED) $(DOOM_WAD_EMBED)
 
 INCLUDE         := -Iinclude -I. -Ilib/kernel -Iarch/$(ARCH)/include \
                    -I$(BUILD_DIR)
@@ -470,10 +516,15 @@ $(INIT_EMBED): $(INIT_BIN)
 # Each tool is a standard main() linked with the shared lib + entry stub,
 # then embedded as _binary_<name>_elf_{start,end,size} for initramfs.
 
-$(NSHLIB_OBJ): $(NSHLIB_SRC) user/lib/nshlib.h
-	$(Q)mkdir -p $(dir $@)
-	$(E) "  UCC $<"
-	$(Q)$(CC) $(USER_CFLAGS) -o $@ $<
+# One object per nshlib source (explicit rules per file, because a pattern
+# with two stems cannot pick the matching source on its own).
+define NSHLIB_RULE
+$(BUILD_DIR)/userland/$(notdir $(1:.c=.o)): $(1) user/lib/nshlib.h
+	$$(Q)mkdir -p $$(dir $$@)
+	$$(E) "  UCC $$<"
+	$$(Q)$$(CC) $$(USER_CFLAGS) -o $$@ $$<
+endef
+$(foreach f,$(NSHLIB_SRC),$(eval $(call NSHLIB_RULE,$(f))))
 
 $(START_OBJ): user/lib/start.S
 	$(Q)mkdir -p $(dir $@)
@@ -496,6 +547,45 @@ $(BUILD_DIR)/userland/$(1).o: user/programs/$(1)/$(1)_main.c user/lib/nshlib.h
 endef
 $(foreach p,$(PROG_NAMES),$(eval $(call PROG_COMPILE_RULE,$(p))))
 
+# --- /sbin OpenRC tools --------------------------------------------------
+# One shared core (librc) plus nshlib, linked into each of the five commands.
+# The directory names keep upstream's hyphens (openrc-init, rc-status), the
+# C files use underscores, so the source name is the substituted stem.
+
+$(RC_LIBRC): $(RC_DIR)/librc/librc.c $(RC_DIR)/librc/librc.h \
+    user/lib/nshlib.h
+	$(Q)mkdir -p $(dir $@)
+	$(E) "  UCC $< (librc)"
+	$(Q)$(CC) $(USER_CFLAGS) -o $@ $<
+
+define RC_COMPILE_RULE
+$(BUILD_DIR)/userland/$(1).o: $(RC_DIR)/$(1)/$(subst -,_,$(1))_main.c \
+    $(RC_DIR)/librc/librc.h user/lib/nshlib.h
+	$(Q)mkdir -p $$(dir $$@)
+	$(E) "  UCC $$< (/sbin)"
+	$(Q)$$(CC) $$(USER_CFLAGS) -o $$@ $$<
+endef
+$(foreach r,$(RC_NAMES),$(eval $(call RC_COMPILE_RULE,$(r))))
+
+$(RC_BINS): $(BUILD_DIR)/userland/%.elf: $(BUILD_DIR)/userland/%.o \
+    $(RC_LIBRC) $(NSHLIB_OBJ) $(START_OBJ) $(APP_LD)
+	$(Q)mkdir -p $(dir $@)
+	$(E) "  ULD $@ +librc"
+	$(Q)$(LD) -n -static -nostdlib -T $(APP_LD) -o $@ \
+	  $(BUILD_DIR)/userland/$*.o $(RC_LIBRC) $(NSHLIB_OBJ) $(START_OBJ)
+
+# OpenRC configuration tree: one blob, installed by the kernel at /etc.
+$(ORCF): $(RC_ROOTFS_TREE) scripts/pack-openrc.py | dirs
+	$(Q)mkdir -p $(dir $@)
+	$(E) "  ORCF $(RC_ROOTFS_SRC)"
+	$(Q)python3 scripts/pack-openrc.py $(RC_ROOTFS_SRC) $@
+
+$(ORCF_EMBED): $(ORCF)
+	$(Q)mkdir -p $(dir $@)
+	$(Q)cp $(ORCF) $(BUILD_DIR)/openrc-rootfs.orcf
+	$(E) "  EMB openrc-rootfs.orcf"
+	$(Q)cd $(BUILD_DIR) && $(LD) -r -b binary -o obj/userland/openrc_rootfs_orcf.bin.o openrc-rootfs.orcf
+
 $(BUILD_DIR)/userland/desktop.o: $(DESKTOP_UI_HEADERS) \
     user/programs/desktop/font8x8.h user/programs/desktop/desktop.h
 
@@ -507,12 +597,12 @@ $(BUILD_DIR)/userland/desktop_%.o: $(DESKTOP_DIR)/desktop_%.c \
 	$(Q)$(CC) $(USER_CFLAGS) -o $@ $<
 
 $(BUILD_DIR)/userland/desktop.elf: $(BUILD_DIR)/userland/desktop.o \
-    $(DESKTOP_OBJS) $(NSHLIB_OBJ) $(START_OBJ) $(APP_LD)
+    $(DESKTOP_OBJS) $(NSHLIB_OBJ) $(START_OBJ) $(LIBC_A) $(APP_LD)
 	$(Q)mkdir -p $(dir $@)
-	$(E) "  ULD $@"
+	$(E) "  ULD $@ +libc"
 	$(Q)$(LD) -n -static -nostdlib -T $(APP_LD) -o $@ \
 	  $(BUILD_DIR)/userland/desktop.o $(DESKTOP_OBJS) \
-	  $(NSHLIB_OBJ) $(START_OBJ)
+	  $(NSHLIB_OBJ) $(START_OBJ) $(LIBC_A)
 
 # --- TinyGL glxgears ---------------------------------------------------
 # The demo uses floating point and TinyGL, so it cannot use the normal
@@ -590,11 +680,50 @@ $(NEWPKG_FORMAT_OBJ): user/programs/newpkg/newpkg_format.c \
 	$(E) "  UCC $<"
 	$(Q)$(CC) $(USER_CFLAGS) -o $@ $<
 
+# newpkg's implementation is split in sibling translation units (the
+# main() verbs plus the package/db/install core). One explicit compile rule
+# per module: the shared NEWPKG_* limits/prototypes header is the glue.
+$(BUILD_DIR)/userland/newpkg_cmds.o: user/programs/newpkg/newpkg_cmds.c \
+    user/programs/newpkg/newpkg_internal.h user/programs/newpkg/newpkg_format.h \
+    user/lib/nshlib.h
+	$(Q)mkdir -p $(dir $@)
+	$(E) "  UCC $< (newpkg/cmds)"
+	$(Q)$(CC) $(USER_CFLAGS) -o $@ $<
+
+$(BUILD_DIR)/userland/newpkg_pkg.o: user/programs/newpkg/newpkg_pkg.c \
+    user/programs/newpkg/newpkg_internal.h user/programs/newpkg/newpkg_format.h \
+    user/lib/nshlib.h
+	$(Q)mkdir -p $(dir $@)
+	$(E) "  UCC $< (newpkg/pkg)"
+	$(Q)$(CC) $(USER_CFLAGS) -o $@ $<
+
+$(BUILD_DIR)/userland/newpkg_util.o: user/programs/newpkg/newpkg_util.c \
+    user/programs/newpkg/newpkg_internal.h user/programs/newpkg/newpkg_format.h \
+    user/lib/nshlib.h
+	$(Q)mkdir -p $(dir $@)
+	$(E) "  UCC $< (newpkg/util)"
+	$(Q)$(CC) $(USER_CFLAGS) -o $@ $<
+
+$(BUILD_DIR)/userland/newpkg_inflate.o: user/programs/newpkg/newpkg_inflate.c \
+    user/programs/newpkg/newpkg_inflate.h user/programs/newpkg/newpkg_internal.h \
+    user/programs/newpkg/newpkg_format.h user/lib/nshlib.h
+	$(Q)mkdir -p $(dir $@)
+	$(E) "  UCC $< (newpkg/inflate)"
+	$(Q)$(CC) $(USER_CFLAGS) -o $@ $<
+
 $(BUILD_DIR)/userland/newpkg.elf: $(BUILD_DIR)/userland/newpkg.o \
+    $(BUILD_DIR)/userland/newpkg_cmds.o \
+    $(BUILD_DIR)/userland/newpkg_pkg.o \
+    $(BUILD_DIR)/userland/newpkg_util.o \
+    $(BUILD_DIR)/userland/newpkg_inflate.o \
     $(NEWPKG_FORMAT_OBJ) $(NSHLIB_OBJ) $(START_OBJ) $(APP_LD)
 	$(Q)mkdir -p $(dir $@)
-	$(E) "  ULD $@ +newpkg_format"
-	$(Q)$(LD) -n -static -nostdlib -T $(APP_LD) -o $@ $(filter %.o,$^)
+	$(E) "  ULD $@ +newpkg"
+	$(Q)$(LD) -n -static -nostdlib -T $(APP_LD) -o $@ \
+	  $(BUILD_DIR)/userland/newpkg.o $(BUILD_DIR)/userland/newpkg_cmds.o \
+	  $(BUILD_DIR)/userland/newpkg_pkg.o $(BUILD_DIR)/userland/newpkg_util.o \
+	  $(BUILD_DIR)/userland/newpkg_inflate.o $(NEWPKG_FORMAT_OBJ) \
+	  $(NSHLIB_OBJ) $(START_OBJ)
 
 # Sample `.new` package (host builder, deterministic bytes) + embed as an
 # opaque blob for live exercises: sample.new -> _binary_sample_new_*.
@@ -661,7 +790,7 @@ $(SDK_LIBC): $(LIBC_A)
 $(SDK_LIBNSH): $(NSHLIB_OBJ)
 	$(Q)mkdir -p $(dir $@)
 	$(Q)rm -f $@
-	$(Q)$(AR) rcs $@ $<
+	$(Q)$(AR) rcs $@ $(NSHLIB_OBJ)
 
 $(SDK_CRT0): $(START_OBJ)
 	$(Q)mkdir -p $(dir $@)
@@ -716,7 +845,77 @@ $(BUILD_DIR)/userland/frotz.elf: $(BUILD_DIR)/userland/frotz.o $(FROTZ_OBJS) \
 	$(Q)$(LD) -n -static -nostdlib -T $(APP_LD) -o $@ \
 	  $(filter %.o,$^) $(filter %.a,$^)
 
-# --- generated assets: console font + test images ----------------------
+# --- doom: id Software's released DOOM 1.10 engine ----------------------
+# One fork per upstream translation unit under user/programs/doom/, plus the
+# NEWOS I_ layer (i_video/i_sound/i_system/i_net) that replaces the X11,
+# DMX/OSS, DOS-timing and DOOMCOM drivers; doom_main.c is the toolbox entry.
+# See user/programs/doom/README.upstream for provenance and patches/.
+#
+# -mgeneral-regs-only must go: the engine needs SSE doubles (atan in
+# am_map.c, the FixedDiv reciprocal in m_fixed.c), exactly like the TinyGL
+# and frotz-with-libm ports. -std=gnu99 + -fcommon because 1993 ANSI C relies
+# on implicit-int leftovers, K&R-style declarations and shared tentative
+# definitions; -Wno-error keeps the upstream warnings audible but not fatal,
+# while the four NEWOS I_ files compile under the full -Werror policy.
+# -DLINUX -DNORMALUNIX is upstream Makefile.i386's own pair: it selects the
+# POSIX include blocks and the values.h/alloca.h the released sources expect.
+DOOM_NATIVE_CFLAGS := $(USER_CFLAGS) -std=gnu99
+DOOM_CFLAGS        := $(filter-out -mgeneral-regs-only,$(USER_CFLAGS)) \
+                      -std=gnu99 -fcommon -Wno-error \
+                      -I$(DOOM_DIR)/compat -DLINUX -DNORMALUNIX
+DOOM_NATIVE_SRCS   := i_video.c i_sound.c i_system.c i_net.c
+DOOM_SRCS          := $(filter-out doom_main.c $(DOOM_NATIVE_SRCS),$(notdir \
+                                   $(wildcard $(DOOM_DIR)/*.c)))
+DOOM_OBJS          := $(patsubst %.c,$(BUILD_DIR)/userland/doom/%.o,$(DOOM_SRCS))
+DOOM_NATIVE_OBJS   := $(patsubst %.c,$(BUILD_DIR)/userland/doom/%.o,$(DOOM_NATIVE_SRCS))
+
+# NEWOS-written I_ layer: its own explicit rules, so they win over the
+# pattern rule below and keep the strict -Werror userland policy.
+define DOOM_NATIVE_RULE
+$(BUILD_DIR)/userland/doom/$(1).o: $(DOOM_DIR)/$(1).c $(LIBC_HEADERS)
+	$(Q)mkdir -p $$(dir $$@)
+	$(E) "  UCC $$< (doom/NEWOS)"
+	$(Q)$$(CC) $$(DOOM_NATIVE_CFLAGS) -o $$@ $$<
+endef
+$(foreach d,$(DOOM_NATIVE_SRCS),$(eval $(call DOOM_NATIVE_RULE,$(d))))
+
+$(BUILD_DIR)/userland/doom/%.o: $(DOOM_DIR)/%.c $(LIBC_HEADERS)
+	$(Q)mkdir -p $(dir $@)
+	$(E) "  UCC $< (doom)"
+	$(Q)$(CC) $(DOOM_CFLAGS) -o $@ $<
+
+# The toolbox entry is NEWOS code but includes the engine's headers, so it
+# needs the same -std=gnu99 (doomtype.h uses `false`/`true` as enumerators,
+# which C23 made keywords) while keeping the strict -Werror policy.
+$(DOOM_MAIN): $(DOOM_DIR)/doom_main.c $(DOOM_DIR)/doomdef.h $(LIBC_HEADERS)
+	$(Q)mkdir -p $(dir $@)
+	$(E) "  UCC $< (doom/NEWOS)"
+	$(Q)$(CC) $(DOOM_NATIVE_CFLAGS) -o $@ $<
+
+$(DOOM_BIN): $(DOOM_MAIN) $(DOOM_OBJS) $(DOOM_NATIVE_OBJS) \
+    $(NSHLIB_OBJ) $(START_OBJ) $(LIBC_A) $(APP_LD)
+	$(Q)mkdir -p $(dir $@)
+	$(E) "  ULD $@ +doom"
+	$(Q)$(LD) -n -static -nostdlib -T $(APP_LD) -o $@ \
+	  $(filter %.o,$^) $(filter %.a,$^)
+
+# doom.elf -> _binary_doom_elf_{start,end} for the /bin table (same naming
+# trick as every other embedded program: the link runs from $(BUILD_DIR)).
+$(DOOM_EMBED): $(DOOM_BIN)
+	$(Q)mkdir -p $(dir $@)
+	$(Q)cp $(DOOM_BIN) $(BUILD_DIR)/doom.elf
+	$(E) "  EMB $<"
+	$(Q)cd $(BUILD_DIR) && $(LD) -r -b binary -o obj/userland/doom.bin.o doom.elf
+
+# Shareware IWAD: copied under its fixed name so the blob symbols are
+# _binary_doom1_wad_{start,end} (same trick as mini.z3).
+$(DOOM_WAD_EMBED): $(DOOM_WAD_SRC) | dirs
+	$(Q)mkdir -p $(dir $@)
+	$(Q)cp $(DOOM_WAD_SRC) $(BUILD_DIR)/doom1.wad
+	$(E) "  EMB $<"
+	$(Q)cd $(BUILD_DIR) && $(LD) -r -b binary -o obj/userland/doom1_wad.bin.o doom1.wad
+
+
 # The font is fetched once and cached; the images are generated locally
 # with python3 (no external image tools needed).
 
@@ -745,6 +944,18 @@ $(SPLASH_EMBED): $(SPLASH_BMP)
 	$(Q)mkdir -p $(dir $@)
 	$(E) "  EMB $<"
 	$(Q)cd $(BUILD_DIR) && $(LD) -r -b binary -o obj/userland/splash.bin.o splash.bmp
+
+# The wallpaper follows the splash's rule: copied into $(BUILD_DIR) under its
+# fixed name so the blob symbol stays wallpaper.bmp -> _binary_wallpaper_bmp_*.
+$(WALLPAPER_BMP): brand/newos-wallpaper.bmp
+	$(Q)mkdir -p $(dir $(WALLPAPER_BMP))
+	$(E) "  BRAND $<"
+	$(Q)cp $< $@
+
+$(WALLPAPER_EMBED): $(WALLPAPER_BMP)
+	$(Q)mkdir -p $(dir $@)
+	$(E) "  EMB $<"
+	$(Q)cd $(BUILD_DIR) && $(LD) -r -b binary -o obj/userland/wallpaper.bin.o wallpaper.bmp
 
 $(PPM_EMBED): $(TEST_PPM)
 	$(Q)mkdir -p $(dir $@)

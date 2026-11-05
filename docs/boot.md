@@ -50,12 +50,13 @@ Runs on the pre-built early stack and boot page tables:
    - kernel image mapped at its link address `0xffffffff80000000`
    - pages marked NX; final `invlpg`/`mov cr3` switches to it.
 6. `mm_heap_init()` — early 48 MiB arena for the kernel heap.
-7. `kernel_boot_tail` — mounts `initramfs` (the `/bin` toolbox + `/init`
-   hierarchy built into the image, plus `/var/lib/newpkg` and a sample
-   `.new` staged under `/tmp`), devfs, tmpfs, procfs and sysfs; `core_init`
-   then sets up processes/threads, registers the syscall table, runs
-   self-tests, and finally launches `/bin/sh` (interactive shell) with the
-   `--session` flag — or runs only the suites in `test_mode`.
+7. `kernel_boot_tail` — mounts `initramfs` (the `/bin` toolbox, the `/sbin`
+   OpenRC tools and the `/etc` configuration tree built into the image, plus
+   `/var/lib/newpkg` and a sample `.new` staged under `/tmp`), devfs, tmpfs,
+   procfs and sysfs; `core_init` then sets up processes/threads, registers
+   the syscall table, runs self-tests, and finally starts PID 1 from
+   `/sbin/openrc-init`, falling back to `/bin/sh` and then `/init` if that
+   binary cannot be loaded (or running only the suites in `test_mode`).
 
 ## Graphical session (`gui=1`)
 
@@ -63,12 +64,20 @@ Both entries boot the same kernel. The default **NEWOS (text shell)** entry
 passes no graphical flag, so the system always starts in `nsh`. The **NEWOS
 (GUI)** entry passes `gui=1`; `make qemu-limine-gui` builds and boots that
 entry directly, and a user can also type `/bin/desktop` in the text shell.
-`make qemu-limine-test` overrides the command line with `test_mode=1`. The
-kernel still enters the shell, which reads `/proc/cmdline` and, only for the
-boot session (`--session`) with `gui=1`, spawns `/bin/desktop` and waits for
-it. Closing the last window or pressing **Ctrl+Q** returns to a clean `nsh`
-prompt. A missing framebuffer or a failed spawn leaves the shell in place, so
-graphics can never strand the machine.
+`make qemu-limine-test` overrides the command line with `test_mode=1`.
+
+With OpenRC as PID 1 the graphical session is a service: `/etc/init.d/desktop`
+declares `keyword gui`, so `/sbin/openrc` starts it (running
+`session_program` from `/etc/conf.d/desktop`, detached, pid in
+`/run/desktop.pid`) only when a framebuffer exists *and* the command line
+asked for graphics; otherwise it reports the skip and the boot stays textual.
+The supervised console is `/bin/sh --session --rc-console` from `/etc/inittab`
+— the `--rc-console` flag is what stops that shell from also opening its own
+session. Closing the last desktop window or pressing **Ctrl+Q** returns to a
+clean `nsh` prompt. Without OpenRC (the `/bin/sh` fallback), that shell reads
+`/proc/cmdline` itself and spawns `/bin/desktop` for the boot session
+(`--session`) with `gui=1`. A missing framebuffer or a failed spawn leaves
+the shell in place, so graphics can never strand the machine.
 
 The desktop owns the PS/2 keyboard through `SYS_KBD_GRAB`/`SYS_KBD_READ`
 while it runs. `Tab` cycles windows, `1`–`5` focus one, arrows move through

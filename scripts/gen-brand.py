@@ -318,6 +318,42 @@ def wallpaper():
     return body
 
 
+def desktop_wallpaper():
+    """In-OS wallpaper: the same visual language as the Limine plate, minus
+    the boot-menu copy so it can sit behind desktop icons and windows."""
+    body = head(1920, 1080, "NEWOS desktop wallpaper") + (
+        '  <defs>\n'
+        '    <linearGradient id="bgw" x1="0" y1="0" x2="1" y2="1">\n'
+        f'      <stop stop-color="#080A18"/><stop offset=".55" stop-color="{NAVY}"/>'
+        f'<stop offset="1" stop-color="#0B0B1A"/>\n'
+        '    </linearGradient>\n'
+        '    <linearGradient id="rainboww" x1="0" y1="0" x2="1" y2="0">\n'
+        f'      <stop stop-color="{ORANGE}"/><stop offset=".33" stop-color="{LIME}"/>'
+        f'<stop offset=".66" stop-color="{CYAN}"/><stop offset="1" stop-color="{BLUE}"/>\n'
+        '    </linearGradient>\n'
+        '  </defs>\n'
+        '  <rect width="1920" height="1080" fill="url(#bgw)"/>\n'
+        '  <g opacity=".22">\n'
+        f'    <polygon points="0,0 520,0 160,620 0,780" fill="{BLUE}"/>\n'
+        f'    <polygon points="1920,0 1920,420 1420,180 1680,0" fill="{CYAN}"/>\n'
+        f'    <polygon points="1920,1080 1220,1080 1560,700 1920,620" fill="{ORANGE}"/>\n'
+        f'    <polygon points="0,1080 0,720 420,1080" fill="{LIME}"/>\n'
+        '  </g>\n'
+        '  <g opacity=".35">\n'
+        f'    <polygon points="760,0 980,0 1260,1080 1080,1080" fill="{NAVY}"/>\n'
+        f'    <polygon points="1190,0 1280,0 1600,1080 1500,1080" fill="{DEEP}"/>\n'
+        '  </g>\n'
+        # The mark lives in the top-right corner, clear of the icon column
+        # and of the taskbar, so windows can still cover it.
+        '  <g transform="translate(1400,90) scale(.85)" opacity=".9">\n'
+        + flag_group(shadow=True) +
+        '  </g>\n'
+        '  <rect x="1400" y="600" width="360" height="5" fill="url(#rainboww)"'
+        ' rx="2" opacity=".7"/>\n'
+        '</svg>\n')
+    return body
+
+
 def splash():
     body = head(640, 400, "NEWOS splash") + (
         '  <defs><linearGradient id="s" x1="0" y1="0" x2="1" y2="1">\n'
@@ -387,6 +423,7 @@ def main():
     write(os.path.join(BRAND, "newos-boot.svg"), boot())
     write(os.path.join(WEB, "favicon.svg"), favicon())
     write(os.path.join(BRAND, "newos-limine.svg"), wallpaper())
+    write(os.path.join(BRAND, "newos-wallpaper.svg"), desktop_wallpaper())
     write(os.path.join(BRAND, "newos-splash.svg"), splash())
     for name, builder in ICON_BUILDERS.items():
         write(os.path.join(ICONS, name + ".svg"), builder())
@@ -409,6 +446,18 @@ def main():
                         "BMP3:" + os.path.join(BRAND, "newos-splash.bmp")],
                        check=True)
         print("brand/newos-splash.bmp")
+        # The in-OS wallpaper is a BMP because that is what the NEWOS img
+        # codec decodes (24/32-bit uncompressed). It is rendered small on
+        # purpose: the desktop scales it to the panel at boot, so a 640x360
+        # plate keeps the initramfs cost under a megabyte.
+        small = os.path.join(BRAND, "newos-wallpaper-small.png")
+        render(os.path.join(BRAND, "newos-wallpaper.svg"), small, 640)
+        subprocess.run([bmp_tool, small,
+                        "-type", "TrueColor",
+                        "BMP3:" + os.path.join(BRAND, "newos-wallpaper.bmp")],
+                       check=True)
+        os.remove(small)
+        print("brand/newos-wallpaper.bmp")
 
 
 if __name__ == "__main__":

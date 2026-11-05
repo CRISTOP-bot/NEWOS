@@ -28,11 +28,22 @@ The x86_64 kernel reaches `BUILD=PASS`, `BOOT=PASS`, and `QEMU=PASS`:
   kheap, VFS with tmpfs / devfs plus read-only procfs and sysfs,
   initramfs, device-model core, PCI + PCnet / serial / PS/2 / PIT / CMOS
   drivers, framebuffer console.
-- Interactive `nsh` shell (`/init`) with a native `/bin` toolbox, including
+- Interactive `nsh` shell — Newos Shell Hyper (`/init`) with a native `/bin`
+  toolbox, including
   recursive `find`,
   `.new` package manager (`newpkg`), and a C library (`libc.a`).
+- OpenRC as PID 1: `/sbin/openrc-init` + `/sbin/openrc` with runlevels, a
+  real `depend()` solver and `/run/openrc` state files, the `rc-status`,
+  `rc-update` and `rc-service` operators, and working `/etc/init.d` scripts
+  interpreted by `nsh` (`docs/development/openrc.md`).
 - A native `/bin/frotz` Z-machine interpreter (upstream Frotz 2.44, GPL-2+)
   for Infocom-style interactive fiction; see `docs/frotz.md`.
+- A native `/bin/doom` DOOM 1.10 engine port (id Software's released source,
+  GPL-2.0) for the framebuffer console: the engine fork plus the NEWOS `I_`
+  layer in the four interface files (framebuffer blit via `SYS_FBWRITE`,
+  PS/2 keyboard/mouse via `SYS_KBD_*`/`SYS_MOUSE_GET`, tic clock, quit paths),
+  four upstream→NEWOS patches, and the embedded shareware IWAD;
+  see `docs/development/doom.md`.
 - Self-tests: 11 phase-1 kernel tests + 9 phase-2 userland/ABI tests —
   all pass (`make qemu-test`, QEMU exit `1` = PASS). `/proc` exposes
   version, uptime, meminfo, filesystems, mounts and cmdline; `/sys`

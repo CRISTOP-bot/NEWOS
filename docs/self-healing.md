@@ -24,6 +24,11 @@ The workflow checks out the trusted default branch separately from the pull
 request. It never executes code from the PR; it only runs `git`, `gh` and
 `python3` helpers copied from the default branch.
 
+The driver is `scripts/ci/self-heal.sh` — argument handling and the two
+modes — and it sources `scripts/ci/self-heal-lib.sh` next to it (metadata,
+labels, checkout, whitespace and merge primitives) out of that same trusted
+checkout, so both files come from the default branch, never from the PR.
+
 It can fix, without any AI:
 
 - trailing whitespace and blank lines at end of file flagged by

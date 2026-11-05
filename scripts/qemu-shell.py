@@ -7,6 +7,12 @@ being drained, and the harness waits for the prompt instead of sleeping, so
 what comes back is the guest's answer to that exact command.
 
   scripts/qemu-shell.py build/images/newos-x86_64.elf cmds.txt [--mem 512] [-- extra qemu args]
+  scripts/qemu-shell.py - cmds.txt --cdrom build/images/newos-x86_64-limine.iso
+
+--cdrom boots an optical image instead of the -kernel ELF; only the Limine
+boot path hands the kernel a framebuffer, so a graphical (gui=1) session has
+to be driven through it. --hold N keeps QEMU alive for N seconds after the
+last command so a -monitor socket can take a screendump.
 
 Exit status is non-zero when any command did not return a prompt.
 """
@@ -40,13 +46,14 @@ def raw(slave):
     termios.tcsetattr(slave, termios.TCSANOW, attrs)
 
 
-def run(cmds, kernel, mem="512", extra=()):
+def run(cmds, kernel, mem="512", extra=(), cdrom=None, hold=0):
     """Yield (label, bytes | None); None means the prompt never came back."""
     master, slave = pty.openpty()
     raw(slave)
+    boot = ["-cdrom", cdrom, "-boot", "order=d"] if cdrom else ["-kernel", kernel]
     argv = [
         os.environ.get("QEMU", "qemu-system-x86_64"),
-        "-kernel", kernel, "-m", mem, "-no-reboot", "-display", "none",
+        *boot, "-m", mem, "-no-reboot", "-display", "none",
         "-serial", "stdio",
     ] + list(extra)
     proc = subprocess.Popen(argv, stdin=slave, stdout=slave,
@@ -128,7 +135,9 @@ def run(cmds, kernel, mem="512", extra=()):
 
     try:
         ok = drain(time.time() + BOOT_TIMEOUT)
-        yield "<boot>", bytes(buf)
+        # A boot that never reaches a prompt must be reported as a failure,
+        # not silently counted as "0 timeouts" (QEMU can also die at once).
+        yield "<boot>", bytes(buf) if ok else None
         buf.clear()
         if not ok:
             return
@@ -142,6 +151,11 @@ def run(cmds, kernel, mem="512", extra=()):
                 return
             yield c, out if hit else None
     finally:
+        if hold:
+            # The framebuffer is only useful while QEMU is alive: an outside
+            # client polls the -monitor socket for a screendump in this window.
+            print(f"(holding QEMU {hold}s for the monitor)", flush=True)
+            time.sleep(hold)
         proc.terminate()
         try:
             proc.wait(timeout=5)
@@ -156,10 +170,15 @@ def main():
         return 2
     kernel, cmdfile = sys.argv[1], sys.argv[2]
     mem, extra, args = "512", [], sys.argv[3:]
+    cdrom, hold = None, 0
     i = 0
     while i < len(args):
         if args[i] == "--mem":
             mem, i = args[i + 1], i + 2
+        elif args[i] == "--cdrom":
+            cdrom, i = args[i + 1], i + 2
+        elif args[i] == "--hold":
+            hold, i = int(args[i + 1]), i + 2
         else:
             extra.append(args[i])
             i += 1
@@ -169,11 +188,14 @@ def main():
         cmds = [c for c in cmds if c]
 
     timeouts = 0
-    for cmd, out in run(cmds, kernel, mem, extra):
+    for cmd, out in run(cmds, kernel, mem, extra, cdrom, hold):
         text = (out or b"").decode("utf-8", "replace")
         if cmd == "<boot>":
             print("=== boot ===")
             print(text[-2500:])
+            if out is None:
+                timeouts += 1
+                print(f"!!! no prompt within {BOOT_TIMEOUT}s of boot")
             continue
         print(f"\n$ {cmd}")
         if out is None:

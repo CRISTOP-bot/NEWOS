@@ -51,8 +51,8 @@ builds the cross compiler by itself.
 exhaustion returns NULL). `libc/src/math.c` is a small freestanding float shim
 used by TinyGL (`glxgears`); it is not a complete libm. Built as
 `build/userland/libc.a`; programs opt in via an explicit link rule (see the
-frotz port). The lint knows a `LIBC` class (`ABI` + self only); the kernel
-never imports it.
+frotz port and the DOOM engine port). The lint knows a `LIBC` class (`ABI` +
+self only); the kernel never imports it.
 
 ## Repository components and bootstrap
 
