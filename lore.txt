@@ -1,0 +1,229 @@
+################################################################################
+#  LORE.TXT — NEWOS: The True Story (absolutely not canon, probably)
+################################################################################
+#
+#  WARNING: Everything in this file is invented, exaggerated, or a joke.
+#  If you quote it in a pull request, you will be politely ignored.
+#  If you quote it in a commit message, you will be politely reverted.
+#  If you quote it in production, may the scheduler have mercy on your soul.
+################################################################################
+
+==============================================================================
+  1. EL NOMBRE
+==============================================================================
+
+NEWOS no significa "New Operating System". Eso es lo que dice la README para
+que los inversores (no hay inversores) no se asusten.
+
+NEWOS significa, en el dialecto interno del proyecto:
+
+    N  = "No"          (la respuesta por defecto a toda feature request)
+    E  = "Está"        (verbo copulativo, porque el OS "está" vivo, no "es")
+    W  = "WIP"         (Work In Progress, eternamente)
+    O  = "Obsoleto"    (todo lo que se escribió ayer)
+    S  = "Siempre"     (siempre se reescribe mañana)
+
+En otras palabras: "No Está WIP Obsoleto Siempre" — una frase que describe
+perfectamente el ciclo de vida de cada módulo del kernel.
+
+Los mantenedores insisten en que es un acrónimo serio. No lo es.
+El verdadero nombre original era "CRISTOP-OS", pero se descartó por motivos
+de dignidad y porque el dominio costaba 12 dólares y nadie quiso pagarlos.
+
+==============================================================================
+  2. LA MASCOTA: EL "PINGÜINO DE TTY"
+==============================================================================
+
+NEWOS no tiene mascota oficial. Tiene algo peor: el Pingüino de TTY.
+
+Se dice que vive en /dev/ttyS0 (COM1) y que solo se manifiesta cuando:
+  - el kernel peta antes de montar el VFS,
+  - alguien escribe "sudo" en nsh (no existe sudo, pero el pingüino se ríe),
+  - o cuando qemu-test sale con código >= 3.
+
+Su sonido característico es el carácter BEL (0x07), que el kernel imprime
+exactamente una vez por crash y que nadie oye porque la consola serie está
+a 115200 baudios y el terminal del desarrollador tiene el volumen muteado.
+
+Rumor: si ejecutas `cat /dev/urandom` durante 40 minutos seguidos, el
+pingüino aparece en la esquina superior derecha de la VGA y te juzga.
+Nadie lo ha verificado. Nadie quiere ser el primero.
+
+==============================================================================
+  3. LOS LUGARES (el mapa del reino)
+==============================================================================
+
+NEWOS trata su sistema de ficheros como un reino. Cada directorio es una
+región con su propia ley:
+
+  /bin        — "La Armería". Aquí viven las herramientas nativas. Si un
+                comando no está aquí, nsh lo busca en /bin/busybox y finge
+                que siempre estuvo ahí. Nadie se da cuenta. (Mentira: todos
+                se dan cuenta.)
+
+  /sbin       — "El Cuartel General". OpenRC gobierna desde aquí. Los
+                init scripts se ejecutan con /bin/sh en "modo servicio",
+                que es un intérprete real y no una aproximación. Esto es el
+                mayor milagro de NEWOS y también su mayor fuente de bugs.
+
+  /proc       — "El Oráculo". Solo lectura. Si intentas escribir en él, el
+                VFS te mira con desprecio y devuelve -EROFS. El Oráculo sabe
+                tu uptime, tu memoria y tu cmdline, pero no sabe tu nombre
+                porque no hay syscall de getname (todavía).
+
+  /sys        — "El Catastro". Inventario PCI. Si tu tarjeta no aparece aquí,
+                no existe. Si aparece pero no tiene driver, existe pero sufre.
+
+  /tmp        — "El Vertedero Bendito". Aquí se acumulan paquetes .new,
+                historias de Z-code y el hello-new de prueba. Se vacía en
+                cada reboot porque no hay disco persistente. El vertedero
+                es feliz. El vertedero no sabe que es temporal.
+
+  /dev        — "El Zoológico". console, serial, zero, mouse, disk0 (si hay).
+                /dev/null no existe aún (issue #3 del roadmap). /dev/zero sí,
+                porque alguien lo necesitaba para un test y lo implementó
+                a las 3 de la mañana.
+
+  /run/openrc — "El Libro de Actas". Cada servicio escribe su estado aquí.
+                Si /run/openrc/current dice "default" pero el sistema está
+                en "single", es que alguien mintió. Ese alguien suele ser
+                el desarrollador.
+
+==============================================================================
+  4. LOS SUBSISTEMAS Y SUS NOMBRES INVENTADOS
+==============================================================================
+
+  nsh  — "Newos Shell Hyper". El "Hyper" se añadió porque "Newos Shell"
+         sonaba a un comando de DOS. Nadie sabe qué hace "Hyper" realmente.
+         Se sospecha que es un adjetivo de relleno. También podría ser un
+         guiño a "Hyper-V", lo cual sería irónico porque NEWOS no virtualiza
+         nada.
+
+  newpkg — "NEWOS Package". El formato se llama .new porque la extensión
+           .pkg estaba cogida, .deb era demasiado debian, .rpm demasiado
+           redhat, y .tar era "demasiado honesto" (no es un tar, es un
+           contenedor con CRCs). El formato NEW1 se nombró así porque al
+           desarrollador le gustaba el número 1.
+
+  VOXEL — "VOXEL" no es un acrónimo. Es una palabra que sonaba a "voxel"
+           y punto. La V mayúscula es porque en mayúsculas parece más serio.
+           El equipo de marketing (no existe) aprobó el nombre en 4 segundos.
+
+  iru_* — Prefijo de lib/kernel. "iru" proviene de un typo en un commit
+          inicial ("iru_memcpy" en lugar de "iru_memcpy"... espera, eso es
+          lo mismo). La verdad: se inventó porque "k" (kernel) ya estaba
+          cogido por Linux y "lib" era demasiado genérico. "iru" no significa
+          nada. Cero. Nada. Es un sonido agradable.
+
+  procfs/sysfs — Se llaman así porque Linux los llama así y el desarrollador
+                 no quiso inventar nombres nuevos a las 2 de la mañana.
+                 Honestidad ante todo.
+
+  int $0x80 — "La Puerta Vieja". Se mantiene por compatibilidad con BusyBox
+              y porque reescribir todo a syscall (LSTAR) daba pereza.
+              La puerta nueva (syscall) existe pero solo se usa cuando alguien
+              se acuerda.
+
+==============================================================================
+  5. LAS VERSIONES (la historia del reino)
+==============================================================================
+
+  0.1.0-pre-alpha  — "El Big Bang". El kernel arrancaba y decía "Hello".
+                     Nadie sabía qué hacer después. Se celebró con un
+                     printk y un café frío.
+
+  0.2.0-pre-alpha  — "La Reorganización". Todo se movió de sitio. Los
+                     includes lloraron. El lint-layering nació y desde
+                     entonces nadie puede incluir lo que no debe. Bendito sea.
+
+  0.3.0-gui        — "La Era de las Ventanas". Apareció el desktop con
+                     cinco ventanas y un cursor que dejaba rastro. El rastro
+                     se arregló. El cursor ahora es un overlay de staging.
+                     El desarrollador sigue sin saber por qué "staging".
+
+  Unreleased       — "El Caos Creativo". OpenRC, DOOM, nano con colores,
+                     VOXEL, FAT32, ISO9660, romfs, HDA con sine wave,
+                     e1000, glxgears, frotz... todo en un solo changelog.
+                     El changelog es más largo que el kernel. Esto es un
+                     problema. Nadie lo va a arreglar.
+
+  1.0.0            — "La Profecía". Todavía no existe. Se alcanzará cuando:
+                     - el sistema sobreviva un reboot con datos en disco,
+                     - alguien haga ping a internet de verdad,
+                     - y el desarrollador termine el README sin añadir
+                       "TODO" (spoiler: no lo logrará).
+
+==============================================================================
+  6. LOS BUGS LEGENDARIOS
+==============================================================================
+
+  YIELD-REWIND     — Un bug del scheduler que reescribía rip dos veces.
+                     Se arregló con un guardia llamado "YIELD-REWIND" que
+                     verifica que el código diga "cd 80". Si no lo dice,
+                     el kernel se niega a continuar. El kernel tiene gustos.
+
+  SLOT-MISMATCH    — El bug hermano. Ocurre cuando dos hilos pelean por el
+                     mismo slot de scheduler. Se resolvió con otra guardia.
+                     Ahora hay dos guardias. Pronto habrá un ejército.
+
+  "no mouse detected" — El probe del mouse PS/2 robaba el byte de config
+                     porque el handler de teclado se adelantaba. Se arregló
+                     enmascarando IRQ1. La lección: en NEWOS, el teclado
+                     siempre intenta robar algo.
+
+  El cursor fantasma — Hubo un tiempo en que el kernel pintaba su propia
+                     flecha Y el compositor pintaba otra. Había dos cursores.
+                     Uno era mentira. Ambos eran mentira. Se unificaron.
+                     Ahora solo hay uno. Probablemente.
+
+  tcc RIP basura   — 0x2825ffffff. Un número que ningún desarrollador quiere
+                     volver a ver. Se producía porque un stub PLT saltaba a
+                     datos sin relocalizar. El parche 0002 lo resolvió.
+                     El número 0x2825ffffff ahora es tabú en el proyecto.
+
+==============================================================================
+  7. REGLAS NO ESCRITAS (pero escritas aquí)
+==============================================================================
+
+  1. Si un subsistema funciona, no lo toques. Si no funciona, tampoco.
+     (Broma. Pero también no.)
+
+  2. "-Werror" es la ley. Si no compila con -Werror, no existe.
+
+  3. El lint-layering tiene siempre la razón. Incluso cuando se equivoca.
+     (No se equivoca. Pero si se equivoca, se cambia el contrato con un
+     comentario. Con un comentario muy bueno.)
+
+  4. "No TODOs como implementación" es la única regla que se cumple al
+     100%. Irónicamente, esta regla está escrita en AGENT.md como TODO
+     de estilo. (No es un TODO. Es una prohibición. Matices.)
+
+  5. Cada cambio pequeño. Cada commit pequeño. Cada PR pequeño.
+     (El changelog actual tiene 300 líneas. Pequeño es relativo.)
+
+  6. No se prometen features falsas. Si no está cableado y testeado, es
+     "future work". Esto es lo más honesto del proyecto y lo más aburrido
+     de leer.
+
+==============================================================================
+  8. EL FUTURO (según la profecía)
+==============================================================================
+
+  NEWOS 1.0 llegará cuando:
+    - un paquete .new sobreviva un reboot (necesita disco persistente),
+    - alguien haga ping real a 10.0.2.2 y reciba respuesta,
+    - SMP encienda más de una CPU sin triple-fault,
+    - y el desarrollador escriba el último "TODO" del roadmap.
+
+  Mientras tanto, el Pingüino de TTY espera en /dev/ttyS0.
+  El Pingüino no tiene prisa. El Pingüino nunca tiene prisa.
+  El Pingüino sabe que el kernel siempre vuelve a compilar.
+
+==============================================================================
+  FIN DEL LORE
+==============================================================================
+
+  "NEWOS: porque escribir un OS desde cero es más fácil que explicar por
+   qué no usas Linux."  — Anónimo (probablemente el desarrollador)
+
+################################################################################
