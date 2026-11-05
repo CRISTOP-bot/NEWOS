@@ -70,9 +70,14 @@ QEMU_DISPLAY    ?= -display gtk,grab-on-hover=on,show-cursor=off
 # short one-line tags ("  CC  file.c"). Usage: make all / make all V=0.
 # ---------------------------------------------------------------------------
 V ?= 1
+# ANSI colors (Linux-kernel-style pretty output).
+COLOR_RESET  := \033[0m
+COLOR_GREEN  := \033[1;32m
+COLOR_CYAN   := \033[1;36m
+COLOR_YELLOW := \033[1;33m
 ifeq ($(V),0)
 Q := @
-E := @echo
+E := @printf '$(COLOR_GREEN)%s$(COLOR_RESET)\n'
 else
 Q :=
 E := @:
