@@ -93,15 +93,13 @@ fetch sources without compiling.
 
 The ISO defaults to a plain text `nsh` session. The Limine menu exposes a
 separate **NEWOS (GUI)** entry (`gui=1`); `make qemu-limine-gui` boots
-with `gui=1` directly for visual checks, and `/bin/desktop` can also be
-started from `nsh`. `Ctrl+Q` (or closing the last window) returns to a
-clean shell. The desktop has five draggable/resizable windows — System,
-Files, Mouse, About and Log — plus a dock, live clock/memory readouts, a
-`/bin` launcher and Midnight/Win95 themes. It owns the PS/2 keyboard while
-active: `Tab` cycles windows, `1`–`5` focus one,
-arrows select a program, `Enter` runs it and `?` shows the shortcut card.
-Serial input stays with the shell, and `gui=0` (or `test_mode=1`) keeps a
-plain text session. See [`docs/boot.md`](docs/boot.md)
+with `gui=1` directly for visual checks, and `/bin/voxel` is the session
+shell (the legacy Win95 `/bin/desktop` has been removed). `Ctrl+Q` returns
+to a clean shell. The VOXEL session is a classic desktop: teal wallpaper,
+icons, File Explorer, Run, Console, Editor, Image Viewer, plus a Start menu
+and taskbar; it owns the PS/2 keyboard and the framebuffer console while
+active. Serial input stays with the shell, and `gui=0` (or `test_mode=1`)
+keeps a plain text session. See [`docs/boot.md`](docs/boot.md)
 and [`docs/abi.md`](docs/abi.md).
 
 The desktop is self-contained NEWOS code: a clipped XRGB surface
