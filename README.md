@@ -86,7 +86,7 @@ El sitio del proyecto está en [`web/`](web/), es estático y no necesita backen
 - [Descargas](https://cristop-bot.github.io/NEWOS/downloads.html)
 - [Cambios](https://cristop-bot.github.io/NEWOS/changelog.html)
 
-La URL pública del proyecto es [cristop-bot.github.io/NEWOS](https://cristop-bot.github.io/NEWOS/). El deployment se realiza automáticamente al cambiar `web/` en `main`; verifica el estado del workflow en Actions si un cambio aún no aparece en línea.
+La URL pública del proyecto es [cristop-bot.github.io/NEWOS](https://cristop-bot.github.io/NEWOS/). El deployment se realiza automáticamente al cambiar `web/` en `main`; verifica el estado del workflow en Actions si un cambio aún no aparece en línea. La navegación, las capturas, las tablas extensas, los bloques de código y los controles de tema admiten pantallas pequeñas, uso por teclado y lectura con asistencia; las tablas que requieren más ancho se desplazan dentro de su propio marco.
 
 ## Estructura principal
 
