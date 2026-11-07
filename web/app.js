@@ -7,7 +7,7 @@
   const applyTheme = (t) => {
     document.documentElement.setAttribute("data-theme", t);
     const meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.setAttribute("content", t === "dark" ? "#1a0f04" : "#ffffff");
+    if (meta) meta.setAttribute("content", t === "dark" ? "#101722" : "#f3f2ee");
     const btn = document.getElementById("themeBtn");
     if (btn) { btn.innerHTML = t === "dark" ? SUN : MOON; btn.setAttribute("aria-label", t === "dark" ? "Cambiar a tema claro" : "Cambiar a tema oscuro"); }
   };

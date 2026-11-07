@@ -1,211 +1,115 @@
 <p align="center">
-  <img src="brand/newos.svg" alt="NEWOS logo" width="112" height="112">
+  <img src="brand/newos.svg" alt="Identidad gráfica de NEWOS" width="88">
 </p>
 
-# NEWOS
+<h1 align="center">NEWOS</h1>
+<p align="center"><strong>Un sistema operativo independiente, construido desde cero.</strong></p>
+<p align="center">x86_64 · 0.3.0-gui · Licencia MIT</p>
 
-A proprietary, Linux-independent operating system, designed and written from
-scratch: kernel, ABI, syscall ABI, libc, init, shell, VFS, drivers,
-toolchain, and a native package system — targeting x86_64 today (ARM64 and
-RISC-V 64 configs exist as planning placeholders).
+<p align="center">
+  <a href="https://cristop-bot.github.io/NEWOS/"><strong>Visitar el sitio de NEWOS ↗</strong></a>
+  &nbsp;·&nbsp; <a href="https://github.com/CRISTOP-bot/NEWOS">Código fuente</a>
+  &nbsp;·&nbsp; <a href="web/downloads.html">Descargas</a>
+</p>
 
-The system is built as a strictly layered, fully modular tree. Nothing is
-copied from Linux; everything follows the layered order:
-**Hardware → Arch → Kernel → Drivers → Syscalls → libc → Userspace.**
+---
 
-## Status
+NEWOS explora cómo construir un sistema operativo como un proyecto propio: desde el arranque y las capas del kernel hasta el userland y su entorno gráfico. No es una distribución de Linux. Su arquitectura principal y el estado que se describe aquí corresponden a **x86_64**; configuraciones para otras arquitecturas no deben interpretarse como soporte funcional.
 
-The x86_64 kernel reaches `BUILD=PASS`, `BOOT=PASS`, and `QEMU=PASS`:
+La intención es simple: hacer visibles las decisiones de ingeniería y mantener claros los límites de lo que ya está implementado.
 
-- Builds clean under `-Werror` (host `gcc` or the `x86_64-elf` cross
-  toolchain, `-mcmodel=kernel`, `-mgeneral-regs-only`).
-- Boots in QEMU through **three independent paths**:
-  - **PVH** (`qemu -kernel`, via the Xen ELF note), the default dev path.
-  - **Multiboot2** (GRUB, via `make iso`).
-  - **Limine** (BIOS+UEFI ISO, the only path with a framebuffer).
-- Early long-mode setup: identity + high-half paging, GDT/TSS, IDT, PIC
-  remap, serial console, PMM (bitmap + buddy over all usable RAM ranges),
-  kheap, VFS with tmpfs / devfs plus read-only procfs and sysfs,
-  initramfs, device-model core, PCI + PCnet / serial / PS/2 / PIT / CMOS
-  drivers, framebuffer console.
-- Interactive `nsh` shell — Newos Shell Hyper (`/init`) with a native `/bin`
-  toolbox, including
-  recursive `find`,
-  `.new` package manager (`newpkg`), and a C library (`libc.a`).
-- OpenRC as PID 1: `/sbin/openrc-init` + `/sbin/openrc` with runlevels, a
-  real `depend()` solver and `/run/openrc` state files, the `rc-status`,
-  `rc-update` and `rc-service` operators, and working `/etc/init.d` scripts
-  interpreted by `nsh` (`docs/development/openrc.md`).
-- A native `/bin/frotz` Z-machine interpreter (upstream Frotz 2.44, GPL-2+)
-  for Infocom-style interactive fiction; see `docs/frotz.md`.
-- A native `/bin/doom` DOOM 1.10 engine port (id Software's released source,
-  GPL-2.0) for the framebuffer console: the engine fork plus the NEWOS `I_`
-  layer in the four interface files (framebuffer blit via `SYS_FBWRITE`,
-  PS/2 keyboard/mouse via `SYS_KBD_*`/`SYS_MOUSE_GET`, tic clock, quit paths),
-  four upstream→NEWOS patches, and the embedded shareware IWAD;
-  see `docs/development/doom.md`.
-- Self-tests: 11 phase-1 kernel tests + 9 phase-2 userland/ABI tests —
-  all pass (`make qemu-test`, QEMU exit `1` = PASS). `/proc` exposes
-  version, uptime, meminfo, filesystems, mounts and cmdline; `/sys`
-  exposes kernel identity and the PCI inventory.
-- Complete static BusyBox 1.35.0 at `/bin/busybox` (402 applets) through the
-  Linux-compatible x86-64 `syscall` entry, plus a built-in `/bin/glxgears`
-  TinyGL demo and a five-window Win95-style desktop.
-- `/bin/nano` — genuine GNU nano 8.4 on a static ncursesw, with colors, line
-  numbers and syntax highlighting on the framebuffer console — and `/bin/tcc` —
-  TinyCC 0.9.27, which compiles objects and can compile-and-run a freestanding
-  program in place (`tcc -nostdlib -run /etc/tcc-hello.c`). Both are vendored
-  forks under `ports/` (see `ports/nano/README.md`, `ports/tcc/README.md`).
+## Capturas reales
 
-## Screenshots
+Imágenes del proyecto tomadas durante ejecuciones en QEMU. Son capturas de NEWOS; no maquetas de producto. Las funciones, el nivel de detalle y la versión visible pueden variar entre capturas.
 
-Real captures from QEMU (Limine framebuffer) and the serial console. Each
-image is a genuine boot, not a mockup.
+| Escritorio NEWOS | Sesión gráfica VOXEL |
+|---|---|
+| ![Escritorio NEWOS en QEMU](web/assets/desktop.png) | ![Explorador de archivos VOXEL en NEWOS](web/assets/voxel.png) |
+| Consola de arranque | Aplicaciones en el framebuffer |
+| ![Consola de arranque NEWOS](web/assets/boot.png) | ![DOOM 1.10 en NEWOS](web/assets/doom.png) |
+| GNU nano | Tema alternativo del escritorio |
+| ![GNU nano en NEWOS](web/assets/nano-full.png) | ![Tema alternativo del escritorio NEWOS](web/assets/desktop-win95.png) |
 
-| | |
-| --- | --- |
-| ![Arranque de NEWOS en framebuffer](web/assets/boot.png) | ![newfetch en NEWOS](web/assets/newfetch.png) |
-| **Arranque.** Log en fbcon, PCI enumerado, 20/20 tests PASS, prompt `root@newos:/#`. | **newfetch.** Logo, memoria, Display 1280×800 x32, paquetes en `/bin`. |
-| ![Escritorio compositor de NEWOS](web/assets/desktop.png) | ![Tema Win95 del escritorio](web/assets/desktop-win95.png) |
-| **desktop.** Cinco ventanas (System, Files, Mouse, About, Log), dock, temas Midnight/Win95, cursor con backing store, compositor por daños, teclado PS/2 (Tab, 1–5, flechas, Enter, ?). | **desktop · Win95.** Mismo compositor con tema claro Windows 95: caras grises, barras de título azul marino e iconos bevelados. |
-| ![VOXEL en NEWOS](web/assets/voxel.png) | ![GNU nano con colores](web/assets/nano-color.png) |
-| **voxel.** Stack MIT `ports/voxel` en `/bin/voxel`: escritorio teal, iconos, File Explorer y taskbar sobre las syscalls de framebuffer y ratón. | **nano · colores.** `TERM=linux`, SGR 16/256 + bold/reverse en fbcon, cursor real, `/usr/etc/nanorc` con resaltado C/C++/shell/Makefile. |
-| ![GNU nano pantalla completa](web/assets/nano-full.png) | ![DOOM 1.10 en NEWOS](web/assets/doom.png) |
-| **nano · pantalla completa.** Barra de título `[ GNU nano 8.4 ]`, números de línea, barra de atajos `^G Help` / `^X Write Out`. | **doom.** Motor id Software DOOM 1.10 con IWAD embebido (shareware E1M1) en `/bin/doom`, renderizado por el framebuffer de NEWOS. |
+[Ver la galería completa en el sitio web](https://cristop-bot.github.io/NEWOS/#capturas).
 
-## Build & run
+## Estado del proyecto
 
-For a fresh clone, `make` bootstraps every pinned recursive source submodule
-and builds the cross toolchain, NEWOS kernel/system ISO, and the embedded
-TinyGL demo from the original repository:
+El README y los workflows del repositorio documentan builds y pruebas de arranque en QEMU para x86_64. Estas verificaciones no equivalen a soporte general de hardware físico. Consulta el workflow y sus logs para confirmar el resultado del commit que quieras probar.
+
+El árbol del proyecto incluye, entre otras piezas, kernel freestanding x86_64, arranque PVH/Multiboot2/Limine, manejo de memoria, VFS y backends de sistema de archivos, procesos/syscalls, shell `nsh`, userland y un entorno gráfico. Hay puertos y dependencias de terceros: sus licencias y avisos aplican a cada componente.
+
+**Límites que conviene conocer:** la persistencia, red y compatibilidad de hardware dependen de las implementaciones presentes en el código y de las pruebas correspondientes. No asumas que una imagen de QEMU prueba soporte en equipos reales. Consulta [la documentación](https://cristop-bot.github.io/NEWOS/docs.html) y [el roadmap](ROADMAP.md) antes de tratar una función planificada como disponible.
+
+## Arquitectura, a grandes rasgos
+
+```text
+Hardware
+  └─ Arquitectura x86_64
+      └─ Kernel y subsistemas
+          ├─ Memoria y procesos
+          ├─ Drivers
+          ├─ VFS e IPC
+          └─ ABI / syscalls
+              └─ libc y userland
+                  ├─ nsh y herramientas
+                  └─ entorno gráfico
+```
+
+La organización concreta y las reglas entre capas están en [`docs/architecture.md`](docs/architecture.md). Para navegación rápida, consulta el [mapa de archivos](https://cristop-bot.github.io/NEWOS/docs.html#arquitectura), la [API de syscalls y comandos](https://cristop-bot.github.io/NEWOS/api.html) y la [documentación del arranque](docs/boot.md).
+
+## Construir y ejecutar
+
+El build completo usa fuentes fijadas por el propio proyecto y puede tardar bastante la primera vez. Los requisitos del host, objetivos y opciones se mantienen en [`docs/build.md`](docs/build.md) y en el `Makefile`; revísalos antes de instalar dependencias.
 
 ```sh
-git clone https://github.com/CRISTOP-bot/NEWOS.git
+git clone --recurse-submodules https://github.com/CRISTOP-bot/NEWOS.git
 cd NEWOS
 make
 ```
 
-All source checkouts stay inside this repository; generated files stay in
-`build/` and `toolchain/out/`. The first full build may take 20-40 minutes.
-Use `make fast` for a host-compiler system build that skips the cross
-toolchain but still builds and embeds `/bin/glxgears`, or `make bootstrap` to
-fetch sources without compiling.
-
-The ISO defaults to a plain text `nsh` session. The Limine menu exposes a
-separate **NEWOS (GUI)** entry (`gui=1`); `make qemu-limine-gui` boots
-with `gui=1` directly for visual checks, and `/bin/voxel` is the session
-shell (the legacy Win95 `/bin/desktop` has been removed). `Ctrl+Q` returns
-to a clean shell. The VOXEL session is a classic desktop: teal wallpaper,
-icons, File Explorer, Run, Console, Editor, Image Viewer, plus a Start menu
-and taskbar; it owns the PS/2 keyboard and the framebuffer console while
-active. Serial input stays with the shell, and `gui=0` (or `test_mode=1`)
-keeps a plain text session. See [`docs/boot.md`](docs/boot.md)
-and [`docs/abi.md`](docs/abi.md).
-
-The desktop is self-contained NEWOS code: a clipped XRGB surface
-(`desktop_surface`), caller-owned widgets (`desktop_widgets`) and a
-damage-based compositor. The MIT [VOXEL](https://github.com/CRISTOP-bot/voxel)
-software graphics stack is vendored under `ports/voxel` (built by
-`scripts/build-voxel.sh`) and shipped as `/bin/voxel`, a standalone
-classic-desktop demo; it is the graphics direction but not yet the session
-shell. `glxgears` is built into the image at `/bin/glxgears`; the
-standalone `build/userland/glxgears-newos.elf` and `.new` package remain
-available for explicit port work.
-
-`/bin/busybox` is the official static BusyBox 1.35.0 build (402 applets).
-`nsh` runs unshadowed command names through `/bin/busybox <applet>` because
-the VFS has no symlinks; see [`ports/busybox/README.md`](ports/busybox/README.md)
-for provenance, the GPLv2 notice and known kernel-feature limits.
-
-Requirements for the full build: `gcc`, `g++`, `make`, `binutils`, `nasm`,
-`git`, `curl`, `python3`, `libgmp-dev`, `libmpfr-dev`, `libmpc-dev`, `flex`,
-`bison`, and `texinfo`; `xorriso` is required for the Limine ISO. QEMU and
-OVMF are required only for the boot tests. NEWOS does not install host
-packages automatically.
+Para las opciones de build y pruebas disponibles:
 
 ```sh
-make all            # cross toolchain + Limine ISO + glxgears.elf/.new
-make fast           # host-compiler ISO (includes /bin/glxgears)
-make bootstrap      # fetch all pinned first-party and nested submodules
-make qemu           # boot in QEMU (serial console)  (BOOT=PASS)
-make qemu-test      # boot, run self-tests, exit with a machine-checkable code
-make qemu-limine    # text shell; choose NEWOS (GUI) in the Limine menu
-make qemu-limine-gui   # boot with gui=1 directly (no menu wait)
-make qemu-limine-test  # suite through the Limine ISO (graphics path)
-make check-newpkg   # package system tests (no QEMU needed)
-make help           # full target list (V=0 for a short log, V=1 verbose)
-make clean
+make help
 ```
 
-Every push to `main` runs the build, package-manager tests, and QEMU boot
-tests. Passing commits publish a GitHub prerelease with the kernel, ISO images,
-the standalone TinyGL demo and its `.new` package, and update the build
-environment at `ghcr.io/cristop-bot/newos-build` (`latest` and `sha-*` tags). Pull requests
-run the same checks without publishing. Pull and run the published build
-environment with `docker compose pull newos` followed by
-`docker compose run --rm newos`.
+QEMU y las herramientas de imagen correspondientes se requieren para ejecutar las rutas de prueba. Un build exitoso no sustituye a un arranque QEMU; un arranque QEMU tampoco prueba compatibilidad con hardware físico.
 
-Automated test mode:
+## Sitio web
 
-```sh
-qemu-system-x86_64 -kernel build/images/newos-x86_64.elf \
-  -serial stdio -no-reboot -m 256M \
-  -device isa-debug-exit,iobase=0xf4 -append "test_mode=1"
-```
+El sitio del proyecto está en [`web/`](web/), es estático y no necesita un backend. Se publica con GitHub Pages desde la carpeta `/web` de `main`.
 
-The kernel runs its self-tests and writes the result to QEMU's
-`isa-debug-exit` port: QEMU exits `1` when all tests pass, `>= 3` on failure.
-`scripts/ci/run_qemu_test.sh` wraps this for CI.
+- [Inicio](https://cristop-bot.github.io/NEWOS/)
+- [Documentación](https://cristop-bot.github.io/NEWOS/docs.html)
+- [API y comandos](https://cristop-bot.github.io/NEWOS/api.html)
+- [Paquetes](https://cristop-bot.github.io/NEWOS/packages.html)
+- [Descargas](https://cristop-bot.github.io/NEWOS/downloads.html)
+- [Cambios](https://cristop-bot.github.io/NEWOS/changelog.html)
 
-## Boot protocol
+Si la publicación de GitHub Pages todavía no se ha activado en la configuración del repositorio, GitHub debe habilitar primero `main /web`; los enlaces se resolverán después del primer deployment.
 
-- **Multiboot2** header, a **PVH ELF note**, and **Limine** requests coexist
-  in the image. GRUB, QEMU (`-kernel`) and Limine each use the entry they
-  understand and ignore the rest.
-- The 32-bit trampoline builds early four-level paging (identity low 1 GiB +
-  high-half kernel window), then long mode, and enters `arch_main`
-  (Limine enters 64-bit directly via `limine_arch_main`).
-- PVH start-info, multiboot2 info structures, and the Limine memory map are
-  parsed into normalized RAM ranges that seed the PMM; MMIO holes are never
-  handed out as free memory.
+## Estructura principal
 
-## Repository layout
+| Área | Ubicación |
+|---|---|
+| Arranque, CPU y arquitectura | `arch/x86_64/` |
+| Kernel y diagnóstico | `core/`, `include/core/` |
+| Memoria | `mm/`, `include/mm/` |
+| Drivers | `drivers/`, `include/drivers/` |
+| VFS, initramfs y filesystem | `fs/`, `include/fs/` |
+| Procesos e IPC | `process/`, `ipc/` |
+| Syscalls y ABI | `syscall/`, `abi/`, `include/abi/` |
+| Programas iniciales y shell | `user/` y fuentes fijadas del superproyecto |
+| Sitio y capturas | `web/` |
+| Notas técnicas | `docs/` |
 
-See `docs/architecture.md` for design details.
+## Desarrollo y verificación
 
-| Area | Location |
-| --- | --- |
-| Boot trampoline / page tables | `arch/x86_64/boot/`, `arch/x86_64/memory/`, `arch/x86_64/include/` |
-| GDT/TSS, IDT, PIC, context switch | `arch/x86_64/cpu/`, `arch/x86_64/interrupts/`, `arch/x86_64/threading/` |
-| Kernel core (printk/panic/oops, cmdline, init, self-tests) | `core/` |
-| PMM / kheap / VMM | `mm/` |
-| VFS / tmpfs / devfs / initramfs | `fs/` |
-| Processes, threads, ELF | `process/` |
-| Syscall dispatcher | `syscall/` |
-| Drivers | `drivers/`, `lib/kernel/` (`iru_*`), `ipc/` |
-| User ABI + userland | `abi/`, `user/programs/*/` (shell + native `/bin` tools), `user/lib/nshlib` |
-| Native packages | `user/programs/newpkg/`, `packages/*.newspec`, `tools/newpkg/` |
-| C library | `libc/` (`libc.a`) |
-| Build system | `Makefile`, `configs/x86_64/debug.config` |
+- Revisa la [documentación del proyecto](https://cristop-bot.github.io/NEWOS/docs.html) y las instrucciones de build antes de ejecutar los comandos.
+- Comprueba los logs de CI/QEMU del SHA exacto; el estado de otro commit no valida tu build.
+- No reportes capturas de hardware, rendimiento o compatibilidad que no se hayan probado.
+- Conserva los avisos de licencia de los componentes externos y sus ports.
 
-## Roadmap
+## Licencia
 
-See [ROADMAP.md](ROADMAP.md): v0.3 Persistence → v0.4 Memory & processes →
-v0.5 Network → v0.6 Packages v2 → v0.7 Hardware/SMP → v0.8 Ports → v1.0.
-See [docs/porting-roadmap.md](docs/porting-roadmap.md) for the BoredOS port
-inventory and the actual Nano, native compiler, and ARM64 prerequisites.
-
-## Continuous integration
-
-- `.github/workflows/ci-release.yml` — build all targets, validate the
-  multiboot2 header, run the package and kernel tests, boot both ISOs in QEMU,
-  and publish the tested assets.
-- `.github/workflows/auto-merge.yml` — merge a PR once all checks are green
-  and every pinned submodule commit is reachable from its default branch.
-- `.github/workflows/pr-self-heal.yml` — repair failing PRs and merge
-  conflicts with deterministic fixes and the free CodeRabbit OSS bot; see
-  [`docs/self-healing.md`](docs/self-healing.md).
-
-## License
-
-MIT — see [LICENSE](LICENSE).
+El código propio de NEWOS se publica bajo MIT según [`LICENSE`](LICENSE). Los componentes de terceros conservan sus licencias y avisos, indicados junto a sus fuentes cuando corresponde.
