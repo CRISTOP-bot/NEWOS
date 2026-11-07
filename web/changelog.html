@@ -11,10 +11,10 @@
 <script>(function(){var t;try{t=localStorage.getItem("newos-theme")}catch(e){}if(!t)t=matchMedia("(prefers-color-scheme:dark)").matches?"dark":"light";document.documentElement.setAttribute("data-theme",t)})()</script>
 <link rel="stylesheet" href="style.css">
 </head>
-<body>
+<body class="site-page">
 <nav><div class="nav-in">
   <a class="brand" href="index.html" style="text-decoration:none"><img class="mark" src="favicon.svg" alt=""><span class="logo">NEWOS</span> <small>v0.3.0-gui</small></a>
-  <button class="hamb" aria-label="Abrir menú">☰</button>
+  <button class="hamb" aria-label="Abrir menú" aria-expanded="false" aria-controls="site-navigation"><span class="hamb-icon" aria-hidden="true">☰</span><span class="hamb-label">Menú</span></button>
   <div class="links"><a href="index.html">Inicio</a><a href="docs.html">Documentación</a><a href="api.html">Syscalls y comandos</a><a href="packages.html">Paquetes .new</a><a href="downloads.html">Descargas</a><a href="changelog.html" class="active">Changelog</a><a href="https://github.com/CRISTOP-bot/NEWOS" target="_blank" rel="noopener">GitHub ↗</a><button class="theme-btn" id="themeBtn" aria-label="Cambiar tema"></button></div>
 </div></nav>
 <div class="wrap"><section>

@@ -9,7 +9,7 @@
     const meta = document.querySelector('meta[name="theme-color"]');
     if (meta) meta.setAttribute("content", t === "dark" ? "#101722" : "#f3f2ee");
     const btn = document.getElementById("themeBtn");
-    if (btn) { btn.innerHTML = t === "dark" ? SUN : MOON; btn.setAttribute("aria-label", t === "dark" ? "Cambiar a tema claro" : "Cambiar a tema oscuro"); }
+    if (btn) { btn.innerHTML = t === "dark" ? SUN : MOON; btn.setAttribute("aria-label", t === "dark" ? "Cambiar a tema claro" : "Cambiar a tema oscuro"); btn.setAttribute("title", t === "dark" ? "Cambiar a tema claro" : "Cambiar a tema oscuro"); }
   };
   const getTheme = () => document.documentElement.getAttribute("data-theme") || "light";
   const save = (t) => { try { localStorage.setItem("newos-theme", t); } catch {} };
@@ -71,9 +71,27 @@
 
     // Hamburguesa móvil
     document.querySelectorAll(".hamb").forEach((h) => {
+      const links = h.closest("nav")?.querySelector(".links");
+      if (!links) return;
+      h.setAttribute("aria-controls", "site-navigation");
+      if (!links.id) links.id = "site-navigation";
+      const closeMenu = () => {
+        links.classList.remove("open");
+        h.setAttribute("aria-expanded", "false");
+      };
+      h.setAttribute("aria-expanded", links.classList.contains("open") ? "true" : "false");
       h.addEventListener("click", () => {
-        const links = h.closest("nav")?.querySelector(".links") || h.parentElement.querySelector(".links");
-        if (links) links.classList.toggle("open");
+        const open = !links.classList.contains("open");
+        links.classList.toggle("open", open);
+        h.setAttribute("aria-expanded", String(open));
+      });
+      links.querySelectorAll("a").forEach((a) => a.addEventListener("click", closeMenu));
+      document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeMenu(); });
+      document.addEventListener("click", (e) => {
+        if (!links.contains(e.target) && !h.contains(e.target)) closeMenu();
+      });
+      addEventListener("resize", () => {
+        if (matchMedia("(min-width: 761px)").matches) closeMenu();
       });
     });
 

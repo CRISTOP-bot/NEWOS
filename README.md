@@ -77,7 +77,7 @@ QEMU y las herramientas de imagen correspondientes se requieren para ejecutar la
 
 ## Sitio web
 
-El sitio del proyecto está en [`web/`](web/), es estático y no necesita backend. GitHub Pages lo publica con el workflow `.github/workflows/deploy-pages.yml`, que sube el contenido de `web/` como artefacto desde `main`.
+El sitio del proyecto está en [`web/`](web/), es estático y no necesita backend. GitHub Pages lo publica con el workflow `.github/workflows/deploy-pages.yml`, que sube el contenido de `web/` como artefacto desde `main`. El diseño adapta su menú, galerías, tarjetas, tablas técnicas y bloques de código a móvil, tablet, escritorio y pantallas amplias; las tablas conservan desplazamiento horizontal independiente para no romper la lectura.
 
 - [Inicio](https://cristop-bot.github.io/NEWOS/)
 - [Documentación](https://cristop-bot.github.io/NEWOS/docs.html)
