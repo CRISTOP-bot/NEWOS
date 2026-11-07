@@ -77,7 +77,7 @@ QEMU y las herramientas de imagen correspondientes se requieren para ejecutar la
 
 ## Sitio web
 
-El sitio del proyecto está en [`web/`](web/), es estático y no necesita un backend. Se publica con GitHub Pages desde la carpeta `/web` de `main`.
+El sitio del proyecto está en [`web/`](web/), es estático y no necesita backend. GitHub Pages lo publica con el workflow `.github/workflows/deploy-pages.yml`, que sube el contenido de `web/` como artefacto desde `main`.
 
 - [Inicio](https://cristop-bot.github.io/NEWOS/)
 - [Documentación](https://cristop-bot.github.io/NEWOS/docs.html)
@@ -86,7 +86,7 @@ El sitio del proyecto está en [`web/`](web/), es estático y no necesita un bac
 - [Descargas](https://cristop-bot.github.io/NEWOS/downloads.html)
 - [Cambios](https://cristop-bot.github.io/NEWOS/changelog.html)
 
-Si la publicación de GitHub Pages todavía no se ha activado en la configuración del repositorio, GitHub debe habilitar primero `main /web`; los enlaces se resolverán después del primer deployment.
+La URL pública del proyecto es [cristop-bot.github.io/NEWOS](https://cristop-bot.github.io/NEWOS/). El deployment se realiza automáticamente al cambiar `web/` en `main`; verifica el estado del workflow en Actions si un cambio aún no aparece en línea.
 
 ## Estructura principal
 
