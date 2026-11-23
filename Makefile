@@ -1158,6 +1158,20 @@ check-newpkg: $(NEWPKG_SAMPLE_NEW) | dirs
 	$(Q)NEWPKG_HOST_BIN=$(BUILD_DIR)/newpkg-host \
 	  python3 tools/newpkg/tests/test_newpkg.py
 
+# repo: regenerate the full Debian-like repository (all built .new packages)
+# from the build outputs. The result in repo/ can be served by any static
+# HTTP server; the on-board `newpkg` client can then `repo add` its URL.
+.PHONY: repo
+repo: $(NEWPKG_SAMPLE_NEW)
+	$(Q)mkdir -p repo $(BUILD_DIR)/repo-stage
+	$(Q)rm -f $(BUILD_DIR)/repo-stage/*.new
+	$(Q)for f in $(BUILD_DIR)/packages/*.new $(BUILD_DIR)/gnu-coreutils.new $(BUILD_DIR)/newos-sdk.new; do \
+	  test -f "$$f" && cp "$$f" $(BUILD_DIR)/repo-stage/; \
+	done
+	$(Q)python3 tools/newpkg/newpkg-repo.py build $(BUILD_DIR)/repo-stage repo
+	$(Q)python3 tools/newpkg/newpkg-repo.py verify repo
+	$(Q)echo "repo: ready in ./repo (serve with: python3 -m http.server 8080 -d repo)"
+
 # check-frotz: host functional test for the /bin/frotz port (upstream
 # Frotz 2.44, GPL-2+). Compiles the ported units against the host libc
 # and drives the committed mini.z3 story: banner, one line read and
