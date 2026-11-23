@@ -33,7 +33,7 @@ if [ ! -f "$SRC/demo/voxel_demo.c" ]; then
 fi
 
 CORE_SRCS="src/graphics/surface.c src/graphics/compositor.c \
-src/theme/classic.c src/graphics/bmp.c"
+src/theme/classic.c src/graphics/bmp.c src/input/keymap.c"
 APP_SRCS="apps/about/about.c apps/explorer/explorer.c apps/settings/settings.c \
 apps/run/run.c apps/terminal/term.c apps/helloworld/helloworld.c \
 apps/editor/editor.c apps/imageview/imageview.c apps/common/app_registry.c \
@@ -54,7 +54,7 @@ cd "$SRC"
     -fno-unwind-tables -mgeneral-regs-only \
     -Wall -Wextra -Werror -Iinclude \
     -nostdlib -static -no-pie \
-    -Wl,-T,"$SDK/usr/lib/app.ld" -Wl,--build-id=none -Wl,-e,_start \
+    -Wl,-T,"$SRC/voxel.ld" -Wl,--build-id=none -Wl,-e,_start \
     -o "$OUT" \
     demo/voxel_demo.c $CORE_SRCS $APP_SRCS $BACKEND_SRCS \
     "$SDK/usr/lib/crt0.o" \

@@ -1,0 +1,152 @@
+#!/usr/bin/env bash
+# newos-cc: host-side compiler driver for NEWOS userland programs.
+#
+# It drives a host (or x86_64-elf cross) GCC against the generated SDK in
+# sysroot/usr. It is deliberately a thin wrapper: no new headers, no new
+# libraries, no hidden runtime. Everything it injects is what the in-tree
+# userland rules in the top-level Makefile already use:
+#
+#   -ffreestanding -nostdlib -fno-pic -fno-pie -fno-stack-protector
+#   -fno-builtin -fno-asynchronous-unwind-tables -fno-exceptions
+#   -mgeneral-regs-only -isystem <sysroot>/usr/include
+#
+# Link mode additionally supplies a GAS-built crt0 (sdk/crt0/crt0.S), the
+# static app.ld script, libnsh.a and libc.a from the sysroot. It does NOT
+# depend on nasm, which the in-tree start.S needs.
+#
+# Environment:
+#   NEWOS_SYSROOT   SDK tree (default <repo>/sysroot)
+#   NEWOS_CC        compiler to use (default ${CROSS_PREFIX:-}gcc)
+#   NEWOS_CRT0      alternate crt0 source, or "none" to supply _start yourself
+#   NEWOS_FPU=1     drop -mgeneral-regs-only (math-heavy ports)
+#   NEWOS_OPT       optimisation level (default -O2)
+#
+#   newos-cc --help            this text
+#   newos-cc --print-flags     effective compile flags
+#   newos-cc --print-sysroot   resolved sysroot path
+set -euo pipefail
+
+SELF=$(readlink -f "$0")
+SDK_DIR=$(dirname "$(dirname "$SELF")")
+ROOT=$(dirname "$SDK_DIR")
+
+SYSROOT=${NEWOS_SYSROOT:-"$ROOT/sysroot"}
+CC_BIN=${NEWOS_CC:-"${CROSS_PREFIX:-}gcc"}
+CRT0_SRC=${NEWOS_CRT0:-"$SDK_DIR/crt0/crt0.S"}
+OPT_FLAG=${NEWOS_OPT:--O2}
+
+usage() {
+    sed -n '2,/^set -euo pipefail$/p' "$0" | sed 's/^# \{0,1\}//'
+}
+
+case "${1:-}" in
+    --help|-h) usage; exit 0 ;;
+    --print-sysroot) printf '%s\n' "$SYSROOT"; exit 0 ;;
+    --print-flags)   printf '%s\n' "$OPT_FLAG"; exit 0 ;;
+esac
+
+for required in "$SYSROOT/usr/include/newos/syscall_abi.h" \
+                "$SYSROOT/usr/lib/libc.a" \
+                "$SYSROOT/usr/lib/libnsh.a" \
+                "$SYSROOT/usr/lib/app.ld"; do
+    if [ ! -e "$required" ]; then
+        printf 'newos-cc: missing %s\nrun "make sdk" from the repo root first.\n' \
+            "$required" >&2
+        exit 1
+    fi
+done
+
+base_flags=(
+    "$OPT_FLAG"
+    -ffreestanding -nostdlib -fno-pic -fno-pie -fno-stack-protector
+    -fno-builtin -fno-asynchronous-unwind-tables -fno-exceptions
+    -Wall -Wextra
+    -isystem "$SYSROOT/usr/include"
+    -DNEWOS_VERSION='"'"$(cat "$ROOT/VERSION")"'"'
+)
+if [ "${NEWOS_FPU:-0}" != 1 ]; then
+    base_flags+=(-mgeneral-regs-only)
+fi
+
+# Split the command line into compiler flags, inputs, libraries and -o.
+pass=()
+inputs=()
+libs=()
+libdirs=()
+out=""
+compile_only=0
+special=0
+need_arg=""
+for arg in "$@"; do
+    if [ -n "$need_arg" ]; then
+        case "$need_arg" in
+            -o) out=$arg ;;
+            -l) libs+=("-l$arg") ;;
+            -L) libdirs+=("-L$arg") ;;
+            -x) pass+=("-x" "$arg") ;;
+            *)  pass+=("$need_arg" "$arg") ;;
+        esac
+        need_arg=""
+        continue
+    fi
+    case "$arg" in
+        -c) compile_only=1 ;;
+        -E|-S|-M|-MM) special=1; pass+=("$arg") ;;
+        -o) need_arg=-o ;;
+        -l*) libs+=("$arg") ;;
+        -L*) libdirs+=("$arg") ;;
+        -I|-D|-U|-include|-isystem|-x|-MF|-MT|-MQ) need_arg=$arg ;;
+        -*) pass+=("$arg") ;;
+        *) inputs+=("$arg") ;;
+    esac
+done
+
+if [ ${#inputs[@]} -eq 0 ]; then
+    printf 'newos-cc: no input files\n' >&2
+    exit 1
+fi
+
+# Preprocess / compile-only / assemble-only: no crt0, no libraries.
+if [ "$compile_only" -eq 1 ] || [ "$special" -eq 1 ]; then
+    if [ -n "$out" ]; then
+        exec "$CC_BIN" "${pass[@]}" "${base_flags[@]}" "${inputs[@]}" -o "$out"
+    fi
+    exec "$CC_BIN" "${pass[@]}" "${base_flags[@]}" "${inputs[@]}"
+fi
+
+[ -n "$out" ] || { echo 'newos-cc: link mode requires -o <file>' >&2; exit 1; }
+
+tmpdir=$(mktemp -d)
+trap 'rm -rf "$tmpdir"' EXIT
+
+# Compile C/assembly inputs to temporary objects; pass .o/.a through.
+objs=()
+n=0
+for src in "${inputs[@]}"; do
+    case "$src" in
+        *.c|*.S|*.s|*.i)
+            n=$((n + 1))
+            obj="$tmpdir/input$n.o"
+            "$CC_BIN" "${pass[@]}" "${base_flags[@]}" -c "$src" -o "$obj"
+            objs+=("$obj")
+            ;;
+        *) objs+=("$src") ;;
+    esac
+done
+
+start_objs=()
+if [ "$CRT0_SRC" != none ]; then
+    "$CC_BIN" "${base_flags[@]}" -c "$CRT0_SRC" -o "$tmpdir/crt0.o"
+    start_objs+=("$tmpdir/crt0.o")
+fi
+
+# Link with the compiler driver so GCC handles the machine-specific bits.
+# --start-group is harmless here and keeps archive order flexible.
+exec "$CC_BIN" -nostdlib -static -Wl,-n \
+    -Wl,-T,"$SYSROOT/usr/lib/app.ld" -Wl,--build-id=none \
+    -o "$out" \
+    "${start_objs[@]}" "${objs[@]}" \
+    -L"$SYSROOT/usr/lib" "${libdirs[@]}" "${libs[@]}" \
+    -Wl,--start-group \
+        "$SYSROOT/usr/lib/libnsh.a" "$SYSROOT/usr/lib/libc.a" \
+    -Wl,--end-group

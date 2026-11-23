@@ -141,8 +141,11 @@ FS_SRCS         := fs/devfs/devfs.c fs/initramfs/initramfs.c fs/tmpfs/tmpfs.c \
                     fs/iso9660/iso9660.c fs/romfs/romfs.c \
                     fs/procfs/procfs.c fs/sysfs/sysfs.c
 
-# network stack: poll-mode IPv4 core over the pcnet driver
-NET_SRCS        := net/net_stack.c net/nic.c
+# network stack: poll-mode IPv4 core, UDP/TCP/DHCP transports, sockets and
+# the wireless virtual-radio backend. net/nic.c is the adapter registry.
+NET_SRCS        := net/net_stack.c net/nic.c net/net_socket.c \
+                   net/net_udp.c net/net_tcp.c net/net_dhcp.c net/net_dns.c \
+                   net/wifi.c
 
 # drivers: hardware-facing services
 DRV_SRCS        := drivers/console/tty_console.c drivers/console/vga_text_console.c \
@@ -222,7 +225,7 @@ INIT_EMBED      := $(BUILD_DIR)/obj/userland/init.bin.o
 # Shared userland library + entry stub, linked into every /bin tool. The
 # library is two translation units (syscall/string core + formatter), so the
 # object list is derived from the sources and the rules below iterate over it.
-NSHLIB_SRC      := user/lib/nshlib.c user/lib/nshfmt.c
+NSHLIB_SRC      := user/lib/nshlib.c user/lib/nshfmt.c user/lib/nshnet.c
 NSHLIB_OBJ      := $(patsubst user/lib/%.c,$(BUILD_DIR)/userland/%.o,$(NSHLIB_SRC))
 START_OBJ       := $(BUILD_DIR)/userland/start.o
 APP_LD          := user/lib/app.ld
@@ -242,7 +245,8 @@ WALLPAPER_EMBED := $(BUILD_DIR)/obj/userland/wallpaper.bin.o
 # with a standard main(argc, argv). Installed into the root fs by initramfs.
 PROG_NAMES      := ls cat echo mkdir rmdir rm mv touch pwd clear uname \
                     hostname whoami id date uptime ps kill sleep free df \
-                    wc head grep find sort img vid about newfetch newpkg frotz
+                    wc head grep find sort img vid about newfetch newpkg frotz \
+                    ping wget curl ifconfig nslookup wifi
 PROG_OBJS       := $(patsubst %,$(BUILD_DIR)/userland/%.o,$(PROG_NAMES))
 PROG_BINS       := $(patsubst %,$(BUILD_DIR)/userland/%.elf,$(PROG_NAMES))
 PROG_EMBEDS     := $(patsubst %,$(BUILD_DIR)/obj/userland/%.bin.o,$(PROG_NAMES))
@@ -280,7 +284,8 @@ TCC_EMBED       := $(BUILD_DIR)/obj/userland/tcc.bin.o
 # vendored source with the host compiler against the NEWOS sysroot.
 VOXEL_DIR       := ports/voxel
 VOXEL_SRCS      := $(wildcard $(VOXEL_DIR)/demo/*.c $(VOXEL_DIR)/src/*/*.c \
-                     $(VOXEL_DIR)/src/*/*/*.c $(VOXEL_DIR)/apps/*/*.c)
+                     $(VOXEL_DIR)/src/*/*/*.c $(VOXEL_DIR)/apps/*/*.c) \
+                     $(VOXEL_DIR)/voxel.ld
 VOXEL_BIN       := $(BUILD_DIR)/voxel.elf
 VOXEL_EMBED     := $(BUILD_DIR)/obj/userland/voxel.bin.o
 
@@ -531,10 +536,24 @@ $(BUILD_DIR)/userland/$(notdir $(1:.c=.o)): $(1) user/lib/nshlib.h
 endef
 $(foreach f,$(NSHLIB_SRC),$(eval $(call NSHLIB_RULE,$(f))))
 
-$(START_OBJ): user/lib/start.S
+# The canonical entry stub is the nasm version. Hosts without nasm (a minimal
+# SDK-only checkout) can use the byte-for-byte equivalent GAS copy shipped in
+# sdk/crt0; the kernel's own assembly still requires nasm as usual.
+NASM_AVAILABLE := $(shell command -v $(NASM) 2>/dev/null)
+ifeq ($(NASM_AVAILABLE),)
+START_SRC := sdk/crt0/crt0.S
+else
+START_SRC := user/lib/start.S
+endif
+
+$(START_OBJ): $(START_SRC)
 	$(Q)mkdir -p $(dir $@)
 	$(E) "  UAS $<"
+ifeq ($(NASM_AVAILABLE),)
+	$(Q)$(CC) $(USER_CFLAGS) -o $@ $<
+else
 	$(Q)$(NASM) -f elf64 -o $@ $<
+endif
 
 $(BUILD_DIR)/userland/%.elf: $(BUILD_DIR)/userland/%.o \
     $(NSHLIB_OBJ) $(START_OBJ) $(APP_LD)
@@ -782,10 +801,13 @@ $(LIBC_A): $(LIBC_OBJS) | dirs
 
 # C application SDK: cross compiler users link against NEWOS libc and the
 # syscall/startup shim, never the host/newlib syscall layer.
-$(SDK_HEADERS): $(LIBC_HEADERS) include/abi/syscall_abi.h
+$(SDK_HEADERS): $(LIBC_HEADERS) include/abi/syscall_abi.h \
+    user/lib/nshlib.h sdk/include/newos/nsh.h
 	$(Q)mkdir -p $(SDK_ROOT)/usr/include/newos
 	$(Q)cp -R libc/include/. $(SDK_ROOT)/usr/include/
 	$(Q)cp include/abi/syscall_abi.h $(SDK_ROOT)/usr/include/newos/syscall_abi.h
+	$(Q)cp user/lib/nshlib.h $(SDK_ROOT)/usr/include/nshlib.h
+	$(Q)cp sdk/include/newos/nsh.h $(SDK_ROOT)/usr/include/newos/nsh.h
 	$(Q)touch $@
 
 $(SDK_LIBC): $(LIBC_A)
@@ -815,6 +837,14 @@ sdk-pkg: $(SDK_PKG)
 
 .PHONY: sdk-pkg
 
+# Developer-facing SDK: host compiler driver, template and examples. It only
+# consumes the generated sysroot, so it builds with the host compiler even
+# when nasm (needed by the in-tree start.o) is unavailable.
+sdk-examples:
+	$(Q)$(MAKE) -C sdk check
+
+.PHONY: sdk-examples
+
 # --- frotz: Z-machine interpreter (upstream Frotz 2.44, GPL-2+) -----------
 # Ported source lives in user/programs/frotz/ (one TU per upstream file);
 # frotz_main.c is the NEWOS toolbox entry, frotz_run.c is the renamed
@@ -824,8 +854,13 @@ sdk-pkg: $(SDK_PKG)
 # the upstream exact-6-byte game serial records intact. -fcommon: upstream
 # 2.44 relies on commons merging for the duplicated `f_setup`/`do_more_
 # prompts` definitions in the dumb driver (pre-gcc10 default).
-FROTZ_CFLAGS   := $(USER_CFLAGS) -std=gnu99 \
-                  -Wno-error=unterminated-string-initialization -fcommon
+# GCC 15+ knows -Wunterminated-string-initialization; older compilers reject
+# the -Wno-error spelling outright, so probe once and pass it only when the
+# host/cross compiler accepts it.
+FROTZ_WNO_UNTERM := $(shell $(CC) -Wno-error=unterminated-string-initialization \
+                    -x c -c /dev/null -o /dev/null >/dev/null 2>&1 && \
+                    echo -Wno-error=unterminated-string-initialization)
+FROTZ_CFLAGS   := $(USER_CFLAGS) -std=gnu99 $(FROTZ_WNO_UNTERM) -fcommon
 FROTZ_DIR      := user/programs/frotz
 FROTZ_SRCS     := buffer.c err.c fastmem.c files.c frotz_run.c hotkey.c \
                   input.c math.c object.c process.c quetzal.c random.c \
@@ -1000,7 +1035,7 @@ $(BUILD_DIR)/obj/drivers/graphics/fb.o: $(FONT_HDR)
 # ---------------------------------------------------------------------------
 .PHONY: all bootstrap bootstrap-fast fast clean qemu qemu-debug qemu-test qemu-network qemu-disk iso \
         qemu-limine qemu-limine-gui qemu-limine-test limine toolchain sdk check-config dirs ports-assets \
-        lint-layers check-newpkg check-frotz check-web web brand qemu-shell \
+        lint-layers check-newpkg check-frotz check-web web brand qemu-shell sdk-examples \
         build-info help system-image-build \
         vbox vbox-setup vbox-test FORCE
 
@@ -1067,6 +1102,7 @@ help:
 	@echo "  make qemu-disk         boot from a 64 MiB raw disk image"
 	@echo "  make check-newpkg      package system tests (no QEMU needed)"
 	@echo "  make sdk               populate sysroot/ (headers, libc.a, crt0.o)"
+	@echo "  make sdk-examples      build and check sdk/examples with the host SDK"
 	@echo "  make sdk-pkg           pack the SDK as the .new embedded at /tmp"
 	@echo "  make glxgears-pkg      package the TinyGL demo as a native .new"
 	@echo "  make check-frotz       frotz port host tests (mini.z3 story)"

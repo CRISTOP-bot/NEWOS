@@ -9,8 +9,11 @@ committed (see `.gitignore`).
 ```
 sysroot/
 └── usr/
-    ├── include/          libc headers (libc/include) + newos/ ABI headers
-    │   └── newos/syscall_abi.h          (single ABI source of truth)
+    ├── include/          libc headers (libc/include) + public SDK headers
+    │   ├── nshlib.h                     (sys_* wrappers, from user/lib)
+    │   └── newos/
+    │       ├── syscall_abi.h            (single ABI source of truth)
+    │       └── nsh.h                    (public syscall umbrella)
     └── lib/
         ├── libc.a        freestanding NEWOS libc
         ├── libnsh.a      nsh syscall-facing toolbox shims (sys_*)
@@ -22,15 +25,15 @@ sysroot/
 
 ```sh
 make sdk                       # (re)populate this directory
-toolchain/newos-gcc toolchain/examples/hello.c -o hello.elf
+sdk/bin/newos-cc -o /tmp/hello sdk/examples/01-hello/hello.c
+make -C sdk check              # build all bundled examples
 ```
 
-`toolchain/newos-gcc` consumes the sysroot directly (`-isystem sysroot/usr/include`,
-`-L sysroot/usr/lib`, `crt0.o` and the `app.ld` link script all resolve to
-these generated paths), so the cross toolchain never reads host headers.
-Flags to match the repo conventions: `-ffreestanding -fno-pic -fno-pie`, no
-host libc, `libc.a` last on the link line — see the computed flags in
-`toolchain/newos-gcc`.
+`sdk/bin/newos-cc` consumes the sysroot directly (`-isystem sysroot/usr/include`,
+`-L sysroot/usr/lib`, `app.ld`, `libnsh.a` and `libc.a` all resolve to these
+generated paths), so applications never read host headers. Set
+`NEWOS_CC=x86_64-elf-gcc` (after building the cross toolchain) to target the
+cross compiler. The full developer guide is `sdk/README.md`.
 
 The sysroot intentionally does not replace `user/lib/app.ld` as the versioned
 source of truth: `make sdk` snapshots it, so edit the original and rerun

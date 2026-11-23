@@ -93,7 +93,10 @@ allowed() {
         # process dies; IPC may use MM for pipe storage; SYSC drives pipes.
         PROC) echo LIB ARCH CORE MM FS PROC IPC ;;
         IPC)  echo LIB CORE MM IPC ;;
-        SYSC) echo ABI LIB ARCH CORE MM FS PROC IPC SYSC ;;
+        # The syscall dispatcher now also drives the network stack
+        # (SYS_NET_*, SYS_WIFI_*) and the NIC backend the virtual radio
+        # binds to, so NET and DRV join its downward reach.
+        SYSC) echo ABI LIB ARCH CORE MM FS PROC IPC SYSC NET DRV ;;
         LIB)  echo LIB CORE ;;
         LIBC) echo ABI LIBC ;;
         USER) echo ABI LIB ;;

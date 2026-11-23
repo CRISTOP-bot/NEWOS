@@ -43,13 +43,18 @@ L5 mm       ->  {LIB,ARCH,CORE,MM}      never reaches drivers/fs/process
 L6 fs       ->  {LIB,CORE,MM,DRV,FS}    devfs may register a device
 L7 process  ->  {LIB,ARCH,CORE,MM,FS,PROC}
 L8 ipc      ->  {LIB,CORE,IPC}
-L9 syscall  ->  {ABI,LIB,ARCH,CORE,MM,FS,PROC,SYSC}
+L9 syscall  ->  {ABI,LIB,ARCH,CORE,MM,FS,PROC,SYSC,NET,DRV}   # NET/DRV: new SYS_NET_*/SYS_WIFI_* stack dispatch
 L10 user    ->  {ABI,LIB}                userland knows only the ABI
 ```
 
 A domain may import its own tier and any tier below. arch/ and core/ are
 permissive because boot and init exist only to wire the whole system
 together; they are the exception, not the rule.
+
+The dispatcher reaching down into the net stack and the NIC backend is the
+one deliberate extension of the contract: the `int $0x80` surface grew a
+networking family (sockets, DHCP, DNS, ping, wifi) that the kernel answers
+by driving `net/*` and the registered NIC drivers directly.
 
 ## Boot flow
 
