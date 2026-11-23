@@ -81,10 +81,25 @@
 <tr><td class="mono">460</td><td class="mono">SYS_KBD_GRAB</td><td class="mono">kbd_grab(on)</td><td>Propiedad del teclado PS/2 para la sesión gráfica.</td></tr>
 <tr><td class="mono">461</td><td class="mono">SYS_KBD_READ</td><td class="mono">kbd_read(buf, len)</td><td>Bytes no bloqueantes de la cola del GUI.</td></tr>
 <tr><td class="mono">462</td><td class="mono">SYS_CONSOLE_GUI</td><td class="mono">console_gui(on)</td><td>Suspende fbcon y el cursor legacy mientras un compositor posee el panel.</td></tr>
+<tr><td class="mono">463</td><td class="mono">SYS_NET_SOCKET</td><td class="mono">net_socket(type)</td><td>Abre socket TCP/UDP. Handle entero, no fd POSIX.</td></tr>
+<tr><td class="mono">464</td><td class="mono">SYS_NET_CONNECT</td><td class="mono">net_connect(s, ip, port, timeout)</td><td>Conecta TCP o liga UDP a peer.</td></tr>
+<tr><td class="mono">465</td><td class="mono">SYS_NET_BIND</td><td class="mono">net_bind(s, port)</td><td>Bind a puerto local.</td></tr>
+<tr><td class="mono">466</td><td class="mono">SYS_NET_SEND</td><td class="mono">net_send(s, buf, len, timeout)</td><td>Envía datos.</td></tr>
+<tr><td class="mono">467</td><td class="mono">SYS_NET_RECV</td><td class="mono">net_recv(s, buf, len, timeout)</td><td>Recibe datos.</td></tr>
+<tr><td class="mono">468</td><td class="mono">SYS_NET_CLOSE</td><td class="mono">net_close(s)</td><td>Cierra socket.</td></tr>
+<tr><td class="mono">469</td><td class="mono">SYS_NET_DHCP</td><td class="mono">net_dhcp(timeout)</td><td>DHCP DISCOVER/OFFER/REQUEST/ACK.</td></tr>
+<tr><td class="mono">470</td><td class="mono">SYS_NET_INFO</td><td class="mono">net_info(&amp;ni)</td><td>IP, máscara, gateway, DNS, MAC, estado.</td></tr>
+<tr><td class="mono">471</td><td class="mono">SYS_NET_SETIP</td><td class="mono">net_setip(ip, mask, gw)</td><td>Configura IP estática.</td></tr>
+<tr><td class="mono">472</td><td class="mono">SYS_NET_PING</td><td class="mono">net_ping(ip, timeout)</td><td>ICMP echo, retorna RTT en µs.</td></tr>
+<tr><td class="mono">473</td><td class="mono">SYS_WIFI_SCAN</td><td class="mono">wifi_scan(aps, max)</td><td>Escanea APs visibles.</td></tr>
+<tr><td class="mono">474</td><td class="mono">SYS_WIFI_CONNECT</td><td class="mono">wifi_connect(ssid, pass, timeout)</td><td>Conecta a AP (WPA2-PSK).</td></tr>
+<tr><td class="mono">475</td><td class="mono">SYS_WIFI_STATUS</td><td class="mono">wifi_status(&amp;st)</td><td>Estado de asociación + IPs DHCP.</td></tr>
+<tr><td class="mono">476</td><td class="mono">SYS_WIFI_DISCONNECT</td><td class="mono">wifi_disconnect()</td><td>Desconecta y restaura config previa.</td></tr>
+<tr><td class="mono">477</td><td class="mono">SYS_NET_DNS</td><td class="mono">net_dns(name, ips, max)</td><td>Resuelve nombre a IP (A records).</td></tr>
 </tbody></table></div>
-<div class="note"><b>No implementados:</b> fork / execve / readlink · sockets y stack de red · entrega de señales. <span class="mono">poll</span> solo informa timeout. Las llamadas desconocidas fallan con −1; la ruta Linux estática devuelve −1 genérico en vez de −errno. Entrada doble: <span class="mono">int $0x80</span> y <span class="mono">syscall</span> x86-64 (STAR/LSTAR/FMASK). Structs compartidos en <span class="mono">abi/syscall_abi.h</span> (<span class="mono">NSH_MAX_ARGS=16 ARGLEN=128 PATH=256</span>).</div>
+<div class="note"><b>Implementado:</b> stack de red IPv4 completo (ARP, ICMP, UDP, TCP, DHCP, DNS) + WiFi virtual-radio (WPA2-PSK). Syscalls 463-477: SYS_NET_SOCKET/SEND/RECV/BIND/CLOSE/DHCP/INFO/SETIP/PING/DNS + SYS_WIFI_SCAN/CONNECT/STATUS/DISCONNECT. <b>No implementados:</b> fork / execve / readlink · entrega de señales. <span class="mono">poll</span> solo informa timeout. Las llamadas desconocidas fallan con −1; la ruta Linux estática devuelve −1 genérico en vez de −errno. Entrada doble: <span class="mono">int $0x80</span> y <span class="mono">syscall</span> x86-64 (STAR/LSTAR/FMASK). Structs compartidos en <span class="mono">abi/syscall_abi.h</span> (<span class="mono">NSH_MAX_ARGS=16 ARGLEN=128 PATH=256</span>).</div>
 
-<h3 class="sec">Toolbox /bin (39 entradas, incluye BusyBox y glxgears)</h3>
+<h3 class="sec">Toolbox /bin (45 entradas, incluye BusyBox, glxgears y red)</h3>
 <input class="search" id="q-cmd" placeholder="Filtrar comandos… (ej. ps, img, pkg)">
 <div class="tbl-wrap"><table id="t-cmd"><thead><tr><th>Comando</th><th>Qué hace</th></tr></thead><tbody>
 <tr><td class="mono">ls / cat / echo</td><td>Lista (perms d/rwx), dump en bucles de 512 B, echo con -n.</td></tr>
@@ -105,6 +120,12 @@
 <tr><td class="mono">busybox &lt;applet&gt;</td><td>BusyBox 1.35.0 estático oficial (402 applets) mediante la entrada syscall Linux. nsh resuelve nombres no nativos como <span class="mono">busybox &lt;applet&gt;</span>.</td></tr>
 <tr><td class="mono">newpkg</td><td>Gestor .new: info verify install remove list files. <a href="packages.html">Ver página de paquetes →</a></td></tr>
 <tr><td class="mono">hello / init (nsh)</td><td>hello: entry propia sin nshlib/libc ("Hello from ring 3!"). init: la shell.</td></tr>
+<tr><td class="mono">ping IP</td><td>ICMP echo request/reply. Muestra RTT en ms.</td></tr>
+<tr><td class="mono">wget URL [-O FILE]</td><td>Descarga HTTP GET. Soporta -q (silencioso) y -O (archivo destino).</td></tr>
+<tr><td class="mono">curl URL [-o FILE] [-I]</td><td>HTTP GET/HEAD passthrough. -I para headers, -s silencioso.</td></tr>
+<tr><td class="mono">ifconfig [dhcp|IP MASK GW]</td><td>Muestra estado de wlan0, DHCP o configura IP estática.</td></tr>
+<tr><td class="mono">nslookup HOST</td><td>Resuelve nombre a IP vía DNS (A records).</td></tr>
+<tr><td class="mono">wifi scan|status|connect|disconnect</td><td>WiFi: escanea APs, conecta (WPA2-PSK), desconecta, estado.</td></tr>
 </tbody></table></div>
 <div class="ok-box">Añadir un comando: crea <span class="mono">user/programs/&lt;cmd&gt;/&lt;cmd&gt;_main.c</span> con <span class="mono">main(argc, argv)</span> y regístralo en <span class="mono">PROG_NAMES</span> (Makefile) + <span class="mono">bin_table</span> (initramfs.c). Ojo: <span class="mono">OBJS :=</span> es expansión inmediata — el <span class="mono">*_EMBED</span> va antes de <span class="mono">OBJS</span>.</div>
 
