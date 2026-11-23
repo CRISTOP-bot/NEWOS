@@ -97,10 +97,39 @@ section of `<host-src> <vfs-dst> <octmode>` lines. The host builder
 then emits deterministic bytes (sorted metadata/manifest, LF, no
 timestamps). Example: `packages/hello-new.newspec`.
 
-## Repositories (future)
+## Repositories (implemented)
 
-`.new` is already shaped for them; the on-board tool only needs new verbs
-once the infrastructure exists:
+The Debian-like repository is built on the host by
+`tools/newpkg/newpkg-repo.py` and served as static HTTP:
+
+```
+<repo>/
+  Release                              archive metadata + MD5/SHA256/CRC32 of Packages
+  dists/stable/Release                 (mirror)
+  dists/stable/main/binary-x86_64/Packages   index (Debian-style stanzas)
+  pool/main/<name>/<name>-<ver>-<arch>.new   exact builder bytes
+```
+
+Each `Packages` stanza carries `Package/Version/Architecture/Description/
+Maintainer/License/Depends/Section/Filename/Size/SHA256/NEWOS-CRC32/NEWOS-Min`.
+The on-board client stores configured URLs in
+`/var/lib/newpkg/repos.conf`, caches `Release` and `Packages` under
+`/var/lib/newpkg/repo-*`, verifies the index CRC32 against `Release`, and
+verifies a downloaded `.new` against the stanza's `NEWOS-CRC32` before
+handing it to the installer. Commands:
+
+```
+newpkg repo add|remove|list [url]   manage repository URLs
+newpkg update                       refresh Release + Packages
+newpkg search <term>                search available packages
+newpkg install <name>               resolve from index, download, verify, install
+newpkg install <file>.new           install a local archive (unchanged)
+```
+
+Local state (`repos.conf`, `repo-*`) lives in the RAM-backed `/var/lib/newpkg`
+and is therefore volatile until persistent storage lands; the repo format
+itself is stable. The original plan follows (the index/pool/signatures split
+guided the implementation; signatures remain future work):
 
 ```
 repo/

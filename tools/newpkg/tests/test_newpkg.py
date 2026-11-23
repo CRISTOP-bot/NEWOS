@@ -28,6 +28,7 @@ REPO = os.path.dirname(
     os.path.dirname(
         os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 BUILDER = os.path.join(REPO, "tools", "newpkg", "newpkg-build.py")
+REPO_BUILDER = os.path.join(REPO, "tools", "newpkg", "newpkg-repo.py")
 HOST_BIN = os.environ.get("NEWPKG_HOST_BIN", "/tmp/newpkg-host")
 
 
@@ -424,6 +425,43 @@ class NewpkgTest(unittest.TestCase):
                     'files:\n')
         r = run_builder(ns, os.path.join(work, "o.new"), work)
         self.assertNotEqual(r.returncode, 0, r.stdout)
+
+    def test_repo_build_and_verify(self):
+        """The host repo generator emits a Debian-like tree that verifies."""
+        sample = os.path.join(REPO, "build", "packages",
+                              "hello-new-1.0.0-x86_64.new")
+        if not os.path.isfile(sample):
+            self.skipTest("sample .new not built")
+        repo = os.path.join(self.tmp, "repo")
+        r = subprocess.run([sys.executable, REPO_BUILDER, "build",
+                            os.path.dirname(sample), repo],
+                           capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        # Debian-like layout
+        for rel in ("Release", "dists/stable/Release",
+                    "dists/stable/main/binary-x86_64/Packages",
+                    "pool/main/hello-new/hello-new-1.0.0-x86_64.new"):
+            self.assertTrue(os.path.isfile(os.path.join(repo, rel)), rel)
+        idx = open(os.path.join(repo, "dists", "stable", "main",
+                                "binary-x86_64", "Packages")).read()
+        self.assertIn("Package: hello-new", idx)
+        self.assertIn("NEWOS-CRC32:", idx)
+        self.assertIn("Filename: pool/main/hello-new/", idx)
+        # Verify passes
+        v = subprocess.run([sys.executable, REPO_BUILDER, "verify", repo],
+                           capture_output=True, text=True)
+        self.assertEqual(v.returncode, 0, v.stderr)
+        # Tamper with the pool package -> verify must fail
+        pool = os.path.join(repo, "pool", "main", "hello-new",
+                            "hello-new-1.0.0-x86_64.new")
+        with open(pool, "r+b") as f:
+            f.seek(-1, os.SEEK_END)
+            b = f.read(1)
+            f.seek(-1, os.SEEK_END)
+            f.write(bytes([b[0] ^ 0xFF]))
+        v = subprocess.run([sys.executable, REPO_BUILDER, "verify", repo],
+                           capture_output=True, text=True)
+        self.assertNotEqual(v.returncode, 0, "tampered package must fail verify")
 
 
 if __name__ == "__main__":

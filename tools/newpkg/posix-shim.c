@@ -355,3 +355,4 @@ int fail(const char *prog, const char *msg)
     printf("%s: %s\n", prog, msg);
     return 1;
 }
+

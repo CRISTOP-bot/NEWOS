@@ -34,10 +34,23 @@ python3 tools/newpkg/newpkg-build.py packages/hello-new.newspec \
     -o build/packages/hello-new-1.0.0-x86_64.new
 ```
 
-There is deliberately no `newpkg build` or `newpkg update/search` on
-board: building needs a host toolchain and repositories need a network
-stack (see `docs/packages.md`). They are documented as future work, not
-stubbed as fake commands.
+Building stays on the host (the toolchain is not on board). Repositories,
+however, are now real: the network stack (syscalls 463-477) lets the
+on-board client fetch a Debian-style index. See `docs/packages.md` for the
+layout and `tools/newpkg/newpkg-repo.py` for the host-side generator:
+
+```
+# host: build a Debian-like repository from built .new files
+python3 tools/newpkg/newpkg-repo.py build build/packages repo
+python3 tools/newpkg/newpkg-repo.py verify repo
+# serve `repo/` with any static HTTP server
+
+# on NEWOS
+newpkg repo add http://<host>:8080
+newpkg update                 # fetch Release + Packages, verify CRC32
+newpkg search <term>          # search the downloaded index
+newpkg install <name>         # fetch from pool, verify CRC, install
+```
 
 ## Install pipeline
 

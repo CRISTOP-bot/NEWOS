@@ -735,10 +735,16 @@ $(BUILD_DIR)/userland/newpkg_inflate.o: user/programs/newpkg/newpkg_inflate.c \
 	$(E) "  UCC $< (newpkg/inflate)"
 	$(Q)$(CC) $(USER_CFLAGS) -o $@ $<
 
+$(BUILD_DIR)/userland/newpkg_repo.o: user/programs/newpkg/newpkg_repo.c user/lib/nshlib.h user/programs/newpkg/newpkg_internal.h user/programs/newpkg/newpkg_format.h
+	$(Q)mkdir -p $(dir $@)
+	$(E) "  UCC $< (newpkg/repo)"
+	$(Q)$(CC) $(USER_CFLAGS) -o $@ $<
+
 $(BUILD_DIR)/userland/newpkg.elf: $(BUILD_DIR)/userland/newpkg.o \
     $(BUILD_DIR)/userland/newpkg_cmds.o \
     $(BUILD_DIR)/userland/newpkg_pkg.o \
     $(BUILD_DIR)/userland/newpkg_util.o \
+    $(BUILD_DIR)/userland/newpkg_repo.o \
     $(BUILD_DIR)/userland/newpkg_inflate.o \
     $(NEWPKG_FORMAT_OBJ) $(NSHLIB_OBJ) $(START_OBJ) $(APP_LD)
 	$(Q)mkdir -p $(dir $@)
@@ -746,6 +752,7 @@ $(BUILD_DIR)/userland/newpkg.elf: $(BUILD_DIR)/userland/newpkg.o \
 	$(Q)$(LD) -n -static -nostdlib -T $(APP_LD) -o $@ \
 	  $(BUILD_DIR)/userland/newpkg.o $(BUILD_DIR)/userland/newpkg_cmds.o \
 	  $(BUILD_DIR)/userland/newpkg_pkg.o $(BUILD_DIR)/userland/newpkg_util.o \
+	  $(BUILD_DIR)/userland/newpkg_repo.o \
 	  $(BUILD_DIR)/userland/newpkg_inflate.o $(NEWPKG_FORMAT_OBJ) \
 	  $(NSHLIB_OBJ) $(START_OBJ)
 
@@ -1141,7 +1148,13 @@ check-newpkg: $(NEWPKG_SAMPLE_NEW) | dirs
 	$(Q)gcc -DNEWPKG_HOST -Wall -Wextra -Werror -Iuserland/user \
 	  -o $(BUILD_DIR)/newpkg-host \
 	  user/programs/newpkg/newpkg_format.c \
-	  user/programs/newpkg/newpkg_main.c tools/newpkg/posix-shim.c
+	  user/programs/newpkg/newpkg_main.c \
+	  user/programs/newpkg/newpkg_cmds.c \
+	  user/programs/newpkg/newpkg_pkg.c \
+	  user/programs/newpkg/newpkg_util.c \
+	  user/programs/newpkg/newpkg_repo.c \
+	  user/lib/nshnet.c \
+	  tools/newpkg/posix-shim.c
 	$(Q)NEWPKG_HOST_BIN=$(BUILD_DIR)/newpkg-host \
 	  python3 tools/newpkg/tests/test_newpkg.py
 
