@@ -161,6 +161,7 @@ DRV_SRCS        := drivers/console/tty_console.c drivers/console/vga_text_consol
                      drivers/net/pcnet.c \
                      drivers/net/e1000.c \
                      drivers/audio/hda.c drivers/audio/audio_backend.c \
+                     drivers/gpu/bga.c \
                      drivers/acpi/acpi.c drivers/ahci/ahci.c \
                       drivers/serial/serial_16550.c drivers/timer/pit_timer.c \
                       drivers/timer/cmos_rtc.c
@@ -1064,7 +1065,7 @@ $(BUILD_DIR)/obj/drivers/graphics/fb.o: $(FONT_HDR)
 # ---------------------------------------------------------------------------
 # Rules
 # ---------------------------------------------------------------------------
-.PHONY: all bootstrap bootstrap-fast fast clean qemu qemu-debug qemu-test qemu-network qemu-disk iso \
+.PHONY: all bootstrap bootstrap-fast fast clean qemu qemu-debug qemu-test qemu-bga qemu-network qemu-disk iso \
         qemu-limine qemu-limine-gui qemu-limine-test limine toolchain sdk check-config dirs ports-assets \
         lint-layers check-newpkg check-frotz check-web web brand qemu-shell sdk-examples \
         build-info help system-image-build \
@@ -1339,6 +1340,20 @@ qemu-limine-gui: $(LIMINE_ISO)
 
 # Target-specific variable: LIMINE_CMDLINE reaches the ISO via the FORCE-prereq
 # limine.conf, adding a `cmdline:` option to the boot entry (test_mode).
+# qemu-bga: verify the BGA/VBE GPU driver with a real bochs-display device.
+# The bga-gpu ktest asserts the framebuffer geometry/address match the GPU's
+# scanout, and a screendump must report the 1024x768 mode the driver set.
+qemu-bga: $(KERNEL_BIN)
+	$(E) "Running BGA GPU driver test (bochs-display) ..."
+	$(Q)status=0; $(QEMU) -kernel $(KERNEL_BIN) -serial stdio -no-reboot \
+	  -m 256M -display none -device isa-debug-exit,iobase=0xf4 \
+	  -vga none -device bochs-display -append "test_mode=1" || status=$$?; \
+	echo "QEMU exit status: $$status"; \
+	if [ "$$status" -ne 1 ]; then \
+	  echo "qemu-bga: FAIL (expected QEMU exit status 1)"; exit 1; \
+	fi; \
+	echo "qemu-bga: PASS"
+
 qemu-limine-test: LIMINE_CMDLINE := test_mode=1
 qemu-limine-test: $(LIMINE_ISO)
 	$(E) "Running automated test suite through Limine in QEMU ..."

@@ -145,7 +145,7 @@ before the next starts. Current state: the Limine-provided linear
 framebuffer is the only display mode; `fbcon-gui` and the `desktop`
 compositor live on top of it.
 
-1. **BGA / VBE dispi (done first)** — the Bochs Graphics Adapter
+1. **BGA / VBE dispi (DONE)** — the Bochs Graphics Adapter
    (`-device bochs-display` in QEMU; the same dispi register interface
    VirtualBox exposes through its legacy graphics adapter). PCI
    class-device enumeration, mode set via the 0x1ce/0x1cf
@@ -153,6 +153,12 @@ compositor live on top of it.
    framebuffer mapping through the PCI BAR. This is the REAL
    display path on two of our three platforms and replaces the
    Limine-copied fb for everything booted on Bochs/VirtualBox.
+   Driver: `drivers/gpu/bga.c`. Mode 1024x768x32 set via the MMIO
+   DISPI BAR (base + 0x500 + index*2, the path QEMU std VGA and
+   bochs-display both expose); legacy I/O 0x1ce/0x1cf fallback.
+   Verified by ktest `bga-gpu` (fb geometry == device scanout, non-zero
+   device framebuffer) and by `screendump` showing 1024x768 output from
+   the device. Works on QEMU std VGA (1234:1111) and bochs-display.
 2. **PCI class driver layer** — VGA-class probing (`pci.c` inventory
    already prints them) extended to a small registry: BGA, std VGA,
    later VirtIO-GPU. Each backend exposes `fb_info {addr, w, h, pitch,
