@@ -160,7 +160,7 @@ DRV_SRCS        := drivers/console/tty_console.c drivers/console/vga_text_consol
                      drivers/pci/pci_ids.c \
                      drivers/net/pcnet.c \
                      drivers/net/e1000.c \
-                     drivers/audio/hda.c \
+                     drivers/audio/hda.c drivers/audio/audio_backend.c \
                      drivers/acpi/acpi.c drivers/ahci/ahci.c \
                       drivers/serial/serial_16550.c drivers/timer/pit_timer.c \
                       drivers/timer/cmos_rtc.c
@@ -246,7 +246,7 @@ WALLPAPER_EMBED := $(BUILD_DIR)/obj/userland/wallpaper.bin.o
 PROG_NAMES      := ls cat echo mkdir rmdir rm mv touch pwd clear uname \
                     hostname whoami id date uptime ps kill sleep free df \
                     wc head grep find sort img vid about newfetch newpkg frotz \
-                    ping wget curl ifconfig nslookup wifi
+                    ping wget curl ifconfig nslookup wifi beep
 PROG_OBJS       := $(patsubst %,$(BUILD_DIR)/userland/%.o,$(PROG_NAMES))
 PROG_BINS       := $(patsubst %,$(BUILD_DIR)/userland/%.elf,$(PROG_NAMES))
 PROG_EMBEDS     := $(patsubst %,$(BUILD_DIR)/obj/userland/%.bin.o,$(PROG_NAMES))
@@ -288,6 +288,9 @@ VOXEL_SRCS      := $(wildcard $(VOXEL_DIR)/demo/*.c $(VOXEL_DIR)/src/*/*.c \
                      $(VOXEL_DIR)/voxel.ld
 VOXEL_BIN       := $(BUILD_DIR)/voxel.elf
 VOXEL_EMBED     := $(BUILD_DIR)/obj/userland/voxel.bin.o
+# Quake 2 (GPL-2.0, id Software) native port with framebuffer+audio backends.
+Q2_BIN          := $(BUILD_DIR)/quake2.elf
+Q2_EMBED        := $(BUILD_DIR)/obj/userland/quake2.bin.o
 
 # newpkg carries a second translation unit: the portable `.new` format core
 # (shared with the host test driver). Linked explicitly with libc.a.
@@ -466,7 +469,7 @@ OBJS            := $(OBJS_C) $(OBJS_ASM) $(HELLO_EMBED) $(INIT_EMBED) \
                    $(SPLASH_EMBED) $(PPM_EMBED) $(WALLPAPER_EMBED) \
                    $(SAMPLE_NEW_EMBED) $(NSH_RC_EMBED) $(GNU_PKG_EMBED) \
                    $(NANO_EMBED) $(BUSYBOX_EMBED) $(GLXGEARS_EMBED) \
-                   $(TCC_EMBED) $(VOXEL_EMBED) $(SDK_PKG_EMBED) $(MINI_Z3_EMBED) \
+                   $(TCC_EMBED) $(VOXEL_EMBED) $(Q2_EMBED) $(SDK_PKG_EMBED) $(MINI_Z3_EMBED) \
                    $(NANORC_EMBED) $(DOOM_EMBED) $(DOOM_WAD_EMBED)
 
 INCLUDE         := -Iinclude -I. -Ilib/kernel -Iarch/$(ARCH)/include \
@@ -692,6 +695,17 @@ $(VOXEL_EMBED): $(VOXEL_BIN)
 	$(Q)mkdir -p $(dir $@)
 	$(E) "  EMB voxel"
 	$(Q)cd $(BUILD_DIR) && $(LD) -r -b binary -o obj/userland/voxel.bin.o voxel.elf
+
+# Quake 2 port: build via its own Makefile, then embed the ELF.
+$(Q2_BIN): ports/quake2-newos/Makefile.newos $(shell find ports/quake2-newos -name '*.c' -o -name '*.h' -o -name '*.ld')
+	$(E) "  Q2   quake2"
+	$(Q)$(MAKE) -C ports/quake2-newos -f Makefile.newos ROOT=$(CURDIR) CC=$(CC)
+	$(Q)cp ports/quake2-newos/build/quake2.elf $@
+
+$(Q2_EMBED): $(Q2_BIN)
+	$(Q)mkdir -p $(dir $@)
+	$(E) "  EMB quake2"
+	$(Q)cd $(BUILD_DIR) && $(LD) -r -b binary -o obj/userland/quake2.bin.o quake2.elf
 
 # --- newpkg: toolbox tool + portable format core -------------------------
 # newpkg_main.c comes from the data-driven rule above; the format core is
