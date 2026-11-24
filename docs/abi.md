@@ -107,7 +107,7 @@ is split between `syscall/syscall_dispatch.c` (core and vendor calls) and
 | 461 | `SYS_KBD_READ` | non-blocking bytes from the GUI keyboard queue |
 | 462 | `SYS_CONSOLE_GUI` | suspend/resume fbcon and the legacy cursor for a framebuffer compositor |
 
-`SYS_KBD_GRAB` is meant for full-screen sessions such as `desktop`. While a
+`SYS_KBD_GRAB` is meant for full-screen sessions such as VOXEL. While a
 process owns the grab, decoded PS/2 bytes go to its private queue instead of
 the shell console; serial input keeps working normally. Process teardown
 releases the grab automatically, so a crashed GUI cannot leave the keyboard
@@ -117,8 +117,8 @@ stolen. `SYS_KBD_READ` returns 0 when the queue is empty and never blocks.
 A second owner is refused. While claimed, kernel `printk`/fbcon output and the
 kernel's legacy mouse arrow do not touch the framebuffer (serial output and
 klog still receive the text); this is what keeps `proc:` lines and a duplicate
-cursor from appearing over `desktop` or `glxgears`. Text programs launched by
-the desktop release the claim first. Process teardown releases it
+cursor from appearing over VOXEL or `glxgears`. Text programs launched by
+the graphical session releases the claim first. Process teardown releases it
 automatically, including after a crash.
 
 Not implemented: `fork` and `execve` return an error. `readlink` always
@@ -148,7 +148,7 @@ directories through `unlink`. Conventional file descriptors exist in
 
 What the kernel accepts (`elf_validate` → `elf_load_segments` →
 `elf_entry_valid`, the same path every exec-style spawn uses — `/bin/*`
-toolbox tools, `busybox`, and anything `/bin/desktop` launches):
+toolbox tools, `busybox`, and anything `/bin/voxel` launches):
 
 - ELF64 (`ELFCLASS64`), little-endian (`ELFDATA2LSB`), `EM_X86_64`,
   `ET_EXEC` **static** images only. Dynamic objects (`ET_DYN`, PIE or

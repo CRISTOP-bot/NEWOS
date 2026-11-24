@@ -6,6 +6,37 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- **`/bin/newinstall` + `/sbin/sysrestore`**: an archinstall-style guided
+  installer for NEWOS. `newinstall` asks for profile, hostname, user, session,
+  base/game copy and `.new` packages, applies them to the live RAM root and
+  snapshots the result to `/fat/NEWOS.SYS` (CRC-checked container, package
+  manifests included). OpenRC runs `sysrestore` as a `sysinit` entry, so the
+  installed configuration is restored before services and console on every
+  later boot with the same ATA/FAT32 disk. `session=gui` in the installed
+  `/etc/newos.conf` starts the desktop without a `gui=1` cmdline. Non-interactive
+  answer-file mode plus `make check-installer` prove install → reboot → restore.
+  This is a userspace overlay: the kernel and built-in `/bin` still come from
+  the boot ISO. Docs: `docs/development/installer.md`.
+- **VOXEL is now the only graphical session.** The native `desktop`
+  compositor, its build rules and its `/bin/desktop` command were removed;
+  `gui=1` and `session=gui` start `/bin/voxel` instead (Esc/q exit).
+  VOXEL's Explorer gained real VFS operations (`NEW` creates dirs, `DEL`
+  deletes files, `GO`/`P` accepts a typed path, selection and sizes), and
+  Display Properties persists theme colors in `/fat/VOXEL.CFG` (8.3-safe,
+  <512 B per write) without a disk it stays session-local. New host callbacks
+  for `mkdir`/`unlink`/`rename`/`getcwd` back the file manager.
+- **UI polish.** VOXEL keeps the original centered 640×480 view by default;
+  `Display Properties → FULLSCREEN` optionally scales it to the panel (pointer
+  coords remapped) via `scale=1` in `/fat/VOXEL.CFG`. Persisted theme colors
+  actually drive widget chrome and the wallpaper through
+  `voxel_ui_set_palette()`; Display Properties offers three window palettes and
+  saves desktop/face/title to the same file. The widget layer now follows
+  Windows 95 more closely: solid teal desktop, gray 3D bevels, horizontal
+  navy→blue active title gradient with drawn minimize/maximize/close boxes,
+  four-color Start logo and blue selection highlights. `newinstall`
+  gained a colored banner, a numbered package menu from the repo index and a
+  final summary/confirmation step. Website: new full-screen VOXEL capture,
+  installer docs, downloads note and a resources section (`make check-web: OK`).
 - **`/bin/doom`** — native port of id Software's released DOOM 1.10 engine
   (GPL-2.0, `data/linuxdoom-1.10.tar.gz`) running the shareware episode from
   the embedded IWAD (`/usr/share/doom/doom1.wad`). The engine keeps its own

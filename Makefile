@@ -14,8 +14,8 @@
 #   make clean       - remove build/ artifacts (not source modules or toolchain)
 #
 # All source checkouts and generated files stay under this repository.
-# The desktop is built from NEWOS code (desktop_surface/desktop_widgets);
-# no external compositor or widget toolkit is fetched.
+# The graphical session is the VOXEL classic desktop from ports/voxel;
+# no other compositor is built or shipped.
 # Host packages listed in docs/build.md remain prerequisites.
 #
 # Options: V=0 (short log), V=1 (full commands, default),
@@ -51,8 +51,8 @@ LIMINE_ROOT     := $(BUILD_DIR)/limine-root
 LIMINE_BINS     := $(BUILD_DIR)/limine-bins
 # The kernel always boots nsh.  An empty cmdline therefore means a text
 # session; the Limine menu also exposes a separate "NEWOS (GUI)" entry with
-# gui=1, and users can run /bin/desktop from nsh.  The test target overrides
-# this with test_mode=1 (which keeps the shell and never starts the desktop).
+# gui=1, and users can run /bin/voxel from nsh.  The test target overrides
+# this with test_mode=1 (which keeps the shell and never starts the GUI).
 LIMINE_CMDLINE  ?=
 
 CC              := $(CROSS_PREFIX)gcc
@@ -250,7 +250,7 @@ WALLPAPER_EMBED := $(BUILD_DIR)/obj/userland/wallpaper.bin.o
 # scripts use them, and BusyBox's touch needs utimensat which NEWOS lacks.
 PROG_NAMES      := touch rm img vid newpkg frotz \
                     ping wget curl ifconfig nslookup wifi beep \
-                    root sudo
+                    root sudo newinstall sysrestore
 PROG_OBJS       := $(patsubst %,$(BUILD_DIR)/userland/%.o,$(PROG_NAMES))
 PROG_BINS       := $(patsubst %,$(BUILD_DIR)/userland/%.elf,$(PROG_NAMES))
 PROG_EMBEDS     := $(patsubst %,$(BUILD_DIR)/obj/userland/%.bin.o,$(PROG_NAMES))
@@ -305,23 +305,6 @@ Q2_PAK_EMBED    := $(BUILD_DIR)/obj/userland/q2pak0.bin.o
 # newpkg carries a second translation unit: the portable `.new` format core
 # (shared with the host test driver). Linked explicitly with libc.a.
 NEWPKG_FORMAT_OBJ := $(BUILD_DIR)/userland/newpkg_format.o
-
-# Desktop drawing layer: one clipped XRGB surface plus caller-owned widgets.
-# Both are NEWOS code (integer-only, allocation-free) and are compiled by the
-# desktop pattern rule below.
-DESKTOP_UI_SRCS   := desktop_surface.c desktop_widgets.c
-DESKTOP_UI_HEADERS := user/programs/desktop/desktop_surface.h \
-                      user/programs/desktop/desktop_widgets.h
-
-# Desktop modules. desktop_main.c stays the entry point; the rest is split by
-# responsibility so the compositor, shell and applications can evolve without
-# growing one translation unit.
-DESKTOP_DIR       := user/programs/desktop
-DESKTOP_SRCS      := desktop_state.c desktop_gfx.c desktop_gfx_icons.c \
-                     desktop_wm.c desktop_theme.c desktop_shell.c \
-                     desktop_apps.c desktop_input.c desktop_compositor.c \
-                     desktop_wallpaper.c $(DESKTOP_UI_SRCS)
-DESKTOP_OBJS      := $(patsubst %.c,$(BUILD_DIR)/userland/%.o,$(DESKTOP_SRCS))
 
 # Sample `.new` package embedded for live QEMU exercises (/tmp/*.new).
 # Built from the already-linked hello ELF through the host builder script.
@@ -481,7 +464,7 @@ OBJS            := $(OBJS_C) $(OBJS_ASM) $(HELLO_EMBED) $(INIT_EMBED) \
                    $(NANO_EMBED) $(BUSYBOX_EMBED) $(GLXGEARS_EMBED) \
                    $(TCC_EMBED) $(VOXEL_EMBED) $(Q2_EMBED) $(Q2_PAK_EMBED) $(SDK_PKG_EMBED) $(MINI_Z3_EMBED) \
                    $(FASTFETCH_EMBED) $(NANORC_EMBED) $(DOOM_EMBED) $(DOOM_WAD_EMBED) \
-                   $(BUILD_DIR)/obj/userland/desktop.bin.o
+
 
 INCLUDE         := -Iinclude -I. -Ilib/kernel -Iarch/$(ARCH)/include \
                    -I$(BUILD_DIR)
@@ -623,28 +606,6 @@ $(ORCF_EMBED): $(ORCF)
 	$(Q)cp $(ORCF) $(BUILD_DIR)/openrc-rootfs.orcf
 	$(E) "  EMB openrc-rootfs.orcf"
 	$(Q)cd $(BUILD_DIR) && $(LD) -r -b binary -o obj/userland/openrc_rootfs_orcf.bin.o openrc-rootfs.orcf
-
-$(BUILD_DIR)/userland/desktop.o: $(DESKTOP_DIR)/desktop_main.c \
-    $(DESKTOP_UI_HEADERS) user/programs/desktop/font8x8.h \
-    user/programs/desktop/desktop.h
-	$(Q)mkdir -p $(dir $@)
-	$(E) "  UCC $< (desktop main)"
-	$(Q)$(CC) $(USER_CFLAGS) -o $@ $<
-
-$(BUILD_DIR)/userland/desktop_%.o: $(DESKTOP_DIR)/desktop_%.c \
-    $(DESKTOP_DIR)/desktop.h $(DESKTOP_UI_HEADERS) \
-    user/programs/desktop/font8x8.h
-	$(Q)mkdir -p $(dir $@)
-	$(E) "  UCC $< (desktop module)"
-	$(Q)$(CC) $(USER_CFLAGS) -o $@ $<
-
-$(BUILD_DIR)/userland/desktop.elf: $(BUILD_DIR)/userland/desktop.o \
-    $(DESKTOP_OBJS) $(NSHLIB_OBJ) $(START_OBJ) $(LIBC_A) $(APP_LD)
-	$(Q)mkdir -p $(dir $@)
-	$(E) "  ULD $@ +libc"
-	$(Q)$(LD) -n -static -nostdlib -T $(APP_LD) -o $@ \
-	  $(BUILD_DIR)/userland/desktop.o $(DESKTOP_OBJS) \
-	  $(NSHLIB_OBJ) $(START_OBJ) $(LIBC_A)
 
 # --- TinyGL glxgears ---------------------------------------------------
 # The demo uses floating point and TinyGL, so it cannot use the normal
@@ -1087,6 +1048,7 @@ $(BUILD_DIR)/obj/drivers/graphics/fb.o: $(FONT_HDR)
 .PHONY: all bootstrap bootstrap-fast fast clean qemu qemu-debug qemu-test qemu-bga qemu-network qemu-disk iso \
         qemu-limine qemu-limine-gui qemu-limine-test limine toolchain sdk check-config dirs ports-assets \
         lint-layers check-newpkg check-frotz check-web web brand qemu-shell sdk-examples \
+        check-installer \
         build-info help system-image-build \
         vbox vbox-setup vbox-test FORCE
 
@@ -1152,6 +1114,7 @@ help:
 	@echo "  make qemu-network      boot with user-mode networking"
 	@echo "  make qemu-disk         boot from a 64 MiB FAT32 disk image (persistent /fat)"
 	@echo "  make test-persistence  install a .new, reboot, verify it survived (v0.3)"
+	@echo "  make check-installer   guided installer + sysrestore reboot test"
 	@echo "  make check-newpkg      package system tests (no QEMU needed)"
 	@echo "  make sdk               populate sysroot/ (headers, libc.a, crt0.o)"
 	@echo "  make sdk-examples      build and check sdk/examples with the host SDK"
@@ -1220,6 +1183,14 @@ fastfetch-port:
 test-persistence: $(KERNEL_BIN) check-newpkg
 	$(E) "Running v0.3 persistence test (reboot on FAT32) ..."
 	$(Q)bash scripts/test-persistence.sh $(KERNEL_BIN)
+
+# check-installer: guided-installer acceptance — run /bin/newinstall with an
+# answer file on a FAT32 disk, reboot with the same image and verify that
+# /sbin/sysrestore replayed hostname, user, session and packages.
+.PHONY: check-installer
+check-installer: $(KERNEL_BIN) check-newpkg
+	$(E) "Running installer test (newinstall -> reboot -> sysrestore) ..."
+	$(Q)bash scripts/test-installer.sh $(KERNEL_BIN)
 
 .PHONY: repo
 repo: $(NEWPKG_SAMPLE_NEW)

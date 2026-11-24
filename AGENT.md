@@ -124,9 +124,13 @@ consola interactiva (ver `docs/development/openrc.md`).
   `toolchain/`; el `Makefile` lo rebuilda solo cuando cambian sus fuentes.
   Su `app.ld` deja un PT_LOAD RWX (aviso de `ld`, esperado) y su `.bss` son
   ~13 MiB (~3200 páginas), de ahí `segments=3191` en el log de `proc`.
-  No tiene API de teclado GUI: el texto se escribe con el teclado en pantalla.
+  Sí tiene API de teclado real (`SYS_KBD_GRAB`/`SYS_KBD_READ`) además del
+  teclado en pantalla; las apps reciben `VOXEL_KEY_*` en su callback `key()`.
+  `Explorer` hace VFS real vía callbacks del host (listar/leer/escribir/mkdir/
+  unlink/rename; `rename` en `/fat` lo rechaza el VFS) y `Settings` guarda el
+  tema en `/fat/VOXEL.CFG` (8.3, <512 B por `SYS_WRITE`).
   `voxel --frames N` imprime el marcador de fin y sale (lo usa la verificación
-  en QEMU); el escritorio de sesión sigue siendo `user/programs/desktop`.
+  en QEMU); el escritorio de sesión es VOXEL (`ports/voxel`, `/bin/voxel`).
 - **OpenRC** (`userland/user/programs/openrc/`, PID 1 = `/sbin/openrc-init`):
   el árbol `/etc` de OpenRC **lo instala el kernel** desde el blob ORCF
   (`scripts/pack-openrc.py` → `install_rc_tree()` en

@@ -93,8 +93,14 @@ NEWOS: boot complete.</pre>
 <h3 class="sec" id="shell">Shell nsh y gráficos userland</h3>
 <div class="grid g2">
 <div class="card"><h3>nsh (/init, /bin/sh · 534 líneas)</h3><p>Edición UTF-8: flechas, Home/End, Delete, historial 16, <kbd>Ctrl</kbd>+<kbd>A</kbd>/<kbd>E</kbd>/<kbd>U</kbd>/<kbd>W</kbd>/<kbd>K</kbd>/<kbd>Y</kbd>/<kbd>V</kbd>/<kbd>C</kbd>/<kbd>D</kbd>/<kbd>L</kbd>, kill-ring, quoting, builtins <span class="mono">cd exit help history clear</span>, externos vía spawn2/waitpid. Prompt <span class="mono">root@newos:&lt;cwd&gt;#</span>.</p></div>
-<div class="card"><h3>img · vid · desktop · glxgears · red (solo Limine FB)</h3><p><span class="mono">img</span>: BMP 24/32 sin compresión + PPM P6 (JPEG/PNG rechazados con mensaje: falta decodificador). <span class="mono">vid</span>: animación procedural 60 frames ~15 fps (bola + plasma) vía FBWRITE+SLEEP. <span class="mono">desktop</span>: compositor modular con cinco ventanas (System, Files, Mouse, About, Log), drag/resize/max/min/close, dock, menú, ayuda, temas BoredOS/Win95, iconos Win95, fuente 8×8, cursor overlay, repintado por rectángulos sucios y <span class="mono">SYS_CONSOLE_GUI</span>. Superficies y widgets propios en <span class="mono">desktop_surface</span>/<span class="mono">desktop_widgets</span>. <span class="mono">glxgears</span>: demo TinyGL de 300 frames embebido en <span class="mono">/bin</span>. <span class="mono">ping/wget/curl/ifconfig/nslookup/wifi</span>: comandos de red y WiFi (ICMP, HTTP, DNS, DHCP, WPA2-PSK).</p></div>
+<div class="card"><h3>img · vid · voxel · glxgears · red (solo Limine FB)</h3><p><span class="mono">img</span>: BMP 24/32 sin compresión + PPM P6 (JPEG/PNG rechazados con mensaje: falta decodificador). <span class="mono">vid</span>: animación procedural 60 frames ~15 fps (bola + plasma) vía FBWRITE+SLEEP. <span class="mono">voxel</span>: el único escritorio gráfico incluido (puerto MIT de <span class="mono">ports/voxel</span>) con compositor clásico, apps de ventana y teclado en pantalla. Se inicia con <span class="mono">gui=1</span>, con <span class="mono">session=gui</span> en un sistema instalado o escribiendo <span class="mono">voxel</span> en nsh.</p></div>
 </div>
+<h3 class="sec" id="instalador">Instalador guiado</h3>
+<div class="grid g2">
+<div class="card"><h3>newinstall (/bin)</h3><p>Instalador estilo <span class="mono">archinstall</span> que corre dentro de la ISO. Pregunta perfil, hostname, usuario, sesión y paquetes; muestra el índice del repo para elegir por número o nombre y pide confirmación con un resumen. Escribe un snapshot verificado por CRC en <span class="mono">/fat/NEWOS.SYS</span> e instala los paquetes <span class="mono">.new</span> seleccionados. Modo no interactivo: <span class="mono">newinstall /etc/installer.answers</span>.</p></div>
+<div class="card"><h3>sysrestore (/sbin)</h3><p>Entrada <span class="mono">sysinit</span> de OpenRC: restaura el snapshot antes de los servicios y la consola. Con <span class="mono">session=gui</span> arranca VOXEL sin <span class="mono">gui=1</span>. Los temas de VOXEL se guardan en <span class="mono">/fat/VOXEL.CFG</span>. Alcance honesto: el kernel y el <span class="mono">/bin</span> embebido siguen viniendo del ISO; aún no hay arranque exclusivamente desde disco.</p></div>
+</div>
+
 <div class="ok-box">Logo oficial = el de <span class="mono">newfetch</span> (3 líneas de bloques) + datos vivos: OS/Kernel/Uptime/Memory/Shell:nsh/Display/Packages. MOTD: <i>"NEWOS 0.3.0-gui (x86_64) - nsh shell / Type 'help' for commands."</i></div>
 
 <h3 class="sec" id="build">Compilar y ejecutar</h3>
@@ -133,6 +139,18 @@ make clean          # borra build/ entero</pre>
 
 <h3 class="sec" id="vbox">VirtualBox y hardware real</h3>
 <p class="sub">ISO no híbrida/MBR: adjuntar como CD/DVD, máquina <i>Linux Other 64-bit</i>, ≥256 MB, BIOS legacy (no EFI), menú GRUB en serie 115200 8N1; el kernel siempre espeja en VGA. Serie opcional COM1 <span class="mono">0x3F8</span> IRQ4. Validado en SeaBIOS + OVMF + PVH. Detalle completo en <span class="mono">docs/virtualbox-and-hardware.md</span>.</p>
+
+<h3 class="sec" id="recursos">Recursos y capturas adicionales</h3>
+<div class="grid g2">
+<div class="card"><h3>Iconos de app</h3><p>
+<img src="assets/app-icons/img.svg" width="24" height="24" alt="img"> <img src="assets/app-icons/newfetch.svg" width="24" height="24" alt="newfetch"> <img src="assets/app-icons/voxel.svg" width="24" height="24" alt="voxel"> <img src="assets/app-icons/about.svg" width="24" height="24" alt="about"> <img src="assets/app-icons/free.svg" width="24" height="24" alt="free"> <img src="assets/app-icons/tinygl.svg" width="24" height="24" alt="tinygl"> <img src="assets/app-icons/nano.svg" width="24" height="24" alt="nano"> <img src="assets/app-icons/desktop.svg" width="24" height="24" alt="desktop"> <img src="assets/app-icons/ps.svg" width="24" height="24" alt="ps"> <img src="assets/app-icons/newpkg.svg" width="24" height="24" alt="newpkg"> <img src="assets/app-icons/vid.svg" width="24" height="24" alt="vid"> <img src="assets/app-icons/shell.svg" width="24" height="24" alt="shell">
+</p></div>
+<div class="card"><h3>Capturas y paquete de prueba</h3><p>
+<a href="assets/newfetch.png">newfetch</a> ·
+<a href="assets/desktop-win95.png">tema Win95</a> ·
+<a href="assets/nano-color.png">nano a color</a> ·
+<a href="dl/hello-new-1.0.0-x86_64.new">hello-new.new</a>
+</p></div></div>
 
 <h3 class="sec" id="changelog">Changelog</h3>
 <div class="card"><h3>v0.3.0-gui <span class="tag">actual</span></h3><p>Rework al layout canónico por capas, Makefile único explícito, jerarquía <span class="mono">build/</span>, lint de layering, docs architecture/build/boot/abi/layering, PHDRS sin RWE. Verificado BUILD/BOOT/SELF-TEST/QEMU PASS.</p></div>

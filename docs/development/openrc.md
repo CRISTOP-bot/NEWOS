@@ -48,7 +48,7 @@ enters it. Nothing else may touch it.
 
 **The one deliberate deviation from upstream:** the NEWOS VFS has no
 symlinks, so a runlevel entry is not a symlink but an *indirection file*
-whose body is the target path (`/etc/init.d/desktop`). `rc_resolve_target()`
+whose body is the target path (`/etc/init.d/voxel`). `rc_resolve_target()`
 resolves it, so `rc-update add/del/show`, `rc-status` and `openrc` keep the
 upstream contract and the entries stay readable with `cat`.
 

@@ -25,7 +25,7 @@ two names (see `docs/development/layering.md` for the naming rules).
 | `process/` | `proc_process`, `proc_thread`, `elf_loader`, `sched` | Processes, threads (kernel-stack layout, context save/restore), cooperative+tick scheduler, ELF loading into a user address space. |
 | `ipc/` | `ipc_pipe` | Inter-process primitives (pipes). |
 | `syscall/` | `syscall_dispatch`, `syscall_posix` | The `int $0x80` and x86-64 `syscall` dispatcher, including the Linux-number compatibility subset used by static BusyBox/GNU binaries. |
-| `user/` | `programs/*/*_main.c` + `lib/nshlib` | Freestanding userland: `init` (nsh shell), the native `/bin` toolbox (`ls`, `cat`, …, `desktop`, `glxgears`, `newpkg`) and the official static BusyBox at `/bin/busybox`. |
+| `user/` | `programs/*/*_main.c` + `lib/nshlib` | Freestanding userland: `init` (nsh shell), the native `/bin` toolbox (`ls`, `cat`, …, `voxel`, `glxgears`, `newpkg`) and the official static BusyBox at `/bin/busybox`. |
 | `packages/` + `tools/newpkg/` | `*.newspec`, `newpkg-build.py`, tests | Native `.new` packages: host builder, install database at `/var/lib/newpkg`, first package `hello-new` (see `docs/packages.md`). |
 
 ## Dependency contract

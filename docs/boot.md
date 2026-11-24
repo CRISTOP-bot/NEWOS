@@ -63,40 +63,36 @@ Runs on the pre-built early stack and boot page tables:
 Both entries boot the same kernel. The default **NEWOS (text shell)** entry
 passes no graphical flag, so the system always starts in `nsh`. The **NEWOS
 (GUI)** entry passes `gui=1`; `make qemu-limine-gui` builds and boots that
-entry directly, and a user can also type `/bin/desktop` in the text shell.
-`make qemu-limine-test` overrides the command line with `test_mode=1`.
+entry directly, and a user can also type `/bin/voxel` in the text shell.
+`make qemu-limine-test` overrides the command line with `test_mode=1`. An
+installed system can also select the GUI in `/etc/newos.conf` (`session=gui`),
+which is restored by `/sbin/sysrestore` at OpenRC `sysinit`.
 
-With OpenRC as PID 1 the graphical session is a service: `/etc/init.d/desktop`
+With OpenRC as PID 1 the graphical session is a service: `/etc/init.d/voxel`
 declares `keyword gui`, so `/sbin/openrc` starts it (running
-`session_program` from `/etc/conf.d/desktop`, detached, pid in
-`/run/desktop.pid`) only when a framebuffer exists *and* the command line
-asked for graphics; otherwise it reports the skip and the boot stays textual.
-The supervised console is `/bin/sh --session --rc-console` from `/etc/inittab`
-— the `--rc-console` flag is what stops that shell from also opening its own
-session. Closing the last desktop window or pressing **Ctrl+Q** returns to a
-clean `nsh` prompt. Without OpenRC (the `/bin/sh` fallback), that shell reads
-`/proc/cmdline` itself and spawns `/bin/desktop` for the boot session
-(`--session`) with `gui=1`. A missing framebuffer or a failed spawn leaves
-the shell in place, so graphics can never strand the machine.
+`session_program` from `/etc/conf.d/voxel`, detached, pid in
+`/run/voxel.pid`) only when a framebuffer exists *and* the command line (or
+the installed config) asked for graphics; otherwise it reports the skip and
+the boot stays textual. The supervised console is
+`/bin/sh --session --rc-console` from `/etc/inittab` — the `--rc-console`
+flag is what stops that shell from also opening its own session. Pressing
+**Esc** or **q** exits VOXEL and OpenRC respawns a clean `nsh` prompt.
+Without OpenRC, that shell reads `/proc/cmdline` itself and spawns
+`/bin/voxel` for the boot session (`--session`). A missing framebuffer or a
+failed spawn leaves the shell in place, so graphics can never strand the
+machine.
 
-The desktop owns the PS/2 keyboard through `SYS_KBD_GRAB`/`SYS_KBD_READ`
-while it runs. `Tab` cycles windows, `1`–`5` focus one, arrows move through
-`/bin`, `Enter` runs the selected program, `?` toggles the help card and
-`Ctrl+Q` exits. Mouse drag, focus, resize, maximize, minimize, close, wheel
-scrolling and the `FILES` launcher work as before.
-Serial input remains available to the shell at all times. The compositor only
-repaints and uploads dirty rectangles; startup, theme changes and structural
-layout changes are the only full-screen redraws. The cursor is a staging-buffer
-overlay; old and new cursor rectangles are always uploaded before the current
-sprite is stamped, so pointer motion cannot leave a trail.
+VOXEL owns the PS/2 keyboard through `SYS_KBD_GRAB`/`SYS_KBD_READ` while it
+runs, and provides its own on-screen keyboard and windowed apps. Serial input
+remains available to the shell at all times. The compositor repaints dirty
+rectangles and uploads only changed regions to the framebuffer.
 
-While the desktop is active it also claims the framebuffer text console with
+While VOXEL is active it also claims the framebuffer text console with
 `SYS_CONSOLE_GUI`. Kernel logs and child stdout still reach the serial console,
 but fbcon and the legacy kernel mouse arrow do not paint over compositor
-pixels. Text programs launched from the dock or Files temporarily release the
-claim so their output is visible; graphical programs such as `/bin/glxgears`
-keep it. Process teardown releases both claims, so a crashed GUI cannot leave
-the keyboard or console hidden.
+pixels. Process teardown releases both claims, so a crashed GUI cannot leave
+the keyboard or console hidden. VOXEL is the only graphical session shipped;
+the former native `desktop` compositor was removed.
 
 From a plain `nsh` session the built-in demo can be started directly:
 

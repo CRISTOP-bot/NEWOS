@@ -29,11 +29,15 @@ import time
 # nsh redraws its prompt and then moves the cursor with CSI "C" sequences.
 # A prompt is only complete when those trailing escapes are accepted too;
 # otherwise the harness may start typing while the shell is still redrawing.
-PROMPT = re.compile(
-    rb"(?:nsh>|root@newos:[^#]*#)\s*(?:\x1b\[[0-9;]*[A-Za-z])*\s*$"
-)
-TIMEOUT = 30
-BOOT_TIMEOUT = 90
+DEFAULT_PROMPT = (rb"(?:nsh>|root@newos:[^#]*#)\s*"
+                  rb"(?:\x1b\[[0-9;]*[A-Za-z])*\s*$")
+_custom_prompt = os.environ.get("NEWOS_QEMU_PROMPT")
+PROMPT = re.compile(_custom_prompt.encode() if _custom_prompt is not None
+                    else DEFAULT_PROMPT)
+# Overridable for slow operations (e.g. writing a full system snapshot to a
+# FAT32 image under QEMU-TCG); normal sessions keep the historic defaults.
+TIMEOUT = int(os.environ.get("NEWOS_QEMU_TIMEOUT", "30"))
+BOOT_TIMEOUT = int(os.environ.get("NEWOS_QEMU_BOOT_TIMEOUT", "90"))
 PACE = 0.02
 
 
@@ -149,7 +153,10 @@ def run(cmds, kernel, mem="512", extra=(), cdrom=None, hold=0):
                 yield c, None
                 print(f"!!! QEMU exited (status {proc.returncode}) during `{c}`")
                 return
-            yield c, out if hit else None
+            # On a timeout keep the transcript when asked: otherwise a slow
+            # command (e.g. writing a FAT32 snapshot) leaves no diagnostics.
+            keep = os.environ.get("NEWOS_QEMU_KEEP_OUTPUT", "") != ""
+            yield c, out if (hit or keep) else None
     finally:
         if hold:
             # The framebuffer is only useful while QEMU is alive: an outside

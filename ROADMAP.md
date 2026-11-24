@@ -14,18 +14,16 @@ and every milestone must keep `BUILD=PASS`, `BOOT=PASS`, `QEMU=PASS`
   `nsh` + native `/bin` toolbox (including recursive `find`) and the complete
   static BusyBox 1.35.0 (402 applets) through the Linux-compatible `syscall`
   entry, anonymous `mmap`/`mprotect`/`munmap`/`brk` for static Linux binaries,
-  framebuffer (`img`, `vid`, `desktop`, `glxgears`), opt-in graphical
+  framebuffer (`img`, `vid`, `voxel`, `glxgears`), opt-in graphical
   session (`gui=1` menu entry, keyboard/fbcon ownership, return to shell on
   exit), native `.new` packages with rollback, a normalized reproducible
   GRUB ISO, MIT.
   `/proc` exposes live identity/uptime/memory/mounts/cmdline, `/sys`
   exposes kernel identity and the PCI inventory; `free`, `df` and `uptime`
   consume `/proc` with a syscall fallback.
-  The built-in desktop is a modular five-window session: System, Files, Mouse,
-  About and Log, plus dock, start menu, help, Midnight/Win95 themes, a Win95
-  icon family and a damage-based compositor that uploads only dirty rectangles.
-  Its drawing layer (`desktop_surface`) and widgets (`desktop_widgets`) are
-  NEWOS code.
+  The graphical session is VOXEL, a classic desktop from `ports/voxel` with a
+  damage-based compositor, windowed apps and an on-screen keyboard. It is the
+  only compositor shipped in the image.
 - **Honest gaps:** no disk driver (RAM-only FS), no IP stack
   (PCnet loopback only), no file-backed `mmap`, signal delivery or native
   `sbrk` allocator (`truncate` is path/fd-based for writable backends), no
@@ -151,7 +149,7 @@ Goal: behave on real machines and use all their CPUs.
 The graphics story advances by *hardware-model milestones*, and every
 one lands with a working ktest (screendump comparison or byte checks)
 before the next starts. Current state: the Limine-provided linear
-framebuffer is the only display mode; `fbcon-gui` and the `desktop`
+framebuffer is the only display mode; `fbcon-gui` and the VOXEL
 compositor live on top of it.
 
 1. **BGA / VBE dispi (DONE)** — the Bochs Graphics Adapter
@@ -171,7 +169,7 @@ compositor live on top of it.
 2. **PCI class driver layer** — VGA-class probing (`pci.c` inventory
    already prints them) extended to a small registry: BGA, std VGA,
    later VirtIO-GPU. Each backend exposes `fb_info {addr, w, h, pitch,
-   bpp}`; fbcon/desktop pick the backend by probe order.
+   bpp}`; fbcon/voxel pick the backend by probe order.
 3. **VirtIO-GPU 2D (when the virtio layer lands)** — device model QEMU
    ships honestly; needs the shared virtio ring plumbing we do not have
    yet, so it waits for the virtio spike, NOT a shortcut hack.
@@ -210,7 +208,12 @@ implementation gaps and staged bring-up gates are tracked in
 
 Release criteria (all must hold):
 
-- Install to disk from ISO, reboot, system + packages persist.
+- Install to disk from ISO, reboot, system + packages persist. **PARTIAL:**
+  the guided `/bin/newinstall` installer now writes a userspace snapshot to
+  `/fat/NEWOS.SYS`, which `/sbin/sysrestore` replays at OpenRC `sysinit`;
+  packages and configuration survive a reboot with the same ATA/FAT32 disk.
+  A disk-only boot still needs a bootable native FS, an in-guest formatter
+  and a loader — see `docs/development/installer.md`.
 - Network fetch + signed repo install out of the box.
 - SMP + APIC on real hardware (documented board list).
 - Hosted or cross-built ports: x86_64 reference + one port green.
@@ -234,7 +237,7 @@ Ordered roughly by size. All must include tests + docs.
 
 - **Linux/POSIX compatibility.** No ELF-Linux loader, no Linux syscall
   numbers, no `/proc`-compatible userspace ABI promises beyond our docs.
-- **Porting X/Wayland/systemd.** The native framebuffer + `desktop`
+- **Porting X/Wayland/systemd.** The native framebuffer + VOXEL
   compositor is the graphics story.
 - **SMP before APIC**, **repos before signatures design**, **ports before
   storage**: the milestone order is load-bearing, not decorative.

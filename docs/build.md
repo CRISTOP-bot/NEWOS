@@ -73,10 +73,10 @@ are checked out at recorded SHAs, not updated to floating branch heads. GCC is
 not a submodule: `toolchain/build.sh` downloads the official GCC 16.1.0 release
 tarball when the cross toolchain is built.
 
-The desktop is built entirely from NEWOS code: `desktop_surface` (clipped XRGB
-canvas) and `desktop_widgets` (button, progress, scrollbar, separator) feed a
-damage-based compositor, and it provides five windows. No external widget
-toolkit or compositor source is linked into it. Both `make`
+The graphical session is VOXEL (`ports/voxel`, MIT), a classic desktop with a
+damage-based compositor, windowed apps and an on-screen keyboard. It is built
+host-side by `scripts/build-voxel.sh` against the generated `sysroot/` SDK and
+embedded as `/bin/voxel`; no other compositor is built or shipped. Both `make`
 and `make fast` compile `glxgears-newos` with its pinned TinyGL source, embed
 it as `/bin/glxgears`, and leave `build/userland/glxgears-newos.elf` for direct
 inspection; `make glxgears-pkg` also creates its `.new` package. The demo uses

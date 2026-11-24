@@ -5,7 +5,7 @@
   const input = document.getElementById("demo-in-field");
   if (!out || !input) return;
   const t0 = Date.now();
-  const TOOLS = "ls cat echo mkdir rmdir rm touch pwd clear uname hostname whoami id date uptime ps kill sleep free df wc head grep sort img vid about newfetch desktop newpkg nano tcc voxel hello sh".split(" ");
+  const TOOLS = "ls cat echo mkdir rmdir rm touch pwd clear uname hostname whoami id date uptime ps kill sleep free df wc head grep sort img vid about newfetch voxel newpkg nano tcc voxel hello sh".split(" ");
   const FILES = {
     "/etc/hostname": "newos",
     "/etc/version": "NEWOS 0.3.0-gui",
@@ -79,7 +79,7 @@
     },
     img: () => "img: necesita el framebuffer real (make qemu-limine). En NEWOS abre BMP/PPM.",
     vid: () => "vid: animación procedural de 60 frames. Solo en QEMU con Limine.",
-    desktop: () => "desktop: el compositor real está en la captura de abajo. Requiere QEMU.",
+    voxel: () => "voxel: escritorio clásico (ports/voxel); se inicia con gui=1 o desde nsh. Requiere QEMU.",
   };
   ["wc", "head", "grep", "sort", "mkdir", "rmdir", "rm", "touch"].forEach((c) => { CMDS[c] = () => c + ": demo parcial — el binario real vive en /bin de NEWOS."; });
   function run(line) {
