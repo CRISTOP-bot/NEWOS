@@ -57,18 +57,27 @@ and every milestone must keep `BUILD=PASS`, `BOOT=PASS`, `QEMU=PASS`
 
 Goal: the filesystem lives on real storage.
 
-- Block layer (`drivers/storage/`): request queue, partitioning basics.
-- **AHCI driver** (SATA, PCI-enumerated) before NVMe: simpler, QEMU-testable
-  (`-drive if=none,id=d0,file=...,format=raw -device ich9-ahci …`).
-- On-disk filesystem: a small native FS (preferred, spec it in
-  `docs/newfs.md`) or read-only ext2 as bootstrap — decide in an RFC issue.
-- `SYS_RENAME` exists for in-memory filesystems; persistent storage still
-  needs durable metadata and crash-safe transactions before package updates
-  can be considered atomic.
-- `mount/umount` for the disk FS next to tmpfs/devfs; `/var/lib/newpkg`
-  becomes persistent.
-- Acceptance: install `.new`, reboot, package still installed;
-  `make qemu-disk` runs the suite from disk.
+- **PARTIAL — acceptance met over ATA/FAT32 (2026-11-24).** The existing
+  IDE PIO driver (`drivers/block/ata.c`) and read-write FAT32
+  (`fs/fat32/fat32fs.c`, mounted at `/fat`) already provide real sector
+  I/O and durable files. `make qemu-disk` now formats its 64 MiB image
+  as FAT32, and `newpkg` stores its installed-package database at
+  `/fat/NEWPKG` when the disk is present (RAM `/var/lib/newpkg` otherwise),
+  using deterministic 8.3 file tokens so FAT32 short names survive a
+  reboot. `make test-persistence` installs `hello-new`, reboots QEMU with
+  the same disk, and proves the package is still installed — this is the
+  ROADMAP acceptance, verified.
+- Remaining for FULL v0.3:
+  - **AHCI driver** (SATA, PCI-enumerated) — `drivers/ahci/ahci.c` is
+    still a stub; QEMU boot currently uses `-drive if=ide`. Port to
+    `-device ich9-ahci` once AHCI exposes `block_dev_t` ports.
+  - A native journaled FS (`docs/newfs.md`) for crash-safe metadata and
+    durable rename (`SYS_RENAME` today only works on RAM filesystems).
+    FAT32 has no FSInfo/timestamps/rename and is a bootstrap, not the end
+    state.
+  - Real VFS mountpoints (`vfs_mount`/`vfs_umount`) — today a "mount" is
+    just a directory inode hung off `/`; `/fat` is not a cross-device
+    mountpoint but works for the acceptance above.
 
 ### v0.4 — Memory & processes ("grow up")
 

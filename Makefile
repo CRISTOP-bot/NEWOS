@@ -1150,7 +1150,8 @@ help:
 	@echo "  make vbox              boot the Limine ISO in VirtualBox (GUI)"
 	@echo "  make vbox-test         headless VirtualBox boot + serial check"
 	@echo "  make qemu-network      boot with user-mode networking"
-	@echo "  make qemu-disk         boot from a 64 MiB raw disk image"
+	@echo "  make qemu-disk         boot from a 64 MiB FAT32 disk image (persistent /fat)"
+	@echo "  make test-persistence  install a .new, reboot, verify it survived (v0.3)"
 	@echo "  make check-newpkg      package system tests (no QEMU needed)"
 	@echo "  make sdk               populate sysroot/ (headers, libc.a, crt0.o)"
 	@echo "  make sdk-examples      build and check sdk/examples with the host SDK"
@@ -1213,6 +1214,13 @@ fastfetch-port:
 # repo: regenerate the full Debian-like repository (all built .new packages)
 # from the build outputs. The result in repo/ can be served by any static
 # HTTP server; the on-board `newpkg` client can then `repo add` its URL.
+# test-persistence: v0.3 acceptance — install a .new, reboot with the same
+# FAT32 disk, verify the package is still installed.
+.PHONY: test-persistence
+test-persistence: $(KERNEL_BIN) check-newpkg
+	$(E) "Running v0.3 persistence test (reboot on FAT32) ..."
+	$(Q)bash scripts/test-persistence.sh $(KERNEL_BIN)
+
 .PHONY: repo
 repo: $(NEWPKG_SAMPLE_NEW)
 	$(Q)mkdir -p repo $(BUILD_DIR)/repo-stage
@@ -1519,8 +1527,12 @@ qemu-disk: $(DISK_IMG)
 
 $(DISK_IMG): all
 	$(Q)mkdir -p $(dir $@)
-	$(E) "Creating disk image ..."
+	$(E) "Creating FAT32 disk image (persistent /fat) ..."
 	$(Q)dd if=/dev/zero of=$(DISK_IMG) bs=1M count=64 2>/dev/null
+	$(Q)MKFS=$$(command -v mkfs.fat || command -v /sbin/mkfs.fat || \
+	  command -v mkfs.vfat || command -v /sbin/mkfs.vfat); \
+	  test -n "$$MKFS" || { echo "no mkfs.fat found" >&2; exit 1; }; \
+	  $$MKFS -F 32 -s 1 $(DISK_IMG) > /dev/null 2>&1
 
 clean:
 	$(Q)rm -rf $(BUILD_DIR)
