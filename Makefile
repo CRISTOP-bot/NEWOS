@@ -1525,7 +1525,10 @@ qemu-disk: $(DISK_IMG)
 	$(Q)$(QEMU) -drive file=$(DISK_IMG),format=raw,if=ide -serial stdio -no-reboot \
 	  -m 256M $(QEMU_DISPLAY)
 
-$(DISK_IMG): all
+# The disk image is a data blob: it needs no toolchain/kernel rebuild.
+# Depending on `all` here pulls in the cross-GCC build (which needs host
+# GMP/MPFR/MPC) and breaks `make qemu-disk` on machines without them.
+$(DISK_IMG): | dirs
 	$(Q)mkdir -p $(dir $@)
 	$(E) "Creating FAT32 disk image (persistent /fat) ..."
 	$(Q)dd if=/dev/zero of=$(DISK_IMG) bs=1M count=64 2>/dev/null
