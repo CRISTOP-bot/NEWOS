@@ -245,9 +245,10 @@ WALLPAPER_EMBED := $(BUILD_DIR)/obj/userland/wallpaper.bin.o
 
 # The /bin toolbox: one directory per command, each holding <name>_main.c
 # with a standard main(argc, argv). Installed into the root fs by initramfs.
-# Coreutils are provided by /bin/busybox (nsh falls back to `busybox <applet>`
-# when no native /bin/<name> exists). Keep only NEWOS-specific tools here.
-PROG_NAMES      := img vid newpkg frotz \
+# Most coreutils come from /bin/busybox (nsh falls back to `busybox <applet>`
+# when no native /bin/<name> exists). touch/rm stay native: OpenRC's init
+# scripts use them, and BusyBox's touch needs utimensat which NEWOS lacks.
+PROG_NAMES      := touch rm img vid newpkg frotz \
                     ping wget curl ifconfig nslookup wifi beep \
                     root sudo
 PROG_OBJS       := $(patsubst %,$(BUILD_DIR)/userland/%.o,$(PROG_NAMES))
@@ -479,7 +480,8 @@ OBJS            := $(OBJS_C) $(OBJS_ASM) $(HELLO_EMBED) $(INIT_EMBED) \
                    $(SAMPLE_NEW_EMBED) $(NSH_RC_EMBED) \
                    $(NANO_EMBED) $(BUSYBOX_EMBED) $(GLXGEARS_EMBED) \
                    $(TCC_EMBED) $(VOXEL_EMBED) $(Q2_EMBED) $(Q2_PAK_EMBED) $(SDK_PKG_EMBED) $(MINI_Z3_EMBED) \
-                   $(FASTFETCH_EMBED) $(NANORC_EMBED) $(DOOM_EMBED) $(DOOM_WAD_EMBED)
+                   $(FASTFETCH_EMBED) $(NANORC_EMBED) $(DOOM_EMBED) $(DOOM_WAD_EMBED) \
+                   $(BUILD_DIR)/obj/userland/desktop.bin.o
 
 INCLUDE         := -Iinclude -I. -Ilib/kernel -Iarch/$(ARCH)/include \
                    -I$(BUILD_DIR)
@@ -622,8 +624,12 @@ $(ORCF_EMBED): $(ORCF)
 	$(E) "  EMB openrc-rootfs.orcf"
 	$(Q)cd $(BUILD_DIR) && $(LD) -r -b binary -o obj/userland/openrc_rootfs_orcf.bin.o openrc-rootfs.orcf
 
-$(BUILD_DIR)/userland/desktop.o: $(DESKTOP_UI_HEADERS) \
-    user/programs/desktop/font8x8.h user/programs/desktop/desktop.h
+$(BUILD_DIR)/userland/desktop.o: $(DESKTOP_DIR)/desktop_main.c \
+    $(DESKTOP_UI_HEADERS) user/programs/desktop/font8x8.h \
+    user/programs/desktop/desktop.h
+	$(Q)mkdir -p $(dir $@)
+	$(E) "  UCC $< (desktop main)"
+	$(Q)$(CC) $(USER_CFLAGS) -o $@ $<
 
 $(BUILD_DIR)/userland/desktop_%.o: $(DESKTOP_DIR)/desktop_%.c \
     $(DESKTOP_DIR)/desktop.h $(DESKTOP_UI_HEADERS) \
