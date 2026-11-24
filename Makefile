@@ -109,6 +109,7 @@ ARCH_SRCS_C     := arch/$(ARCH)/boot/x86_boot.c arch/$(ARCH)/boot/x86_multiboot2
                    arch/$(ARCH)/cpu/x86_cpuid.c \
                    arch/$(ARCH)/cpu/x86_fpu.c \
                    arch/$(ARCH)/cpu/x86_vendor.c arch/$(ARCH)/cpu/x86_gdt.c \
+                   arch/$(ARCH)/cpu/x86_cpuinfo.c \
                    arch/$(ARCH)/interrupts/x86_idt.c \
                    arch/$(ARCH)/interrupts/x86_pic.c arch/$(ARCH)/interrupts/x86_irq.c \
                    arch/$(ARCH)/memory/x86_paging.c \
