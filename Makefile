@@ -248,7 +248,8 @@ WALLPAPER_EMBED := $(BUILD_DIR)/obj/userland/wallpaper.bin.o
 # Coreutils are provided by /bin/busybox (nsh falls back to `busybox <applet>`
 # when no native /bin/<name> exists). Keep only NEWOS-specific tools here.
 PROG_NAMES      := img vid newpkg frotz \
-                    ping wget curl ifconfig nslookup wifi beep
+                    ping wget curl ifconfig nslookup wifi beep \
+                    root sudo
 PROG_OBJS       := $(patsubst %,$(BUILD_DIR)/userland/%.o,$(PROG_NAMES))
 PROG_BINS       := $(patsubst %,$(BUILD_DIR)/userland/%.elf,$(PROG_NAMES))
 PROG_EMBEDS     := $(patsubst %,$(BUILD_DIR)/obj/userland/%.bin.o,$(PROG_NAMES))
