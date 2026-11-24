@@ -58,6 +58,7 @@ a hosted libc), while TCC already compiles and runs code on the machine. See
 | GNU coreutils | Static musl package installs under `/usr/bin` and runs through the Linux `syscall` entry (tested `echo`, `arch`, `true`); individual tools may still need missing Linux interfaces | Document per-tool limits; a real NEWOS libc port remains the long-term path |
 | TCC | Ported: `/bin/tcc` 0.9.27 (LGPL-2.1), `-c` + in-process `-run` | SDK package (headers/crt0/libc.a) for full links; keep license/source with `ports/tcc` |
 | GNU nano | Ported: `/bin/nano` 8.4 (GPL-3.0+), static ncursesw, kernel select/fsync/chmod support, fbcon colors and `/usr/etc/nanorc` syntax highlighting | Spell checker and external filters stay out until fork/exec exists |
+| fastfetch | Ported: `/bin/fastfetch` (upstream v2.72, MIT), static musl ET_EXEC through the Linux `syscall` entry, NEWOS ASCII logo; /proc and /sys modules report real data | Modules needing fork/exec, DRM/sockets or hwmon stay inactive; see `ports/fastfetch/README.md` |
 | AHCI and ext4 | NEWOS has AHCI and ext4 source trees, but storage is not a complete persistent user-facing system | Finish block-device/VFS integration and persistence before relying on disk-backed toolchains |
 | e1000, RTL8139, VirtIO and lwIP | NEWOS has a PCnet driver and loopback self-test, but no IP stack or socket ABI | Port concepts and tests selectively; implement the network stack before promising BoredOS-compatible networking |
 

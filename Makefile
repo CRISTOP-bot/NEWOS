@@ -281,6 +281,10 @@ NANO_BIN        := ports/nano/nano
 NANO_EMBED      := $(BUILD_DIR)/obj/userland/nano.bin.o
 TCC_BIN         := ports/tcc/tcc
 TCC_EMBED       := $(BUILD_DIR)/obj/userland/tcc.bin.o
+# Upstream fastfetch (MIT) built as a static Linux ET_EXEC through the
+# same compatibility path as busybox/nano/tcc. See scripts/build-fastfetch.sh.
+FASTFETCH_BIN   := ports/fastfetch/fastfetch
+FASTFETCH_EMBED := $(BUILD_DIR)/obj/userland/fastfetch.bin.o
 # VOXEL (MIT): software graphics stack + classic desktop. Built from the
 # vendored source with the host compiler against the NEWOS sysroot.
 VOXEL_DIR       := ports/voxel
@@ -473,7 +477,7 @@ OBJS            := $(OBJS_C) $(OBJS_ASM) $(HELLO_EMBED) $(INIT_EMBED) \
                    $(SAMPLE_NEW_EMBED) $(NSH_RC_EMBED) \
                    $(NANO_EMBED) $(BUSYBOX_EMBED) $(GLXGEARS_EMBED) \
                    $(TCC_EMBED) $(VOXEL_EMBED) $(Q2_EMBED) $(Q2_PAK_EMBED) $(SDK_PKG_EMBED) $(MINI_Z3_EMBED) \
-                   $(NANORC_EMBED) $(DOOM_EMBED) $(DOOM_WAD_EMBED)
+                   $(FASTFETCH_EMBED) $(NANORC_EMBED) $(DOOM_EMBED) $(DOOM_WAD_EMBED)
 
 INCLUDE         := -Iinclude -I. -Ilib/kernel -Iarch/$(ARCH)/include \
                    -I$(BUILD_DIR)
@@ -687,6 +691,13 @@ $(TCC_EMBED): $(TCC_BIN)
 	$(Q)cp $< $(BUILD_DIR)/tcc.elf
 	$(E) "  EMB tcc ($(notdir $(TCC_BIN)))"
 	$(Q)cd $(BUILD_DIR) && $(LD) -r -b binary -o obj/userland/tcc.bin.o tcc.elf
+
+# Upstream fastfetch: static Linux ET_EXEC embedded as /bin/fastfetch.
+$(FASTFETCH_EMBED): $(FASTFETCH_BIN)
+	$(Q)mkdir -p $(dir $@)
+	$(Q)cp $< $(BUILD_DIR)/fastfetch.elf
+	$(E) "  EMB fastfetch ($(notdir $(FASTFETCH_BIN)))"
+	$(Q)cd $(BUILD_DIR) && $(LD) -r -b binary -o obj/userland/fastfetch.bin.o fastfetch.elf
 
 # VOXEL is NEWOS-native source (no libc dependency of its own): compile it
 # against the sysroot and expose the demo as /bin/voxel.
@@ -1182,6 +1193,14 @@ check-newpkg: $(NEWPKG_SAMPLE_NEW) | dirs
 	  tools/newpkg/posix-shim.c
 	$(Q)NEWPKG_HOST_BIN=$(BUILD_DIR)/newpkg-host \
 	  python3 tools/newpkg/tests/test_newpkg.py
+
+# fastfetch-port: rebuild the checked-in upstream fastfetch binary for NEWOS
+# (static Linux ET_EXEC, runs through the Linux SYSCALL compatibility path).
+# The binary is committed so a normal image build stays offline.
+.PHONY: fastfetch-port
+fastfetch-port:
+	$(E) "Building upstream fastfetch (static) for NEWOS ..."
+	$(Q)bash scripts/build-fastfetch.sh $(FASTFETCH_BIN)
 
 # repo: regenerate the full Debian-like repository (all built .new packages)
 # from the build outputs. The result in repo/ can be served by any static
