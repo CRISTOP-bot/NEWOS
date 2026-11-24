@@ -291,6 +291,8 @@ VOXEL_EMBED     := $(BUILD_DIR)/obj/userland/voxel.bin.o
 # Quake 2 (GPL-2.0, id Software) native port with framebuffer+audio backends.
 Q2_BIN          := $(BUILD_DIR)/quake2.elf
 Q2_EMBED        := $(BUILD_DIR)/obj/userland/quake2.bin.o
+Q2_PAK_SRC      := ports/quake2-newos/baseq2/pak0.pak
+Q2_PAK_EMBED    := $(BUILD_DIR)/obj/userland/q2pak0.bin.o
 
 # newpkg carries a second translation unit: the portable `.new` format core
 # (shared with the host test driver). Linked explicitly with libc.a.
@@ -467,9 +469,9 @@ OBJS_ASM        := $(patsubst %.S,$(BUILD_DIR)/obj/%.o,$(ARCH_SRCS_ASM))
 OBJS            := $(OBJS_C) $(OBJS_ASM) $(HELLO_EMBED) $(INIT_EMBED) \
                    $(PROG_EMBEDS) $(RC_EMBEDS) $(ORCF_EMBED) \
                    $(SPLASH_EMBED) $(PPM_EMBED) $(WALLPAPER_EMBED) \
-                   $(SAMPLE_NEW_EMBED) $(NSH_RC_EMBED) $(GNU_PKG_EMBED) \
+                   $(SAMPLE_NEW_EMBED) $(NSH_RC_EMBED) \
                    $(NANO_EMBED) $(BUSYBOX_EMBED) $(GLXGEARS_EMBED) \
-                   $(TCC_EMBED) $(VOXEL_EMBED) $(Q2_EMBED) $(SDK_PKG_EMBED) $(MINI_Z3_EMBED) \
+                   $(TCC_EMBED) $(VOXEL_EMBED) $(Q2_EMBED) $(Q2_PAK_EMBED) $(SDK_PKG_EMBED) $(MINI_Z3_EMBED) \
                    $(NANORC_EMBED) $(DOOM_EMBED) $(DOOM_WAD_EMBED)
 
 INCLUDE         := -Iinclude -I. -Ilib/kernel -Iarch/$(ARCH)/include \
@@ -706,6 +708,14 @@ $(Q2_EMBED): $(Q2_BIN)
 	$(Q)mkdir -p $(dir $@)
 	$(E) "  EMB quake2"
 	$(Q)cd $(BUILD_DIR) && $(LD) -r -b binary -o obj/userland/quake2.bin.o quake2.elf
+
+# Quake 2 game data (pak0.pak): embedded as an opaque blob, installed at
+# /baseq2/pak0.pak so the engine's FS_InitFilesystem finds it.
+$(Q2_PAK_EMBED): $(Q2_PAK_SRC) | dirs
+	$(Q)mkdir -p $(dir $@)
+	$(Q)cp $(Q2_PAK_SRC) $(BUILD_DIR)/q2pak0.pak
+	$(E) "  EMB $(notdir $<)"
+	$(Q)cd $(BUILD_DIR) && $(LD) -r -b binary -o obj/userland/q2pak0.bin.o q2pak0.pak
 
 # --- newpkg: toolbox tool + portable format core -------------------------
 # newpkg_main.c comes from the data-driven rule above; the format core is
