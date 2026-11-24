@@ -245,9 +245,9 @@ WALLPAPER_EMBED := $(BUILD_DIR)/obj/userland/wallpaper.bin.o
 
 # The /bin toolbox: one directory per command, each holding <name>_main.c
 # with a standard main(argc, argv). Installed into the root fs by initramfs.
-PROG_NAMES      := ls cat echo mkdir rmdir rm mv touch pwd clear uname \
-                    hostname whoami id date uptime ps kill sleep free df \
-                    wc head grep find sort img vid about newfetch newpkg frotz \
+# Coreutils are provided by /bin/busybox (nsh falls back to `busybox <applet>`
+# when no native /bin/<name> exists). Keep only NEWOS-specific tools here.
+PROG_NAMES      := img vid newpkg frotz \
                     ping wget curl ifconfig nslookup wifi beep
 PROG_OBJS       := $(patsubst %,$(BUILD_DIR)/userland/%.o,$(PROG_NAMES))
 PROG_BINS       := $(patsubst %,$(BUILD_DIR)/userland/%.elf,$(PROG_NAMES))
